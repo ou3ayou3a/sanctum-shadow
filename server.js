@@ -23,7 +23,7 @@ app.post('/api/npc', async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
+        model: 'claude-opus-4-5',
         max_tokens: max_tokens || 600,
         system: system || '',
         messages,
