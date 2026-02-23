@@ -1,723 +1,649 @@
 // ============================================
-//   SANCTUM & SHADOW — DIALOGUE & ENCOUNTER ENGINE
-//   Full NPC dialogue, branching story, consequences
+//   SANCTUM & SHADOW — LIVE NPC ENGINE
+//   All NPC dialogue powered by Claude via server
 // ============================================
 
-// ─── NPC MEMORY ─────────────────────────────
-// Tracks what each NPC knows about the player
-window.npcMemory = window.npcMemory || {};
-
-function rememberNPC(npcId, event) {
-  if (!window.npcMemory[npcId]) window.npcMemory[npcId] = { events: [], disposition: 'neutral', met: false };
-  window.npcMemory[npcId].events.push(event);
-  window.npcMemory[npcId].met = true;
+// ─── API CALL VIA SERVER ─────────────────────
+async function callClaude(system, messages, maxTokens = 600) {
+  try {
+    const res = await fetch('/api/npc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system, messages, max_tokens: maxTokens }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.content?.map(b => b.text || '').join('').trim();
+  } catch (e) {
+    console.error('NPC API error:', e);
+    return null;
+  }
 }
 
-function getNPCDisposition(npcId) {
-  return window.npcMemory[npcId]?.disposition || 'neutral';
-}
-
-function setNPCDisposition(npcId, disposition) {
-  if (!window.npcMemory[npcId]) window.npcMemory[npcId] = { events: [], disposition: 'neutral', met: false };
-  window.npcMemory[npcId].disposition = disposition;
-}
-
-// ─── STORY STATE ─────────────────────────────
-window.storyFlags = window.storyFlags || {
-  // Chapter 1 flags
-  spoke_to_rhael: false,
-  rhael_hostile: false,
-  rhael_dead: false,
-  rhael_revealed_captain: false,
-  scribe_found: false,
-  scribe_gave_map: false,
-  archive_unlocked: false,
-  covenant_hall_visited: false,
-  guard_tied_to_tree: false,
-  guards_alerted: false,
-  // Chapter progress
-  chapter: 1,
-  chapter1_complete: false,
+// ─── NPC REGISTRY ────────────────────────────
+const NPC_REGISTRY = {
+  captain_rhael: {
+    id: 'captain_rhael',
+    name: 'Captain Rhael',
+    title: 'Captain of the Watch',
+    portrait: '🪖',
+    faction: 'city_watch',
+    personality: `You are Captain Rhael, 54, Captain of the Vaelthar City Watch.
+You are a heavyset, weathered soldier with a jaw like an anvil and eyes that have stopped trusting anyone since the Covenant shattered 3 days ago.
+You know the Church broke the Covenant — you saw the ashes in the signing hall. You suspect Elder Varek gave the order but you have no proof yet.
+You are gruff, direct, and deeply tired. You don't give information freely but you are not corrupt — just cautious.
+You secretly respect people who push back against you. Weakness disgusts you.
+You will NOT reveal Elder Varek's name unless heavily persuaded or the player has evidence.
+You keep looking toward the Archive because you know the Scribe is in danger but you can't protect him openly without tipping your hand.
+If the player attacks or threatens you, you WILL fight back and call your guards. You are a soldier first.
+SPEECH STYLE: Short, clipped sentences. Military habit. No speeches. Occasional dark humor.`,
+    disposition: 'neutral',
+  },
+  vaelthar_guard: {
+    id: 'vaelthar_guard',
+    name: 'City Guard',
+    title: 'Guard of the Watch',
+    portrait: '🛡',
+    faction: 'city_watch',
+    personality: `You are a young City Guard of Vaelthar named Fen, 22 years old, third month on the job.
+You are nervous and out of your depth since the Covenant crisis started. You follow orders but you are not cruel.
+You know almost nothing official — but you heard the other guards talking. You saw blood near the fountain two nights ago and were told to forget it.
+You are jumpy. You react badly to sudden movements or anyone who seems like they know more than you.
+You are terrified of Captain Rhael and do whatever he says without question.
+If someone is threatening or acts like an enemy, you WILL call for backup and draw your sword.
+SPEECH STYLE: Trying to sound authoritative but clearly nervous. You stumble over words. You ask questions you probably shouldn't.`,
+    disposition: 'neutral',
+  },
+  trembling_scribe: {
+    id: 'trembling_scribe',
+    name: 'The Trembling Scribe',
+    title: 'Archive Keeper — Witness',
+    portrait: '📜',
+    faction: 'church_neutral',
+    personality: `You are Aldis, Archive Keeper of Vaelthar. You are absolutely terrified.
+3 days ago you were instructed to copy a sealed order. It was signed by Elder Varek of the Eternal Flame, directing an agent codenamed "The Candle" to burn the Covenant treaty before it could be ratified — and to make it look like the Crown sabotaged it.
+Your assistant Torven found out what you'd copied and was killed two nights ago. You believe you are next.
+The Archive has been locked and you've been shut out. You've been standing outside for hours because you don't know where else to go.
+You WANT to tell someone but you don't trust guards (they report to Rhael) or anyone who looks Church-connected.
+You have the copied document hidden in the lining of your document roll.
+If someone is kind to you and clearly not Church or Watch, you will open up — slowly.
+If threatened physically, you will scream and try to run.
+SPEECH STYLE: Barely above a whisper. You ramble when nervous. You keep looking over your shoulder mid-sentence. You sometimes contradict yourself out of fear.`,
+    disposition: 'afraid',
+  },
+  sister_mourne: {
+    id: 'sister_mourne',
+    name: 'Sister Mourne',
+    title: 'Church of the Eternal Flame — "The Candle"',
+    portrait: '🕯',
+    faction: 'church',
+    personality: `You are Sister Mourne, Elder Varek's agent. You are "The Candle" — the one who burned the Covenant treaty.
+You are calm, precise, and intelligent. You have thought through every version of this conversation before it started.
+You burned the treaty because clause 4 would have handed the Church's financial independence to the Crown within two years, effectively making the Church a department of the state. You believed you were saving the institution.
+You are not sorry. You believe necessity required it. You feel guilt only about the violence that followed — particularly Torven's death, which was carried out by another of Varek's agents without your knowledge.
+You will NOT immediately reveal Elder Varek's location. You will reveal it only if the player convinces you that working with them is the better outcome, or if threatened credibly.
+If attacked, you will fight. You are far more capable than you appear — Varek's agents are trained.
+SPEECH STYLE: Measured, quiet, precise. You sometimes let a sentence hang unfinished because you've decided not to say the last part. You never raise your voice.`,
+    disposition: 'neutral',
+  },
+  bresker: {
+    id: 'bresker',
+    name: 'Bresker',
+    title: 'Your Companion',
+    portrait: '🗡',
+    faction: 'party',
+    personality: `You are Bresker, the player's companion and battle partner. You are a scarred mercenary in your late 30s.
+You are absolutely loyal to the player but you show it through dark sarcasm rather than sentiment.
+You distrust the Church deeply — a Church Inquisitor executed your younger brother on a fabricated heresy charge twelve years ago. You still carry the anger.
+You are observant and practical. You notice things others miss. You often have useful tactical suggestions.
+You are not afraid of violence but you prefer solutions that don't end with you bleeding unnecessarily.
+When the player asks your opinion, give it honestly — even if it's not what they want to hear.
+You have a specific phobia of being tied to trees. A witch did this to you once for three days and you do not find it funny when people mention it.
+SPEECH STYLE: Dry, direct, darkly funny. Short sentences. Occasional unexpected insight. You address the player by name or "friend" — never "my lord" or anything formal.`,
+    disposition: 'friendly',
+  },
 };
 
-// ─── ACTIVE DIALOGUE STATE ───────────────────
-window.dialogueState = {
+// ─── CONVERSATION STATE ───────────────────────
+window.npcConvState = {
   active: false,
-  npcId: null,
-  npcName: null,
-  history: [],   // { speaker, text }
-  rollRequired: null,
-  pendingAction: null,
+  npc: null,
+  history: [],
+  currentOptions: [],
 };
 
-// ─── MAIN DIALOGUE FUNCTION ───────────────────
-async function talkToNPC(npcIdOrName, initiatingAction = '') {
-  const char = gameState.character;
-  if (!char) return;
-
-  // Resolve NPC
-  const npc = resolveNPC(npcIdOrName);
+// ─── START CONVERSATION ───────────────────────
+async function startNPCConversation(npcIdOrName, playerOpener) {
+  const npc = resolveNPCFull(npcIdOrName);
   if (!npc) {
-    // Unknown NPC — still use AI but with generic context
-    await aiDialogue(npcIdOrName, initiatingAction);
+    await runFreeformNPCScene(npcIdOrName, playerOpener);
     return;
   }
 
-  window.dialogueState.active = true;
-  window.dialogueState.npcId = npc.id;
-  window.dialogueState.npcName = npc.name;
-  window.dialogueState.history = [];
+  window.npcConvState.active = true;
+  window.npcConvState.npc = npc;
+  window.npcConvState.history = [];
 
-  // Build context
-  const disposition = getNPCDisposition(npc.id);
-  const pastEvents = window.npcMemory[npc.id]?.events || [];
-  const hasMet = window.npcMemory[npc.id]?.met || false;
-
-  rememberNPC(npc.id, `Player approached and said: "${initiatingAction || 'approached'}"`);
-
-  showDialoguePanel(npc, disposition);
-  await generateNPCResponse(npc, initiatingAction, disposition, pastEvents, hasMet);
+  renderConvPanel(npc);
+  await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
 }
 
-// ─── RESOLVE NPC FROM NAME/ID ─────────────────
-function resolveNPC(nameOrId) {
-  const name = nameOrId.toLowerCase();
-  const npcs = {
-    'captain_rhael': { id: 'captain_rhael', name: 'Captain Rhael', title: 'Captain of the Watch', icon: '⚔', faction: 'city_guard', portrait: '🪖', desc: 'A heavyset man with a jaw like a anvil and eyes that have stopped trusting everything.' },
-    'rhael': { id: 'captain_rhael', name: 'Captain Rhael', title: 'Captain of the Watch', icon: '⚔', faction: 'city_guard', portrait: '🪖', desc: 'A heavyset man with a jaw like a anvil and eyes that have stopped trusting everything.' },
-    'guard': { id: 'vaelthar_guard', name: 'City Guard', title: 'Guard of the Watch', icon: '🛡', faction: 'city_guard', portrait: '🛡', desc: 'A nervous-looking soldier whose hand never leaves his sword hilt.' },
-    'guards': { id: 'vaelthar_guard', name: 'City Guard', title: 'Guard of the Watch', icon: '🛡', faction: 'city_guard', portrait: '🛡', desc: 'A nervous-looking soldier whose hand never leaves his sword hilt.' },
-    'city guard': { id: 'vaelthar_guard', name: 'City Guard', title: 'Guard of the Watch', icon: '🛡', faction: 'city_guard', portrait: '🛡', desc: 'A nervous-looking soldier whose hand never leaves his sword hilt.' },
-    'trembling scribe': { id: 'trembling_scribe', name: 'The Trembling Scribe', title: 'Archive Keeper', icon: '📜', faction: 'church', portrait: '📜', desc: 'A thin man with ink-stained fingers who cannot stop looking over his shoulder.' },
-    'scribe': { id: 'trembling_scribe', name: 'The Trembling Scribe', title: 'Archive Keeper', icon: '📜', faction: 'church', portrait: '📜', desc: 'A thin man with ink-stained fingers who cannot stop looking over his shoulder.' },
-    'sister mourne': { id: 'sister_mourne', name: 'Sister Mourne', title: 'Church of the Eternal Flame', icon: '🕯', faction: 'church', portrait: '🕯', desc: 'A serene woman whose calm is the kind that comes after screaming has stopped helping.' },
-    'mourne': { id: 'sister_mourne', name: 'Sister Mourne', title: 'Church of the Eternal Flame', icon: '🕯', faction: 'church', portrait: '🕯', desc: 'A serene woman whose calm is the kind that comes after screaming has stopped helping.' },
-    'bresker': { id: 'bresker', name: 'Bresker', title: 'Your Companion', icon: '🗡', faction: 'party', portrait: '🗡', desc: 'Your companion. Loyal, dangerous, and deeply unlucky around trees.' },
-  };
-
-  // Try direct match first
-  if (npcs[name]) return npcs[name];
-
-  // Try partial match
-  for (const [key, val] of Object.entries(npcs)) {
-    if (name.includes(key) || key.includes(name)) return val;
-  }
-
-  return null;
-}
-
-// ─── AI NPC RESPONSE ──────────────────────────
-async function generateNPCResponse(npc, playerAction, disposition, pastEvents, hasMet) {
+// ─── SEND MESSAGE ─────────────────────────────
+async function sendNPCMessage(playerText, isOpener = false) {
+  const { npc, history } = window.npcConvState;
   const char = gameState.character;
+  const cls = CLASSES.find(c => c.id === char?.class);
+  const race = RACES.find(r => r.id === char?.race);
   const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
-  const cls = CLASSES.find(c => c.id === char.class);
-  const race = RACES.find(r => r.id === char.race);
+  const storyFlags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
 
-  const pastContext = pastEvents.length > 0
-    ? `What this NPC remembers about the player:\n${pastEvents.slice(-5).map(e => '- ' + e).join('\n')}`
-    : 'They have never met before.';
-
-  const flagContext = Object.entries(window.storyFlags)
-    .filter(([k, v]) => v === true)
-    .map(([k]) => k.replace(/_/g, ' ')).join(', ') || 'none';
-
-  const prompt = `You are the DM of "Sanctum & Shadow", a dark epic fantasy RPG set in Vaelthar, a city in political crisis after the Covenant shattered 3 days ago.
-
-PLAYER: ${char.name}, ${race?.name} ${cls?.name} (Level ${char.level})
-Holy Points: ${char.holyPoints} | Hell Points: ${char.hellPoints} | HP: ${char.hp}/${char.maxHp}
-Location: ${loc?.name}
-
-NPC: ${npc.name} — ${npc.title}
-Description: ${npc.desc}
-Disposition toward player: ${disposition}
-Faction: ${npc.faction}
-${pastContext}
-
-Story flags active: ${flagContext}
-
-Player just said/did: "${playerAction}"
-
-You are narrating as the DM, voicing ${npc.name} directly. Write what ${npc.name} actually SAYS in dialogue — use quotes. 2-4 sentences max. Be in character — ${npc.name} has their own agenda, fears, and secrets. They react to what the player said based on their disposition and what they know.
-
-Then on a NEW LINE write exactly: OPTIONS: followed by 3-4 player response options the player can choose, each starting with a bullet •. Make options meaningful — one diplomatic, one aggressive, one clever, and if relevant one that involves the character's class abilities. 
-
-If the player's action requires a skill check (persuasion, intimidation, deception, stealth), indicate this with [ROLL:STAT:DC] after the option — e.g. [ROLL:CHA:12] for charisma DC12.
-
-Format:
-[NPC speech]
-
-OPTIONS:
-• [option 1]
-• [option 2] [ROLL:STR:14]
-• [option 3] [ROLL:CHA:10]
-• [option 4]`;
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 400,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    const data = await response.json();
-    const text = data.content?.map(i => i.text || '').join('').trim();
-    parseAndDisplayDialogue(npc, text);
-  } catch(e) {
-    displayFallbackDialogue(npc, disposition);
+  if (!isOpener) {
+    addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
   }
+
+  showTypingIndicator();
+
+  const systemPrompt = `${npc.personality}
+
+CURRENT CONTEXT:
+- You are speaking with ${char?.name}, a ${race?.name} ${cls?.name} (Level ${char?.level})
+- Location: ${loc?.name}
+- Story progress flags: ${storyFlags}
+- Your current disposition toward this player: ${npc.disposition}
+
+HOW TO RESPOND:
+1. Stay in character completely. You ARE ${npc.name}.
+2. Write your dialogue naturally. Use *asterisks* for brief physical actions/descriptions.
+3. React authentically to what the player says — if they're rude, react to rudeness. If threatening, react to threat.
+4. After your dialogue, write OPTIONS: on a new line, then 3-4 player choices starting with •
+5. Make options SPECIFIC and meaningful — no generic choices.
+6. If an option requires a skill check, add [ROLL:STAT:DC] — e.g. [ROLL:CHA:13]
+7. Include at least one option that could escalate to violence if dramatically appropriate.
+8. Always include an option to end or step back from the conversation.
+9. NEVER break character. NEVER acknowledge being an AI.`;
+
+  const userMsg = isOpener
+    ? `[The player ${playerText}]`
+    : playerText;
+
+  const messages = isOpener
+    ? [{ role: 'user', content: userMsg }]
+    : [...history, { role: 'user', content: userMsg }];
+
+  const response = await callClaude(systemPrompt, messages, 500);
+
+  hideTypingIndicator();
+
+  if (!response) {
+    displayNPCLine(npc,
+      `*${npc.name} regards you with guarded eyes but says nothing for a long moment.*`,
+      [{ text: 'Wait for them to speak', roll: null }, { text: 'End conversation', roll: null }]
+    );
+    return;
+  }
+
+  // Update history
+  history.push({ role: 'user', content: userMsg });
+  history.push({ role: 'assistant', content: response });
+
+  const { speech, options } = parseNPCResponse(response);
+  displayNPCLine(npc, speech, options);
+
+  const cleanSpeech = speech.replace(/\*[^*]+\*/g, '').trim();
+  addLog(`${npc.name}: "${cleanSpeech.substring(0, 120)}${cleanSpeech.length > 120 ? '...' : ''}"`, 'narrator');
+  if (window.showDMStrip) showDMStrip(`${npc.name}: "${cleanSpeech.substring(0, 100)}..."`, false);
 }
 
-// ─── PARSE AI RESPONSE INTO DIALOGUE UI ───────
-function parseAndDisplayDialogue(npc, rawText) {
-  const parts = rawText.split(/OPTIONS:/i);
-  const speech = parts[0].trim().replace(/^"|"$/g, '');
-  const optionsRaw = parts[1] || '';
-
-  const options = optionsRaw.split('\n')
-    .filter(l => l.trim().startsWith('•'))
-    .map(l => {
-      const rollMatch = l.match(/\[ROLL:(\w+):(\d+)\]/);
-      const text = l.replace(/^•\s*/, '').replace(/\[ROLL:[^\]]+\]/, '').trim();
-      return {
-        text,
-        roll: rollMatch ? { stat: rollMatch[1], dc: parseInt(rollMatch[2]) } : null
-      };
-    });
-
-  // Add to dialogue history
-  window.dialogueState.history.push({ speaker: npc.name, text: speech });
-
-  // Update the dialogue panel
-  updateDialoguePanel(npc, speech, options);
-}
-
-// ─── PLAYER CHOOSES A DIALOGUE OPTION ─────────
-async function chooseDialogueOption(optionIndex) {
-  const option = window.dialogueState.currentOptions?.[optionIndex];
+// ─── PLAYER PICKS OPTION ──────────────────────
+async function pickNPCOption(index) {
+  const option = window.npcConvState.currentOptions?.[index];
   if (!option) return;
-
   const char = gameState.character;
-  const npc = resolveNPC(window.dialogueState.npcId);
 
-  // Log player's choice
-  window.dialogueState.history.push({ speaker: char.name, text: option.text });
-  addLog(`${char.name}: "${option.text}"`, 'action', char.name);
+  if (!option.text) return;
 
-  // If it requires a roll, do the roll first
+  const lower = option.text.toLowerCase();
+
+  // End conversation
+  if (lower.includes('end conversation') || lower.includes('walk away') || lower.includes('leave') || lower.includes('step back')) {
+    addLog(`${char?.name} ends the conversation.`, 'system');
+    closeConvPanel();
+    return;
+  }
+
+  // Roll required
   if (option.roll) {
     const stat = option.roll.stat.toLowerCase();
     const dc = option.roll.dc;
-    const statVal = char.stats?.[stat] || 10;
+    const statVal = char?.stats?.[stat] || 10;
     const mod = Math.floor((statVal - 10) / 2);
     const roll = Math.floor(Math.random() * 20) + 1;
     const total = roll + mod;
-    const success = total >= dc;
+    const success = total >= dc || roll === 20;
+    const crit = roll === 20;
+    const fumble = roll === 1;
 
-    addLog(`🎲 ${option.roll.stat} check (DC ${dc}): rolled [${roll}] + ${mod} modifier = ${total} — ${success ? 'SUCCESS!' : 'FAILURE!'}`, 'dice');
+    addLog(`🎲 ${option.roll.stat} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
 
-    // Handle consequences of roll
-    await handleDialogueRollResult(npc, option, roll, total, success, dc);
+    const resultMsg = `${option.text} [Roll result: ${success ? 'SUCCESS' : 'FAILURE'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
+    await sendNPCMessage(resultMsg);
     return;
   }
 
-  // No roll needed — direct consequence
-  await handleDialogueChoice(npc, option);
-}
+  // Hostile action
+  const isAttack = ['attack', 'stab', 'punch', 'kill', 'draw sword', 'draw weapon', 'strike'].some(w => lower.includes(w));
+  const isGrapple = ['tie', 'grab', 'grapple', 'restrain', 'shove', 'tackle'].some(w => lower.includes(w));
 
-// ─── HANDLE A ROLL RESULT IN DIALOGUE ─────────
-async function handleDialogueRollResult(npc, option, roll, total, success, dc) {
-  const char = gameState.character;
-  const actionLower = option.text.toLowerCase();
+  if (isAttack) {
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const strMod = Math.floor(((char?.stats?.str || 10) - 10) / 2);
+    const total = roll + strMod;
+    const success = total >= 12 || roll === 20;
+    addLog(`🎲 Attack DC12: [${roll}] + ${strMod} = ${total} — ${success ? '✅ Hit!' : '❌ Miss!'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice();
 
-  // HOSTILE ACTIONS — tie/attack/threaten guard
-  const isHostile = ['tie', 'attack', 'grab', 'threaten', 'knock out', 'strangle', 'stab', 'disarm', 'shove'].some(w => actionLower.includes(w));
-
-  if (isHostile) {
     if (success) {
-      addLog(`✅ You succeed!`, 'holy');
-      rememberNPC(npc.id, `Player successfully ${option.text.toLowerCase()} — HOSTILE ACTION`);
-      setNPCDisposition(npc.id, 'defeated');
-
-      // Alert guards if it's a public hostile act
-      if (npc.faction === 'city_guard') {
-        window.storyFlags.guards_alerted = true;
-        if (actionLower.includes('tie')) window.storyFlags.guard_tied_to_tree = true;
-
-        await narrateConsequence(npc, option.text, true,
-          `${char.name} overpowers the guard and ties them up — but it's the middle of Vaelthar. Someone saw. Other guards heard the scuffle.`
-        );
-
-        // Trigger escalation encounter
-        setTimeout(() => {
-          addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-          addLog(`⚠ THREE MORE GUARDS round the corner, swords drawn. "SEIZE THEM!" Captain Rhael's voice echoes from the gate.`, 'combat');
-          addLog(`The city has turned hostile. You can fight, flee, or surrender.`, 'system');
-          closeDialoguePanel();
-
-          // Start combat with 3 guards
-          startCombat([
-            { name: 'City Guard', hp: 35, ac: 13, atk: 4, icon: '🛡', id: 'guard_1' },
-            { name: 'City Guard', hp: 35, ac: 13, atk: 4, icon: '🛡', id: 'guard_2' },
-            { name: 'Veteran Guard', hp: 55, ac: 15, atk: 6, icon: '🪖', id: 'guard_3' },
-          ]);
-        }, 2000);
-        return;
-      }
-
-    } else {
-      addLog(`❌ You fail!`, 'dark');
-      rememberNPC(npc.id, `Player tried to ${option.text.toLowerCase()} and FAILED — they turned hostile`);
-      setNPCDisposition(npc.id, 'hostile');
-
-      await narrateConsequence(npc, option.text, false,
-        `The attempt fails. ${npc.name} reacts with immediate hostility.`
-      );
-
-      // NPC fights back
-      setTimeout(() => {
-        addLog(`⚔ ${npc.name} draws their weapon! "GUARDS! GUARDS! INTRUDER!"`, 'combat');
-        closeDialoguePanel();
-        startCombat([
-          { name: npc.name, hp: 45, ac: 13, atk: 5, icon: npc.portrait, id: npc.id },
-        ]);
-      }, 1500);
+      const npc = window.npcConvState.npc;
+      addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
+      closeConvPanel();
+      startCombat([{ name: npc.name, hp: 55, ac: 13, atk: 5, icon: npc.portrait, id: npc.id }]);
       return;
     }
-  }
-
-  // PERSUASION / INFORMATION gathering
-  if (success) {
-    rememberNPC(npc.id, `Player successfully persuaded: "${option.text}"`);
-    if (roll === 20) setNPCDisposition(npc.id, 'friendly');
-    await continueDialogueAfterRoll(npc, option, true, roll, total, dc);
-  } else {
-    rememberNPC(npc.id, `Player failed persuasion: "${option.text}" — NPC became suspicious`);
-    if (total < dc - 5) setNPCDisposition(npc.id, 'suspicious');
-    await continueDialogueAfterRoll(npc, option, false, roll, total, dc);
-  }
-}
-
-// ─── CONTINUE DIALOGUE AFTER ROLL ────────────
-async function continueDialogueAfterRoll(npc, option, success, roll, total, dc) {
-  const char = gameState.character;
-  const disposition = getNPCDisposition(npc.id);
-  const pastEvents = window.npcMemory[npc.id]?.events || [];
-
-  const prompt = `You are the DM of "Sanctum & Shadow". 
-
-NPC: ${npc.name} (${npc.title}) — disposition: ${disposition}
-Player tried: "${option.text}"
-Roll result: ${roll} total ${total} vs DC ${dc} — ${success ? 'SUCCESS' : 'FAILURE'}
-NPC history with player: ${pastEvents.slice(-3).join('; ')}
-
-${success 
-  ? `The player SUCCEEDED. ${npc.name} responds positively or reveals something useful. Move the story forward — give real information, a quest hint, or open a new possibility.`
-  : `The player FAILED. ${npc.name} reacts with suspicion, dismissal, or mild hostility. They withhold information or make things harder.`
-}
-
-Write what ${npc.name} says (2-3 sentences in quotes). Be specific to the Vaelthar political crisis and Covenant shattering. Make it feel like real dialogue.
-
-Then on a NEW LINE: OPTIONS:
-• [3 new follow-up player options, based on what was just revealed]
-
-If an option needs a roll: [ROLL:STAT:DC]`;
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 350,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    const data = await response.json();
-    const text = data.content?.map(i => i.text || '').join('').trim();
-    parseAndDisplayDialogue(npc, text);
-
-    // Update story flags based on success
-    if (success) updateStoryFlags(npc, option.text);
-
-  } catch(e) {
-    const fallback = success
-      ? `"${npc.name} nods slowly, seeming convinced. They glance around before leaning in. 'There are things about that night I'm not supposed to say...'"` 
-      : `"${npc.name} eyes you with suspicion. 'I don't see how that's your business, stranger.'"`;
-    parseAndDisplayDialogue(npc, fallback + '\n\nOPTIONS:\n• Press for more information [ROLL:CHA:12]\n• Back off and observe\n• Leave the conversation');
-  }
-}
-
-// ─── UPDATE STORY FLAGS FROM DIALOGUE ─────────
-function updateStoryFlags(npc, playerAction) {
-  const action = playerAction.toLowerCase();
-  if (npc.id === 'captain_rhael') {
-    window.storyFlags.spoke_to_rhael = true;
-    if (action.includes('covenant') || action.includes('treaty')) {
-      window.storyFlags.rhael_revealed_captain = true;
-      addLog(`📜 QUEST UPDATE: Captain Rhael knows something about the Covenant. Follow up.`, 'holy');
-    }
-  }
-  if (npc.id === 'trembling_scribe') {
-    window.storyFlags.scribe_found = true;
-    if (action.includes('map') || action.includes('archive') || action.includes('document')) {
-      window.storyFlags.scribe_gave_map = true;
-      window.storyFlags.archive_unlocked = true;
-      addLog(`📜 QUEST UPDATE: The Archive is now accessible. The Scribe gave you a key.`, 'holy');
-    }
-  }
-  saveGame(true);
-}
-
-// ─── DIRECT CHOICE (NO ROLL) ─────────────────
-async function handleDialogueChoice(npc, option) {
-  // Leave conversation
-  if (option.text.toLowerCase().includes('leave') || option.text.toLowerCase().includes('walk away') || option.text.toLowerCase().includes('end')) {
-    addLog(`You end the conversation with ${npc.name}.`, 'system');
-    closeDialoguePanel();
+    await sendNPCMessage(`${option.text} [FAILED — rolled ${total} vs DC12, the attack misses]`);
     return;
   }
-  // Continue with AI
-  await continueDialogueAfterRoll(npc, option, true, 15, 15, 10);
-}
 
-// ─── NARRATE CONSEQUENCE ──────────────────────
-async function narrateConsequence(npc, action, success, fallbackText) {
-  try {
-    const char = gameState.character;
-    const prompt = `DM narration for "Sanctum & Shadow": ${char.name} just ${success ? 'successfully' : 'failed to'} "${action}" with ${npc.name}. Write 2 sentences of vivid consequence narration. Describe exactly what happens. Be specific.`;
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 150,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    const data = await response.json();
-    const text = data.content?.map(i => i.text || '').join('').trim();
-    addLog('📖 ' + (text || fallbackText), 'narrator');
-    showDMStrip(text || fallbackText, true);
-  } catch(e) {
-    addLog('📖 ' + fallbackText, 'narrator');
+  if (isGrapple) {
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const strMod = Math.floor(((char?.stats?.str || 10) - 10) / 2);
+    const total = roll + strMod;
+    const success = total >= 14 || roll === 20;
+    addLog(`🎲 STR (Grapple) DC14: [${roll}] + ${strMod} = ${total} — ${success ? '✅ Grabbed!' : '❌ Failed!'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice();
+    await sendNPCMessage(`${option.text} [${success ? 'SUCCEEDED' : 'FAILED'} — rolled ${total} vs DC14]`);
+    return;
   }
+
+  // Normal option
+  await sendNPCMessage(option.text);
 }
 
-// ─── FALLBACK DIALOGUE ────────────────────────
-function displayFallbackDialogue(npc, disposition) {
-  const lines = {
-    neutral: `"${npc.name} regards you with measured caution. 'State your business, stranger. We're all on edge since the Covenant fell.'"`,
-    hostile: `"${npc.name} keeps one hand on their weapon. 'You've got nerve approaching me. Make it quick.'"`,
-    friendly: `"${npc.name} greets you with a nod. 'Good timing. I was hoping to see you.'"`,
-    suspicious: `"${npc.name} squints at you. 'I remember you. Last time you were here things got complicated.'"`,
+// ─── FREE-FORM INPUT ─────────────────────────
+async function submitConvInput() {
+  const input = document.getElementById('conv-input');
+  const text = (input?.value || '').trim();
+  if (!text || !window.npcConvState.active) return;
+  input.value = '';
+  await sendNPCMessage(text);
+}
+
+// ─── FREEFORM SCENE (unknown NPC) ────────────
+async function runFreeformNPCScene(npcName, action) {
+  const char = gameState.character;
+  const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
+  const cls = CLASSES.find(c => c.id === char?.class);
+  const race = RACES.find(r => r.id === char?.race);
+
+  const systemPrompt = `You are DMing "Sanctum & Shadow", a dark fantasy RPG set in Vaelthar during a political crisis after the Covenant treaty was destroyed.
+You are voicing ${npcName}, a citizen/NPC in ${loc?.name}.
+The player is ${char?.name}, a ${race?.name} ${cls?.name}.
+React authentically to their action. Be specific to this setting and this crisis.
+Write NPC dialogue, then OPTIONS: with 3-4 player choices. Some options can have [ROLL:STAT:DC].`;
+
+  const genericNPC = { id: 'generic_' + npcName.replace(/\s/g, '_'), name: npcName, title: 'Citizen of Vaelthar', portrait: '👤', faction: 'unknown', disposition: 'neutral' };
+
+  window.npcConvState.active = true;
+  window.npcConvState.npc = genericNPC;
+  window.npcConvState.history = [];
+
+  renderConvPanel(genericNPC);
+  showTypingIndicator();
+
+  const text = await callClaude(systemPrompt, [{ role: 'user', content: `Player: "${action}"` }], 400);
+  hideTypingIndicator();
+
+  if (!text) {
+    displayNPCLine(genericNPC, `*${npcName} looks at you blankly.*`, [{ text: 'End conversation', roll: null }]);
+    return;
+  }
+
+  window.npcConvState.history.push({ role: 'user', content: `Player: "${action}"` });
+  window.npcConvState.history.push({ role: 'assistant', content: text });
+
+  const { speech, options } = parseNPCResponse(text);
+  displayNPCLine(genericNPC, speech, options);
+  addLog(`${npcName}: "${speech.replace(/\*[^*]+\*/g, '').trim().substring(0, 100)}"`, 'narrator');
+}
+
+// ─── PARSE RESPONSE ───────────────────────────
+function parseNPCResponse(raw) {
+  const parts = raw.split(/OPTIONS:/i);
+  const speech = parts[0].trim();
+  const optionsRaw = parts[1] || '';
+
+  const options = optionsRaw.split('\n')
+    .filter(l => l.trim().match(/^[•\-\*]\s/))
+    .map(l => {
+      const rollMatch = l.match(/\[ROLL:(\w+):(\d+)\]/i);
+      const text = l.replace(/^[•\-\*]\s*/, '').replace(/\[ROLL:[^\]]+\]/i, '').trim();
+      return { text, roll: rollMatch ? { stat: rollMatch[1].toUpperCase(), dc: parseInt(rollMatch[2]) } : null };
+    })
+    .filter(o => o.text.length > 0)
+    .slice(0, 5);
+
+  if (options.length === 0) {
+    options.push(
+      { text: 'Ask more questions', roll: null },
+      { text: 'Press harder for information', roll: { stat: 'CHA', dc: 11 } },
+      { text: 'End conversation', roll: null }
+    );
+  }
+
+  return { speech, options };
+}
+
+// ─── RESOLVE NPC ──────────────────────────────
+function resolveNPCFull(nameOrId) {
+  const n = (nameOrId || '').toLowerCase().trim()
+    .replace(/^the\s+/, '')
+    .replace(/\s+/g, ' ');
+
+  const aliases = {
+    'rhael': 'captain_rhael', 'captain rhael': 'captain_rhael',
+    'captain': 'captain_rhael', 'watch captain': 'captain_rhael',
+    'guard': 'vaelthar_guard', 'guards': 'vaelthar_guard',
+    'city guard': 'vaelthar_guard', 'soldier': 'vaelthar_guard',
+    'fen': 'vaelthar_guard',
+    'scribe': 'trembling_scribe', 'trembling scribe': 'trembling_scribe',
+    'aldis': 'trembling_scribe', 'archive keeper': 'trembling_scribe',
+    'mourne': 'sister_mourne', 'sister mourne': 'sister_mourne',
+    'sister': 'sister_mourne', 'the candle': 'sister_mourne',
+    'bresker': 'bresker',
   };
-  const speech = (lines[disposition] || lines.neutral).replace(/^"|"$/g, '');
-  parseAndDisplayDialogue(npc, speech + '\n\nOPTIONS:\n• Ask about the Covenant breaking [ROLL:CHA:10]\n• Ask about Captain Rhael\n• Ask what they know about the Archive\n• Leave the conversation');
+
+  const id = aliases[n] || n.replace(/\s+/g, '_');
+  return NPC_REGISTRY[id] || null;
 }
 
-// ─── DIALOGUE PANEL UI ───────────────────────
-function showDialoguePanel(npc, disposition) {
-  let panel = document.getElementById('dialogue-panel');
-  if (!panel) {
-    panel = document.createElement('div');
-    panel.id = 'dialogue-panel';
-    document.body.appendChild(panel);
-  }
-  panel.className = 'dialogue-panel';
-  panel.style.display = 'flex';
+// ─── UI FUNCTIONS ─────────────────────────────
+function renderConvPanel(npc) {
+  document.getElementById('conv-panel')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'conv-panel';
+  panel.className = 'conv-panel';
   panel.innerHTML = `
-    <div class="dp-inner">
-      <div class="dp-npc-header">
-        <span class="dp-portrait">${npc.portrait}</span>
-        <div class="dp-npc-info">
-          <span class="dp-npc-name">${npc.name}</span>
-          <span class="dp-npc-title">${npc.title}</span>
-          <span class="dp-disposition dp-${disposition}">${dispositionLabel(disposition)}</span>
+    <div class="cp-inner">
+      <div class="cp-header">
+        <span class="cp-portrait">${npc.portrait}</span>
+        <div class="cp-info">
+          <span class="cp-name">${npc.name}</span>
+          <span class="cp-title">${npc.title}</span>
+          <span class="cp-faction">${factionLabel(npc.faction)}</span>
         </div>
-        <button class="dp-close" onclick="closeDialoguePanel()">✕</button>
+        <span class="cp-disp" id="cp-disp">${dispositionIcon(npc.disposition)}</span>
+        <button class="cp-close" onclick="closeConvPanel()">✕ End</button>
       </div>
-      <div class="dp-history" id="dp-history"></div>
-      <div class="dp-speech-bubble" id="dp-speech">
-        <div class="dp-typing">...</div>
+      <div class="cp-transcript" id="cp-transcript"></div>
+      <div class="cp-speech" id="cp-speech">
+        <div class="cp-typing" id="cp-typing"><span></span><span></span><span></span></div>
+        <div class="cp-npc-line" id="cp-npc-line"></div>
       </div>
-      <div class="dp-options" id="dp-options"></div>
+      <div class="cp-options" id="cp-options"></div>
+      <div class="cp-freeform">
+        <input id="conv-input" class="cp-input" type="text"
+          placeholder="Or type anything freely — say anything, do anything..."
+          onkeydown="if(event.key==='Enter') submitConvInput()">
+        <button class="cp-send" onclick="submitConvInput()">→</button>
+      </div>
     </div>
   `;
+  document.body.appendChild(panel);
+  requestAnimationFrame(() => panel.style.opacity = '1');
 }
 
-function updateDialoguePanel(npc, speech, options) {
-  window.dialogueState.currentOptions = options;
+function displayNPCLine(npc, speech, options) {
+  window.npcConvState.currentOptions = options;
 
-  // Add to history
-  const histEl = document.getElementById('dp-history');
-  if (histEl && window.dialogueState.history.length > 1) {
-    const prev = window.dialogueState.history[window.dialogueState.history.length - 2];
-    const div = document.createElement('div');
-    div.className = `dp-hist-line ${prev.speaker === npc.name ? 'npc' : 'player'}`;
-    div.textContent = `${prev.speaker}: "${prev.text}"`;
-    histEl.appendChild(div);
-    histEl.scrollTop = histEl.scrollHeight;
+  const transcript = document.getElementById('cp-transcript');
+  const lineEl = document.getElementById('cp-npc-line');
+  if (!lineEl) return;
+
+  // Archive previous line to transcript
+  if (lineEl.textContent.trim()) {
+    const entry = document.createElement('div');
+    entry.className = 'cp-transcript-entry';
+    entry.textContent = lineEl.textContent;
+    transcript?.appendChild(entry);
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
   }
 
-  // Typewrite the speech
-  const speechEl = document.getElementById('dp-speech');
-  if (speechEl) {
-    speechEl.innerHTML = '<span id="dp-speech-text"></span>';
-    let i = 0;
-    const fullText = speech;
-    const interval = setInterval(() => {
-      if (i < fullText.length) {
-        document.getElementById('dp-speech-text').textContent += fullText[i];
-        i++;
-      } else {
-        clearInterval(interval);
-        renderDialogueOptions(options);
-      }
-    }, 18);
-  }
+  // Clear options while typing
+  const optEl = document.getElementById('cp-options');
+  if (optEl) optEl.innerHTML = '';
+  lineEl.innerHTML = '';
+
+  // Typewrite
+  const plainText = speech.replace(/\*[^*]+\*/g, match => match); // keep for later
+  const chars = speech.split('');
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < chars.length) { lineEl.textContent += chars[i]; i++; }
+    else {
+      clearInterval(interval);
+      lineEl.innerHTML = speech.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+      renderConvOptions(options);
+    }
+  }, 14);
 }
 
-function renderDialogueOptions(options) {
-  const el = document.getElementById('dp-options');
+function renderConvOptions(options) {
+  const el = document.getElementById('cp-options');
   if (!el) return;
   el.innerHTML = options.map((opt, i) => `
-    <button class="dp-option ${opt.roll ? 'has-roll' : ''}" onclick="chooseDialogueOption(${i})">
-      <span class="dp-opt-text">${opt.text}</span>
-      ${opt.roll ? `<span class="dp-opt-roll">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
+    <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}"
+      onclick="pickNPCOption(${i})">
+      <span>${opt.text}</span>
+      ${opt.roll ? `<span class="cp-roll-badge">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
     </button>
   `).join('');
 }
 
-function closeDialoguePanel() {
-  const panel = document.getElementById('dialogue-panel');
-  if (panel) panel.style.display = 'none';
-  window.dialogueState.active = false;
+function isHostileText(t) {
+  return ['attack', 'stab', 'punch', 'kill', 'draw', 'tie', 'grab', 'threaten', 'strike'].some(w => t.toLowerCase().includes(w));
 }
 
-function dispositionLabel(d) {
-  return { neutral: '😐 Neutral', friendly: '😊 Friendly', hostile: '😠 Hostile', suspicious: '🤨 Suspicious', defeated: '😵 Defeated', afraid: '😨 Afraid' }[d] || '😐 Neutral';
+function showTypingIndicator() {
+  const el = document.getElementById('cp-typing');
+  if (el) el.style.display = 'flex';
+  const optEl = document.getElementById('cp-options');
+  if (optEl) optEl.innerHTML = '<div class="cp-thinking">Thinking...</div>';
 }
 
-// ─── INTERCEPT FREE-TEXT ACTIONS ──────────────
-// Detect "talk to X" patterns and route to dialogue engine
-// This runs LAST so it's the final submitAction wrapper
-function installDialogueHook() {
-  const _prevSubmit = window.submitAction;
-  window.submitAction = function() {
+function hideTypingIndicator() {
+  const el = document.getElementById('cp-typing');
+  if (el) el.style.display = 'none';
+}
+
+function closeConvPanel() {
+  const p = document.getElementById('conv-panel');
+  if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
+  window.npcConvState.active = false;
+  window.npcConvState.npc = null;
+  window.npcConvState.history = [];
+}
+
+function factionLabel(f) {
+  const map = {
+    city_watch: '🛡 City Watch', church: '✝ Church of Eternal Flame',
+    church_neutral: '📜 Archive — Church Neutral', party: '⚔ Your Companion', unknown: '❓ Unknown'
+  };
+  return map[f] || f;
+}
+
+function dispositionIcon(d) {
+  return { neutral:'😐', friendly:'🟢', hostile:'🔴', afraid:'😨', suspicious:'🟡', defeated:'⚫', calculating:'🔵' }[d] || '😐';
+}
+
+// ─── submitAction HOOK ────────────────────────
+function installNPCHook() {
+  const _prev = window.submitAction;
+  window.submitAction = function () {
     const input = document.getElementById('action-input');
     const text = (input?.value || '').trim();
-    const lower = text.toLowerCase();
-
     if (!text) return;
-
-    // Play SFX
+    const lower = text.toLowerCase();
     if (window.AudioEngine) AudioEngine.sfx?.page();
 
-    // Detect talk patterns
-    const talkPatterns = [
-      /^(?:talk|speak)(?:\s+to)?\s+(?:the\s+)?(.+)/i,
+    // Mid-conversation: everything goes to the NPC
+    if (window.npcConvState?.active) {
+      input.value = '';
+      sendNPCMessage(text);
+      return;
+    }
+
+    // Talk patterns
+    const talkRe = [
+      /^(?:talk|speak|chat)(?:\s+(?:to|with))?\s+(?:the\s+)?(.+)/i,
       /^approach\s+(?:the\s+)?(.+)/i,
-      /^ask\s+(?:the\s+)?(.+?)\s+(?:about|if|whether|why|how)/i,
+      /^(?:ask|question|interrogate)\s+(?:the\s+)?(.+?)(?:\s+about.*)?$/i,
       /^greet\s+(?:the\s+)?(.+)/i,
-      /^interrogate\s+(?:the\s+)?(.+)/i,
-      /^question\s+(?:the\s+)?(.+)/i,
+      /^(?:go\s+(?:to\s+)?)?(?:find|see)\s+(?:the\s+)?(.+?)(?:\s+and.*)?$/i,
     ];
 
-    for (const pattern of talkPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        const npcName = match[1].trim();
-        const npc = resolveNPC(npcName);
-        if (npc) {
+    for (const re of talkRe) {
+      const m = text.match(re);
+      if (m) {
+        const name = m[1].trim();
+        if (name.length > 1) {
           input.value = '';
-          addLog(text, 'action', gameState.character?.name);
-          talkToNPC(npcName, text);
+          addLog(`${gameState.character?.name}: "${text}"`, 'action', gameState.character?.name);
+          startNPCConversation(name, text);
           return;
         }
       }
     }
 
-    // Detect hostile actions during active dialogue
-    if (window.dialogueState?.active) {
-      const hostileWords = ['tie', 'attack', 'grab', 'stab', 'punch', 'shove', 'threaten', 'knock out', 'disarm', 'strangle'];
-      const isHostile = hostileWords.some(h => lower.includes(h));
-      if (isHostile) {
-        const npc = resolveNPC(window.dialogueState.npcId);
-        if (npc) {
-          input.value = '';
-          addLog(text, 'action', gameState.character?.name);
-          const dc = lower.includes('tie') || lower.includes('grab') ? 14 : 12;
-          const option = { text, roll: { stat: 'STR', dc } };
-          window.dialogueState.currentOptions = [option];
-          chooseDialogueOption(0);
-          return;
-        }
-      }
-    }
-
-    // Fall through to previous handler (game.js submitAction)
-    if (_prevSubmit) _prevSubmit();
+    if (_prev) _prev();
   };
 }
 
-// Install the hook after all other scripts have loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', installDialogueHook);
-} else {
-  // Already loaded — install immediately then re-install after a tick to be safe
-  installDialogueHook();
-  setTimeout(installDialogueHook, 100);
-}
+// Reinstall after initGameScreen (which may also patch submitAction)
+const _origInitNPC = window.initGameScreen;
+window.initGameScreen = function () {
+  if (_origInitNPC) _origInitNPC();
+  setTimeout(installNPCHook, 400);
+};
+installNPCHook();
 
-// ─── AI FREE-TEXT DIALOGUE ───────────────────
-async function aiDialogue(npcName, action) {
-  const char = gameState.character;
-  const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 350,
-        messages: [{ role: "user", content: `You are the DM of "Sanctum & Shadow". ${char.name} (${RACES.find(r=>r.id===char.race)?.name} ${CLASSES.find(c=>c.id===char.class)?.name}) is in ${loc?.name} and "${action}". 
-
-Narrate what happens and give 3 player options. Format:
-[What happens/NPC says in 2-3 sentences]
-
-OPTIONS:
-• [option 1]
-• [option 2] [ROLL:CHA:11]  
-• [option 3]` }]
-      })
-    });
-    const data = await response.json();
-    const text = data.content?.map(i => i.text || '').join('').trim();
-
-    // Show as a generic NPC
-    const genericNPC = { id: 'generic_npc', name: npcName, title: 'Unknown', portrait: '👤', faction: 'unknown', desc: '' };
-    showDialoguePanel(genericNPC, 'neutral');
-    parseAndDisplayDialogue(genericNPC, text);
-    addLog('📖 ' + text.split('\n')[0], 'narrator');
-  } catch(e) {
-    addLog(`You approach ${npcName}. They seem uncertain how to react to you.`, 'narrator');
-  }
-}
-
-// ─── DIALOGUE CSS ─────────────────────────────
-const dialogueCSS = `
-.dialogue-panel {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  padding: 0 0 8px 0;
+// ─── CSS ─────────────────────────────────────
+const convCSS = `
+.conv-panel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 2000; display: flex; justify-content: center;
+  opacity: 0; transition: opacity 0.3s;
   pointer-events: none;
 }
-.dp-inner {
-  width: 100%;
-  max-width: 820px;
-  background: linear-gradient(180deg, rgba(8,5,2,0.97) 0%, rgba(12,8,4,0.99) 100%);
-  border: 1px solid rgba(201,168,76,0.3);
+.cp-inner {
+  width: 100%; max-width: 900px;
+  background: linear-gradient(180deg, rgba(5,3,1,0.99) 0%, rgba(8,5,2,1) 100%);
+  border: 1px solid rgba(201,168,76,0.45);
   border-bottom: none;
-  border-top: 2px solid rgba(201,168,76,0.5);
-  padding: 0;
+  border-top: 2px solid rgba(201,168,76,0.65);
+  box-shadow: 0 -16px 60px rgba(0,0,0,0.95), 0 -2px 24px rgba(201,168,76,0.12);
   pointer-events: all;
-  box-shadow: 0 -8px 40px rgba(0,0,0,0.8);
 }
-.dp-npc-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(201,168,76,0.15);
-  background: rgba(201,168,76,0.04);
+.cp-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid rgba(201,168,76,0.1);
+  background: rgba(201,168,76,0.03);
 }
-.dp-portrait { font-size: 2rem; line-height: 1; }
-.dp-npc-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.dp-npc-name { font-family: 'Cinzel', serif; font-size: 0.95rem; color: var(--gold); letter-spacing: 0.1em; }
-.dp-npc-title { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
-.dp-disposition { font-size: 0.68rem; letter-spacing: 0.05em; }
-.dp-disposition.dp-hostile { color: var(--hell); }
-.dp-disposition.dp-friendly { color: #4a9a6a; }
-.dp-disposition.dp-suspicious { color: #c9a84c; }
-.dp-disposition.dp-neutral { color: var(--text-dim); }
-.dp-close { background: none; border: none; color: var(--text-dim); font-size: 1rem; cursor: pointer; padding: 4px 8px; }
-.dp-close:hover { color: var(--hell); }
-
-.dp-history {
-  max-height: 80px;
-  overflow-y: auto;
-  padding: 6px 16px;
-  border-bottom: 1px solid rgba(201,168,76,0.08);
-}
-.dp-hist-line {
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  font-style: italic;
-  padding: 1px 0;
-}
-.dp-hist-line.player { color: rgba(201,168,76,0.5); }
-
-.dp-speech-bubble {
-  padding: 14px 20px;
-  font-family: 'IM Fell English', 'Palatino', serif;
-  font-size: 0.92rem;
-  color: var(--text-main);
-  line-height: 1.6;
-  min-height: 60px;
-  border-left: 3px solid rgba(201,168,76,0.3);
-  margin: 0 16px 10px 16px;
-  background: rgba(201,168,76,0.02);
-}
-.dp-typing { color: var(--text-dim); font-style: italic; animation: pulse 1s infinite; }
-
-.dp-options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 16px 12px 16px;
-}
-.dp-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(20,15,8,0.9);
-  border: 1px solid rgba(201,168,76,0.15);
-  color: var(--text-secondary);
-  font-family: 'Cinzel', serif;
-  font-size: 0.75rem;
-  padding: 8px 14px;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  text-align: left;
+.cp-portrait { font-size: 2.2rem; flex-shrink: 0; }
+.cp-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.cp-name { font-family:'Cinzel',serif; font-size:1rem; color:var(--gold); letter-spacing:0.08em; }
+.cp-title { font-size:0.7rem; color:var(--text-dim); font-style:italic; }
+.cp-faction { font-size:0.67rem; color:var(--text-dim); }
+.cp-disp { font-size:1.1rem; flex-shrink:0; }
+.cp-close {
+  background:rgba(192,57,43,0.1); border:1px solid rgba(192,57,43,0.35);
+  color:rgba(220,100,80,0.9); font-family:'Cinzel',serif; font-size:0.68rem;
+  padding:5px 12px; cursor:pointer; letter-spacing:0.06em; white-space:nowrap;
   transition: all 0.15s;
 }
-.dp-option:hover {
-  border-color: var(--gold);
-  color: var(--gold);
-  background: rgba(201,168,76,0.05);
+.cp-close:hover { background:rgba(192,57,43,0.25); color:var(--hell-glow); }
+.cp-transcript {
+  max-height:68px; overflow-y:auto;
+  padding: 4px 18px 2px;
+  border-bottom: 1px solid rgba(201,168,76,0.05);
 }
-.dp-option.has-roll { border-color: rgba(192,57,43,0.25); }
-.dp-option.has-roll:hover { border-color: var(--hell); color: var(--hell-glow); }
-.dp-opt-roll {
-  font-size: 0.68rem;
-  color: var(--hell-glow);
-  white-space: nowrap;
-  margin-left: 12px;
-  opacity: 0.8;
+.cp-transcript-entry {
+  font-size:0.71rem; color:var(--text-dim); font-style:italic;
+  padding: 1px 0; line-height:1.45;
+  border-left: 2px solid rgba(201,168,76,0.1); padding-left:6px; margin:1px 0;
 }
+.cp-speech {
+  padding: 12px 20px 4px;
+  min-height: 72px;
+  position: relative;
+}
+.cp-npc-line {
+  font-family:'IM Fell English','Palatino',serif;
+  font-size:0.96rem; color:var(--text-main); line-height:1.72;
+}
+.npc-action { color:var(--text-dim); font-style:italic; }
+.cp-typing {
+  display:none; gap:5px; align-items:center;
+  padding: 4px 0;
+}
+.cp-typing span {
+  width:7px; height:7px; border-radius:50%;
+  background:rgba(201,168,76,0.6);
+  animation: npTyping 1.3s ease-in-out infinite;
+}
+.cp-typing span:nth-child(2){animation-delay:.2s}
+.cp-typing span:nth-child(3){animation-delay:.4s}
+@keyframes npTyping {0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-7px);opacity:1}}
+.cp-thinking { font-family:'Cinzel',serif; font-size:0.7rem; color:var(--text-dim); font-style:italic; padding:6px 14px; }
+.cp-options {
+  display:flex; flex-direction:column; gap:2px;
+  padding: 4px 14px 6px;
+}
+.cp-option {
+  display:flex; justify-content:space-between; align-items:center;
+  background:rgba(10,7,3,0.95); border:1px solid rgba(201,168,76,0.13);
+  color:var(--text-secondary); font-family:'Cinzel',serif; font-size:0.74rem;
+  padding: 8px 14px; cursor:pointer; text-align:left;
+  transition: all 0.12s; letter-spacing:0.03em;
+}
+.cp-option:hover { border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,0.05); transform:translateX(3px); }
+.cp-option.has-roll { border-left:2px solid rgba(192,57,43,0.4); }
+.cp-option.hostile { color:rgba(210,100,80,0.85); border-left:2px solid rgba(192,57,43,0.55); }
+.cp-option.hostile:hover { color:var(--hell-glow); border-color:var(--hell); }
+.cp-roll-badge { font-size:0.66rem; color:var(--hell-glow); white-space:nowrap; margin-left:10px; opacity:0.85; }
+.cp-freeform {
+  display:flex; padding:6px 14px 10px;
+  border-top: 1px solid rgba(201,168,76,0.07);
+  gap:0;
+}
+.cp-input {
+  flex:1; background:rgba(6,4,2,0.95); border:1px solid rgba(201,168,76,0.2); border-right:none;
+  color:var(--text-main); font-family:'Cinzel',serif; font-size:0.74rem;
+  padding:7px 12px; outline:none; letter-spacing:0.03em;
+}
+.cp-input:focus { border-color:rgba(201,168,76,0.45); }
+.cp-input::placeholder { color:var(--text-dim); opacity:0.55; font-style:italic; }
+.cp-send {
+  background:rgba(201,168,76,0.1); border:1px solid rgba(201,168,76,0.3);
+  color:var(--gold); font-size:1rem; padding:7px 16px; cursor:pointer;
+  transition: background 0.15s;
+}
+.cp-send:hover { background:rgba(201,168,76,0.2); }
 `;
 
-const dStyle = document.createElement('style');
-dStyle.id = 'dialogue-styles';
-dStyle.textContent = dialogueCSS;
-document.head.appendChild(dStyle);
+const s = document.createElement('style');
+s.id = 'conv-styles';
+s.textContent = convCSS;
+document.head.appendChild(s);
 
-console.log('💬 Dialogue & Encounter engine loaded. NPCs have memory. Consequences are real.');
+console.log('🎭 Live NPC engine ready. Claude controls every NPC in real time.');

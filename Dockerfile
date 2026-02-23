@@ -1,3 +1,8 @@
-FROM nginx:alpine
-COPY site/ /usr/share/nginx/html/
-EXPOSE 80
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json .
+RUN npm install
+COPY server.js .
+COPY site/ site/
+EXPOSE 3000
+CMD ["node", "server.js"]
