@@ -504,57 +504,74 @@ function dispositionLabel(d) {
 
 // ─── INTERCEPT FREE-TEXT ACTIONS ──────────────
 // Detect "talk to X" patterns and route to dialogue engine
-const _origSubmitForDialogue = window.submitAction;
-window.submitAction = function() {
-  const input = document.getElementById('action-input');
-  const text = (input?.value || '').trim();
-  const lower = text.toLowerCase();
+// This runs LAST so it's the final submitAction wrapper
+function installDialogueHook() {
+  const _prevSubmit = window.submitAction;
+  window.submitAction = function() {
+    const input = document.getElementById('action-input');
+    const text = (input?.value || '').trim();
+    const lower = text.toLowerCase();
 
-  // Detect talk patterns
-  const talkPatterns = [
-    /^talk(?:\s+to)?\s+(.+)/i,
-    /^speak(?:\s+to)?\s+(.+)/i,
-    /^approach\s+(?:the\s+)?(.+)/i,
-    /^ask\s+(?:the\s+)?(.+?)\s+(?:about|if|whether|why|how)/i,
-    /^greet\s+(.+)/i,
-    /^interrogate\s+(.+)/i,
-  ];
+    if (!text) return;
 
-  for (const pattern of talkPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const npcName = match[1].replace(/^the\s+/i, '').trim();
-      const npc = resolveNPC(npcName);
-      if (npc) {
-        input.value = '';
-        addLog(text, 'action', gameState.character?.name);
-        talkToNPC(npcName, text);
-        return;
+    // Play SFX
+    if (window.AudioEngine) AudioEngine.sfx?.page();
+
+    // Detect talk patterns
+    const talkPatterns = [
+      /^(?:talk|speak)(?:\s+to)?\s+(?:the\s+)?(.+)/i,
+      /^approach\s+(?:the\s+)?(.+)/i,
+      /^ask\s+(?:the\s+)?(.+?)\s+(?:about|if|whether|why|how)/i,
+      /^greet\s+(?:the\s+)?(.+)/i,
+      /^interrogate\s+(?:the\s+)?(.+)/i,
+      /^question\s+(?:the\s+)?(.+)/i,
+    ];
+
+    for (const pattern of talkPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const npcName = match[1].trim();
+        const npc = resolveNPC(npcName);
+        if (npc) {
+          input.value = '';
+          addLog(text, 'action', gameState.character?.name);
+          talkToNPC(npcName, text);
+          return;
+        }
       }
     }
-  }
 
-  // Detect free-text hostile actions against NPCs when dialogue is open
-  if (window.dialogueState.active) {
-    const hostilePatterns = ['tie', 'attack', 'grab', 'stab', 'punch', 'shove', 'threaten', 'knock out', 'disarm'];
-    const isHostile = hostilePatterns.some(h => lower.includes(h));
-    if (isHostile) {
-      const npc = resolveNPC(window.dialogueState.npcId);
-      if (npc) {
-        input.value = '';
-        addLog(text, 'action', gameState.character?.name);
-        // Add as a dialogue option and execute
-        const dc = lower.includes('tie') || lower.includes('grab') ? 14 : 12;
-        const option = { text, roll: { stat: 'STR', dc } };
-        window.dialogueState.currentOptions = [option];
-        chooseDialogueOption(0);
-        return;
+    // Detect hostile actions during active dialogue
+    if (window.dialogueState?.active) {
+      const hostileWords = ['tie', 'attack', 'grab', 'stab', 'punch', 'shove', 'threaten', 'knock out', 'disarm', 'strangle'];
+      const isHostile = hostileWords.some(h => lower.includes(h));
+      if (isHostile) {
+        const npc = resolveNPC(window.dialogueState.npcId);
+        if (npc) {
+          input.value = '';
+          addLog(text, 'action', gameState.character?.name);
+          const dc = lower.includes('tie') || lower.includes('grab') ? 14 : 12;
+          const option = { text, roll: { stat: 'STR', dc } };
+          window.dialogueState.currentOptions = [option];
+          chooseDialogueOption(0);
+          return;
+        }
       }
     }
-  }
 
-  if (_origSubmitForDialogue) _origSubmitForDialogue();
-};
+    // Fall through to previous handler (game.js submitAction)
+    if (_prevSubmit) _prevSubmit();
+  };
+}
+
+// Install the hook after all other scripts have loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', installDialogueHook);
+} else {
+  // Already loaded — install immediately then re-install after a tick to be safe
+  installDialogueHook();
+  setTimeout(installDialogueHook, 100);
+}
 
 // ─── AI FREE-TEXT DIALOGUE ───────────────────
 async function aiDialogue(npcName, action) {

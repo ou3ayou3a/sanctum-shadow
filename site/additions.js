@@ -314,12 +314,6 @@ window.initGameScreen = function() {
     setTimeout(() => { showDMStrip(opening, true); addLog('📖 ' + opening, 'narrator'); }, 1500);
   }, 500);
 
-  // Patch submitAction for SFX
-  const origSubmit = window.submitAction;
-  window.submitAction = function() {
-    AudioEngine.sfx?.page();
-    if (origSubmit) origSubmit();
-  };
 };
 
 // ─── ADD SAVE BUTTON TO UI ────────────────────
