@@ -172,13 +172,14 @@ Write 2-4 sentences of vivid DM narration describing EXACTLY what happens as a r
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 250,
         messages: [{ role: "user", content: prompt }]
       })
     });
     const data = await response.json();
-    const narration = data.content?.map(i => i.text || '').join('').trim()
+    if (data.error || !data.content) throw new Error(data.error?.message || 'No content');
+    const narration = data.content.map(i => i.text || '').join('').trim()
       || getFallbackNarration(actionText, roll, succeeded);
 
     addLog('📖 ' + narration, 'narrator');
@@ -289,7 +290,7 @@ Write 2 sentences of atmospheric arrival narration, then 1 sentence suggesting w
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 150,
         messages: [{ role: "user", content: prompt }]
       })
@@ -358,7 +359,7 @@ async function getDMGuidance() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 200,
         messages: [{ role: "user", content: `You are a DM in "Sanctum & Shadow". Give the player guidance on what to do next.
 

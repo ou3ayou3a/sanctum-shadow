@@ -532,8 +532,13 @@ function installNPCHook() {
 const _origInitNPC = window.initGameScreen;
 window.initGameScreen = function () {
   if (_origInitNPC) _origInitNPC();
-  setTimeout(installNPCHook, 400);
+  setTimeout(installNPCHook, 500);
 };
+
+// Also reinstall on DOM ready and after a delay to beat any other patches
+document.addEventListener('DOMContentLoaded', () => setTimeout(installNPCHook, 1000));
+setTimeout(installNPCHook, 2000);
+setTimeout(installNPCHook, 4000);
 installNPCHook();
 
 // ─── CSS ─────────────────────────────────────
