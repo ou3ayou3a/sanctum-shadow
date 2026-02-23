@@ -137,7 +137,7 @@ function updateWaitingPlayers() {
   const stored = localStorage.getItem('ss_session_' + code);
   if (!stored) return;
   const sessionData = JSON.parse(stored);
-  const container = document.getElementById('waiting-players');
+  const container = document.getElementById('waiting-players'); if (!container) return;
   if (!container) return;
 
   container.innerHTML = '';
@@ -205,7 +205,7 @@ function buildClassGrid() {
 function buildSkillTrees(classId) {
   const cls = CLASSES.find(c => c.id === classId);
   if (!cls) return;
-  const container = document.getElementById('skill-trees');
+  const container = document.getElementById('skill-trees'); if (!container) return;
   container.innerHTML = '';
   cls.trees.forEach(tree => {
     const card = document.createElement('div');
@@ -500,7 +500,7 @@ function renderStatsMini() {
   if (!stats) return;
   const statNames = ['STR','DEX','CON','INT','WIS','CHA'];
   const statKeys = ['str','dex','con','int','wis','cha'];
-  const container = document.getElementById('char-stats-panel');
+  const container = document.getElementById('char-stats-panel'); if (!container) return;
   container.innerHTML = statKeys.map((key, i) => {
     const val = stats[key] || 10;
     const mod = Math.floor((val - 10) / 2);
@@ -513,7 +513,8 @@ function renderSkillsMini() {
   if (!char) return;
   const cls = CLASSES.find(c => c.id === char.class);
   if (!cls) return;
-  const container = document.getElementById('skills-panel');
+  const container = document.getElementById('skills-panel'); if (!container) return;
+  if (!container) return;
   const skills = cls.skills;
   container.innerHTML = Object.entries(skills).map(([name, val]) =>
     `<div class="skill-entry"><span class="se-name">${name.charAt(0).toUpperCase() + name.slice(1)}</span><span class="se-val">${val}</span></div>`
@@ -523,7 +524,7 @@ function renderSkillsMini() {
 function renderInventory() {
   const char = gameState.character;
   if (!char) return;
-  const container = document.getElementById('inventory-panel');
+  const container = document.getElementById('inventory-panel'); if (!container) return;
   const icons = { 'Sword': '⚔', 'Mace': '🔨', 'Staff': '🔮', 'Bow': '🏹', 'Daggers': '🗡', 'Armor': '🛡', 'Robe': '🧥', 'Cloak': '🧥', 'Potion': '🧪', 'Water': '💧', 'Book': '📜', 'Scripture': '📖', 'Kit': '💊', 'Candle': '🕯', 'Crystal': '💎', 'Quiver': '🏹', 'Lockpick': '🔑' };
   container.innerHTML = char.inventory.map(item => {
     const icon = Object.entries(icons).find(([k]) => item.toLowerCase().includes(k.toLowerCase()))?.[1] || '📦';
@@ -532,7 +533,7 @@ function renderInventory() {
 }
 
 function renderPartyList() {
-  const container = document.getElementById('party-list');
+  const container = document.getElementById('party-list'); if (!container) return;
   // In single-player demo, show self + simulated party members
   const parties = [
     { name: gameState.character?.name || 'You', class: gameState.character?.class || 'warrior', hp: gameState.character?.hp || 100, maxHp: gameState.character?.maxHp || 100, self: true },
@@ -549,7 +550,7 @@ function renderPartyList() {
 }
 
 function renderQuestList() {
-  const container = document.getElementById('quest-list');
+  const container = document.getElementById('quest-list'); if (!container) return;
   const quests = [...(gameState.activeQuests || [])].slice(0, 4);
   container.innerHTML = quests.map(q => `
     <div class="quest-item ${q.id?.startsWith('pq') ? 'personal' : ''}">
