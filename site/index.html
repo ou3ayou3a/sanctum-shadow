@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SANCTUM & SHADOW — The Chronicle</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="splash-screen" class="screen active">
+    <div class="splash-bg"></div>
+    <div class="splash-content">
+      <div class="subtitle-top">☩ THE CHRONICLE OF ☩</div>
+      <h1 class="game-title">SANCTUM<br><span class="amp">&</span><br>SHADOW</h1>
+      <div class="subtitle-bottom">— A Sacred & Profane Adventure —</div>
+      <div class="splash-quote">"Between Heaven's grace and Hell's hunger, your soul is the battlefield."</div>
+      <div class="splash-buttons">
+        <button class="btn-primary" onclick="showScreen('lobby')">⚔ Enter the Chronicle</button>
+        <button class="btn-secondary" onclick="showScreen('rules')">📜 The Sacred Laws</button>
+      </div>
+      <div class="version-tag">Chapter I: The Shattered Covenant</div>
+    </div>
+  </div>
+
+  <div id="rules-screen" class="screen">
+    <div class="screen-inner scroll-content">
+      <h2 class="screen-title">⚖ The Sacred Laws</h2>
+      <div class="rules-grid">
+        <div class="rule-card"><h3>🎲 The Dice Oracle</h3><p>All actions are resolved by dice. Type anything — wrap Bresker to a tree and piss on him, seduce the dragon, steal God's left shoe. If contested, both parties roll d20. Higher roll wins. Ties reroll.</p></div>
+        <div class="rule-card"><h3>☩ Holy & Hell Points</h3><p>Good deeds grant <span class="holy-text">Holy Points</span>. Evil acts grant <span class="hell-text">Hell Points</span>. Pray to unlock divine or dark powers. Dark powers can harm your own party.</p></div>
+        <div class="rule-card"><h3>💥 Friendly Fire</h3><p>AOE spells and dark powers splash onto nearby allies. Always check for party members before unleashing devastation.</p></div>
+        <div class="rule-card"><h3>🗡 Classes & Trees</h3><p>6 classes, 3 trees each. Mix and match at level 5 and 10 to build legendary hybrid classes.</p></div>
+        <div class="rule-card"><h3>🗺 The Living World</h3><p>Travel via the World Map. Each location has atmosphere, quests, NPCs, and dangers. DM narrates your arrival at each new place.</p></div>
+        <div class="rule-card"><h3>🎵 The Score</h3><p>Procedurally generated ambient music shifts with your location — tense city drones, forest dread, dungeon horror, epic boss themes.</p></div>
+      </div>
+      <button class="btn-primary" onclick="showScreen('splash')">↩ Return</button>
+    </div>
+  </div>
+
+  <div id="lobby-screen" class="screen">
+    <div class="screen-inner">
+      <h2 class="screen-title">⚔ The War Council</h2>
+      <p class="screen-subtitle">Create or join a session to begin your chronicle</p>
+      <div class="lobby-options">
+        <div class="lobby-card" onclick="showScreen('create-session')">
+          <div class="lobby-icon">👑</div><h3>Host a Session</h3>
+          <p>Create a new chronicle. You become the Session Master.</p>
+          <button class="btn-primary">Create Game</button>
+        </div>
+        <div class="lobby-card" onclick="showScreen('join-session')">
+          <div class="lobby-icon">🗡</div><h3>Join a Session</h3>
+          <p>Enter a Session Code to join your companions.</p>
+          <button class="btn-secondary">Join Game</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="create-session-screen" class="screen">
+    <div class="screen-inner">
+      <h2 class="screen-title">👑 Forge the Chronicle</h2>
+      <div class="form-card">
+        <div class="form-group"><label>Chronicle Name</label><input type="text" id="session-name" placeholder="e.g. The Brotherhood of Doom" class="form-input"></div>
+        <div class="form-group"><label>Your Name</label><input type="text" id="host-name" placeholder="Your name" class="form-input"></div>
+        <div class="form-group"><label>Max Players</label><select id="max-players" class="form-input"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
+        <button class="btn-primary full-width" onclick="createSession()">⚔ Forge the Chronicle</button>
+        <button class="btn-ghost full-width" onclick="showScreen('lobby')">↩ Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="join-session-screen" class="screen">
+    <div class="screen-inner">
+      <h2 class="screen-title">🗡 Answer the Call</h2>
+      <div class="form-card">
+        <div class="form-group"><label>Session Code</label><input type="text" id="join-code" placeholder="e.g. DOOM-4829" class="form-input" style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Your Name</label><input type="text" id="join-name" placeholder="Your name" class="form-input"></div>
+        <button class="btn-primary full-width" onclick="joinSession()">Enter the Chronicle</button>
+        <button class="btn-ghost full-width" onclick="showScreen('lobby')">↩ Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="char-creation-screen" class="screen">
+    <div class="screen-inner scroll-content">
+      <h2 class="screen-title">🔮 Forge Your Soul</h2>
+      <div class="creation-steps">
+        <div class="creation-step active" id="step-1">
+          <h3>Step 1: Identity</h3>
+          <div class="form-group"><label>Character Name</label><input type="text" id="char-name" placeholder="What shall they call you?" class="form-input"></div>
+          <div class="form-group"><label>Choose Your Race</label><div class="race-grid" id="race-grid"></div></div>
+          <button class="btn-primary" onclick="nextStep(2)">Continue →</button>
+        </div>
+        <div class="creation-step" id="step-2">
+          <h3>Step 2: Class & Calling</h3>
+          <div class="class-grid" id="class-grid"></div>
+          <div class="step-nav"><button class="btn-ghost" onclick="nextStep(1)">← Back</button><button class="btn-primary" onclick="nextStep(3)">Continue →</button></div>
+        </div>
+        <div class="creation-step" id="step-3">
+          <h3>Step 3: Skill Trees</h3>
+          <p class="step-hint">Choose your starting tree. You may mix at level 5 & 10.</p>
+          <div class="skill-trees" id="skill-trees"></div>
+          <div class="step-nav"><button class="btn-ghost" onclick="nextStep(2)">← Back</button><button class="btn-primary" onclick="nextStep(4)">Continue →</button></div>
+        </div>
+        <div class="creation-step" id="step-4">
+          <h3>Step 4: The Shadows of Your Past</h3>
+          <p class="step-hint">What secrets have shaped you?</p>
+          <div class="form-group"><label>Your Origin</label>
+            <select id="char-origin" class="form-input" onchange="updateBackstoryHints()">
+              <option value="">— Choose your past —</option>
+              <option value="fallen_noble">Fallen Noble — Once wealthy, now disgraced</option>
+              <option value="orphan_war">War Orphan — Your village burned</option>
+              <option value="cursed_bloodline">Cursed Bloodline — Dark power runs in your veins</option>
+              <option value="divine_chosen">Divinely Chosen — A god spoke to you once</option>
+              <option value="exile">The Exiled — Banished for a crime</option>
+              <option value="monster_hunter">Monster Hunter — You've seen what lurks in the dark</option>
+              <option value="corrupted_saint">Corrupted Saint — You were holy once</option>
+              <option value="blood_debt">Blood Debt — You owe someone everything</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Dark Secret (optional)</label><textarea id="char-secret" class="form-input" rows="3" placeholder="What does no one else know about you?"></textarea></div>
+          <div id="backstory-hint" class="backstory-hint"></div>
+          <div class="step-nav"><button class="btn-ghost" onclick="nextStep(3)">← Back</button><button class="btn-primary" onclick="nextStep(5)">Continue →</button></div>
+        </div>
+        <div class="creation-step" id="step-5">
+          <h3>Step 5: The Fates Roll Your Destiny</h3>
+          <p class="step-hint">Roll for your starting stats. You may reroll once.</p>
+          <div class="stats-display" id="stats-display">
+            <div class="stat-block" id="stat-str"><span class="stat-name">STR</span><span class="stat-val">—</span></div>
+            <div class="stat-block" id="stat-dex"><span class="stat-name">DEX</span><span class="stat-val">—</span></div>
+            <div class="stat-block" id="stat-con"><span class="stat-name">CON</span><span class="stat-val">—</span></div>
+            <div class="stat-block" id="stat-int"><span class="stat-name">INT</span><span class="stat-val">—</span></div>
+            <div class="stat-block" id="stat-wis"><span class="stat-name">WIS</span><span class="stat-val">—</span></div>
+            <div class="stat-block" id="stat-cha"><span class="stat-name">CHA</span><span class="stat-val">—</span></div>
+          </div>
+          <div class="roll-buttons">
+            <button class="btn-primary dice-roll-btn" onclick="rollStats()" id="roll-btn">🎲 Roll the Dice</button>
+            <button class="btn-ghost" id="reroll-btn" onclick="rollStats(true)" style="display:none">🔄 Reroll (1 left)</button>
+          </div>
+          <div class="step-nav">
+            <button class="btn-ghost" onclick="nextStep(4)">← Back</button>
+            <button class="btn-primary" id="finalize-btn" onclick="finalizeCharacter()" style="display:none">⚔ Seal My Fate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="backstory-reveal-screen" class="screen">
+    <div class="screen-inner scroll-content">
+      <h2 class="screen-title">📜 Your Sacred Chronicle</h2>
+      <div id="backstory-scroll" class="backstory-scroll"></div>
+      <div class="reveal-choices">
+        <h3>What will you tell your companions?</h3>
+        <p class="step-hint">This shapes how your party sees you — and what alliances you can form.</p>
+        <div class="reveal-options">
+          <button class="btn-reveal truth" onclick="setRevealChoice('truth')">✝ Speak the Truth<br><small>Gain +3 Holy Points. Companions trust you.</small></button>
+          <button class="btn-reveal lie" onclick="setRevealChoice('lie')">🐍 Weave a Lie<br><small>Gain +5 Hell Points. Risk exposure later.</small></button>
+          <button class="btn-reveal silence" onclick="setRevealChoice('silence')">🌑 Keep Silence<br><small>Companions are suspicious. Demons are drawn to secrets.</small></button>
+        </div>
+      </div>
+      <button class="btn-primary full-width" id="enter-game-btn" onclick="enterGame()" style="display:none">⚔ Enter the Chronicle</button>
+    </div>
+  </div>
+
+  <!-- MAIN GAME SCREEN -->
+  <div id="game-screen" class="screen">
+    <div class="game-layout">
+      <!-- LEFT PANEL -->
+      <div class="game-panel left-panel">
+        <div class="panel-section">
+          <h3 class="panel-title">☩ Your Soul</h3>
+          <div id="player-card" class="player-card-mini"></div>
+        </div>
+        <div class="panel-section">
+          <h3 class="panel-title">⚔ Your Party</h3>
+          <div id="party-list"></div>
+        </div>
+        <div class="panel-section" style="flex:1;overflow-y:auto">
+          <h3 class="panel-title">📜 Active Quests</h3>
+          <div id="quest-list" class="quest-list"></div>
+        </div>
+      </div>
+
+      <!-- CENTER PANEL -->
+      <div class="game-panel center-panel">
+        <div class="chapter-banner" id="chapter-banner">
+          <span class="chapter-label">Chapter I</span>
+          <span class="chapter-title" id="current-location-display">Vaelthar — The Fractured Capital</span>
+          <span class="quest-counter" id="quest-counter">Quest 1/20</span>
+        </div>
+
+        <!-- DM NARRATION STRIP -->
+        <div id="dm-strip" class="dm-strip" style="display:none">
+          <div class="dm-strip-icon">📖 DM</div>
+          <div id="dm-strip-text" class="dm-strip-text"></div>
+          <button onclick="document.getElementById('dm-strip').style.display='none'" class="dm-strip-close">✕</button>
+        </div>
+
+        <div id="game-log" class="game-log"></div>
+        <div class="action-area">
+          <div class="action-input-wrapper">
+            <textarea id="action-input" class="action-input" placeholder="What do you do? Type anything freely — the dice decide the outcome..." rows="2"></textarea>
+            <button class="btn-action" onclick="submitAction()">⚔ ACT</button>
+          </div>
+          <div class="quick-actions">
+            <button class="qa-btn holy" onclick="pray('holy')">✝ Holy Prayer</button>
+            <button class="qa-btn dark" onclick="pray('dark')">⛧ Dark Prayer</button>
+            <button class="qa-btn dice" onclick="rollDice()">🎲 Dice</button>
+            <button class="qa-btn attack" onclick="showAttackMenu()">🗡 Attack</button>
+            <button class="qa-btn spell" onclick="showSpellMenu()">✨ Spells</button>
+            <button class="qa-btn quest" onclick="showQuestLog()">📜 Quests</button>
+            <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="game-panel right-panel">
+        <!-- MUSIC -->
+        <div class="panel-section">
+          <h3 class="panel-title">🎵 Ambient Score</h3>
+          <div class="music-box">
+            <div id="music-track-name" class="music-track-name">Vaelthar — Uneasy Peace</div>
+            <div class="music-bars" id="music-bars">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="music-controls-row">
+              <button class="music-ctrl-btn" id="music-toggle" onclick="toggleMusic()">⏸</button>
+              <input type="range" id="vol-slider" min="0" max="100" value="35" class="vol-slider" oninput="setMusicVolume(this.value)">
+              <span class="vol-label" id="vol-label">35%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOCATION -->
+        <div class="panel-section">
+          <h3 class="panel-title">📍 Location</h3>
+          <div id="location-mini-panel" class="location-mini">
+            <div class="lm-icon-name"><span id="lm-icon">🏰</span> <span id="lm-name">Vaelthar</span></div>
+            <div id="lm-sub" class="lm-sub">The Fractured Capital</div>
+            <div id="lm-danger" class="lm-danger" style="color:#c9a84c">✦ Danger 1/5</div>
+            <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:0.7rem;padding:6px" onclick="openWorldMap()">🗺 Open World Map</button>
+          </div>
+        </div>
+
+        <!-- DICE -->
+        <div class="panel-section">
+          <h3 class="panel-title">🎲 Dice Table</h3>
+          <div class="dice-buttons">
+            <button class="die-btn" onclick="rollSpecific(4)">d4</button>
+            <button class="die-btn" onclick="rollSpecific(6)">d6</button>
+            <button class="die-btn" onclick="rollSpecific(8)">d8</button>
+            <button class="die-btn" onclick="rollSpecific(10)">d10</button>
+            <button class="die-btn featured" onclick="rollSpecific(20)">d20</button>
+            <button class="die-btn" onclick="rollSpecific(100)">d100</button>
+          </div>
+          <div id="dice-result" class="dice-result"></div>
+        </div>
+
+        <!-- STATS -->
+        <div class="panel-section">
+          <h3 class="panel-title">📊 Attributes</h3>
+          <div id="char-stats-panel" class="stats-mini"></div>
+        </div>
+
+        <!-- INVENTORY -->
+        <div class="panel-section" style="flex:1;overflow-y:auto">
+          <h3 class="panel-title">🎒 Inventory</h3>
+          <div id="inventory-panel" class="inventory-mini"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERLAYS -->
+    <div id="dice-overlay" class="overlay hidden">
+      <div class="overlay-content dice-contest">
+        <h3 id="contest-title">⚔ Contested Roll</h3>
+        <div class="contest-display">
+          <div class="contestant"><div class="contestant-name" id="c1-name">Player 1</div><div class="die-face" id="c1-die">?</div><button class="btn-primary" onclick="rollContest(1)" id="c1-roll-btn">🎲 Roll!</button></div>
+          <div class="vs-divider">VS</div>
+          <div class="contestant"><div class="contestant-name" id="c2-name">Player 2</div><div class="die-face" id="c2-die">?</div><button class="btn-primary" onclick="rollContest(2)" id="c2-roll-btn">🎲 Roll!</button></div>
+        </div>
+        <div id="contest-result" class="contest-result hidden"></div>
+        <button class="btn-ghost" onclick="closeOverlay('dice-overlay')">Close</button>
+      </div>
+    </div>
+
+    <div id="spell-overlay" class="overlay hidden">
+      <div class="overlay-content">
+        <h3>✨ Cast a Spell</h3>
+        <div id="spell-list" class="spell-list"></div>
+        <button class="btn-ghost" onclick="closeOverlay('spell-overlay')">✕ Close</button>
+      </div>
+    </div>
+
+    <div id="attack-overlay" class="overlay hidden">
+      <div class="overlay-content">
+        <h3>🗡 Choose Target</h3>
+        <div id="target-list" class="target-list"></div>
+        <div class="friendly-fire-warning">⚠ Allies in melee range may take splash damage!</div>
+        <button class="btn-ghost" onclick="closeOverlay('attack-overlay')">✕ Close</button>
+      </div>
+    </div>
+
+    <div id="narrator-overlay" class="overlay hidden">
+      <div class="overlay-content narrator-box">
+        <div class="narrator-header"><span class="narrator-icon">📖</span><span>The Chronicle Speaks</span></div>
+        <div id="narrator-text" class="narrator-text"></div>
+        <div class="narrator-typing" id="narrator-typing"><span></span><span></span><span></span></div>
+        <button class="btn-primary" id="narrator-close" onclick="closeOverlay('narrator-overlay')" style="display:none">Continue →</button>
+      </div>
+    </div>
+
+    <div id="quest-overlay" class="overlay hidden">
+      <div class="overlay-content scroll-content">
+        <h3>📜 The Quest Log</h3>
+        <div id="quest-overlay-content"></div>
+        <button class="btn-ghost" onclick="closeOverlay('quest-overlay')">✕ Close</button>
+      </div>
+    </div>
+
+    <!-- WORLD MAP OVERLAY -->
+    <div id="map-overlay" class="overlay hidden" style="padding:0;background:rgba(0,0,0,0.95)">
+      <div class="map-full-container">
+        <div class="map-topbar">
+          <div>
+            <div class="map-topbar-title">☩ THE WORLD OF VAELTHAR ☩</div>
+            <div class="map-topbar-sub">Chapter I: The Shattered Covenant — Click locations to travel</div>
+          </div>
+          <div class="map-legend">
+            <span><span class="leg-dot" style="background:#c9a84c"></span> City/Outpost</span>
+            <span><span class="leg-dot" style="background:#8b1a1a"></span> Dungeon</span>
+            <span><span class="leg-dot" style="background:#4a9a6a"></span> Village</span>
+            <span><span class="leg-dot" style="background:#c0392b"></span> Boss</span>
+            <span><span class="leg-dot" style="background:#333"></span> Undiscovered</span>
+          </div>
+          <button onclick="closeOverlay('map-overlay')" class="map-close">✕ Close Map</button>
+        </div>
+        <div class="map-body-area">
+          <div id="world-map-container" class="world-map-container"></div>
+          <div id="location-detail-panel" class="loc-detail-panel hidden"></div>
+        </div>
+        <div class="map-bottombar">
+          <span id="map-current-display">📍 Currently at: <strong>Vaelthar</strong></span>
+          <span class="map-hint">Hover for details • Click to travel or inspect • ☠ = High danger zone</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="audio.js"></script>
+<script src="map.js"></script>
+<script src="game.js"></script>
+<script src="additions.js"></script>
+</body>
+</html>
