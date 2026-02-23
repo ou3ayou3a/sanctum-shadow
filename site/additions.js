@@ -168,7 +168,7 @@ Result: ${succeeded ? 'SUCCESS' : roll === 20 ? 'CRITICAL SUCCESS' : roll === 1 
 Write 2-4 sentences of vivid DM narration describing EXACTLY what happens as a result of this action. Be specific — name the NPCs, describe their reaction, move the scene forward. If they succeeded talking to a guard, tell them what the guard said or revealed. If they failed, describe the consequence. Always end with something that hints at what happens next or what choice they face. Do NOT be generic. Make the story actually progress.`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("/api/npc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -285,7 +285,7 @@ Setting: ${loc.description}
 NPCs here: ${loc.npcs?.join(', ') || 'None known'}
 
 Write 2 sentences of atmospheric arrival narration, then 1 sentence suggesting what they should investigate first. Be specific to this location.`;
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("/api/npc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -354,7 +354,7 @@ async function getDMGuidance() {
     .map(l => `${l.name} (${l.subtitle})`).join(', ');
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("/api/npc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

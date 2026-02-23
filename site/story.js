@@ -178,7 +178,7 @@ Respond with a JSON object (no markdown, just raw JSON):
 Make options SPECIFIC to the current context. Reference actual NPC names (Captain Rhael, The Trembling Scribe, Sister Mourne). Make the investigation option reveal something plot-relevant. Always give a move option.`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("/api/npc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

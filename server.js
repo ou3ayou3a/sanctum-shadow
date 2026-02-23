@@ -1,42 +1,56 @@
 const express = require('express');
 const path = require('path');
+const https = require('https');
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'site')));
 
-// ─── NPC CONVERSATION PROXY ──────────────────
-app.post('/api/npc', async (req, res) => {
+app.post('/api/npc', (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured on server.' });
+    return res.status(500).json({ error: 'API key not configured.' });
   }
 
-  const { messages, system, max_tokens } = req.body;
+  // Accept both formats: {system, messages} and {model, messages, max_tokens}
+  const body = JSON.stringify({
+    model: req.body.model || 'claude-haiku-4-5-20251001',
+    max_tokens: req.body.max_tokens || 600,
+    system: req.body.system || '',
+    messages: req.body.messages || [],
+  });
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: max_tokens || 600,
-        system: system || '',
-        messages,
-      }),
+  const options = {
+    hostname: 'api.anthropic.com',
+    path: '/v1/messages',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  };
+
+  const request = https.request(options, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try { res.json(JSON.parse(data)); }
+      catch (e) { res.status(500).json({ error: 'Invalid response from Anthropic' }); }
     });
+  });
 
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error('Anthropic API error:', err);
-    res.status(500).json({ error: 'Failed to reach Anthropic API.' });
-  }
+  request.on('error', (err) => {
+    console.error('Request error:', err);
+    res.status(500).json({ error: err.message });
+  });
+
+  request.write(body);
+  request.end();
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Sanctum & Shadow running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sanctum & Shadow running on port ${PORT}`);
+});
