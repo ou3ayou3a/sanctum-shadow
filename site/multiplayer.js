@@ -34,6 +34,8 @@ function initMultiplayer() {
     window.mp.connected = true;
     window.mp.playerId = socket.id;
     console.log('🔗 Multiplayer connected:', socket.id);
+    // Patch waiting screen handlers
+    patchSocketForWaiting(socket);
   });
 
   socket.on('disconnect', () => {
@@ -45,32 +47,12 @@ function initMultiplayer() {
     toast(msg, 'error');
   });
 
-  // ── Session events ──
-  socket.on('session_created', ({ code, playerId }) => {
-    window.mp.sessionCode = code;
-    window.mp.playerId = playerId;
-    window.mp.isHost = true;
-    gameState.sessionCode = code;
-    gameState.isHost = true;
-    document.getElementById('session-code-display')?.textContent && (document.getElementById('session-code-display').textContent = code);
-    updateSessionUI();
-  });
 
-  socket.on('session_joined', ({ code, playerId, session }) => {
-    window.mp.sessionCode = code;
-    window.mp.playerId = playerId;
-    window.mp.isHost = false;
-    window.mp.session = session;
-    gameState.sessionCode = code;
-    gameState.isHost = false;
-    updateSessionUI();
-  });
-
+  // ── Session update ──
   socket.on('session_update', (session) => {
     window.mp.session = session;
     updateSessionUI();
     updatePartyPanel();
-    // Show chat panel if in multiplayer
     const chatSection = document.getElementById('mp-chat-section');
     if (chatSection) chatSection.style.display = 'block';
   });
@@ -324,27 +306,106 @@ function updateSessionUI() {
 }
 
 // ─── OVERRIDE SESSION CREATION ────────────────
-// Patch existing createSession/joinSession to use sockets
-const _origCreateSession = window.createSession;
+// Fully replace createSession/joinSession — bypass localStorage entirely
 window.createSession = function() {
   const sessionName = document.getElementById('session-name')?.value.trim() || 'The Chronicle';
   const hostName = document.getElementById('host-name')?.value.trim();
   const maxPlayers = parseInt(document.getElementById('max-players')?.value || 4);
-  if (!hostName) { toast('Enter your name!', 'error'); return; }
+  if (!hostName) { toast('Enter your name, stranger.', 'error'); return; }
+  if (!window.mp.socket) { toast('Connecting to server...', 'error'); return; }
   mpCreateSession(sessionName, hostName, maxPlayers);
-  // Show waiting screen
-  if (_origCreateSession) _origCreateSession();
+  // Show waiting screen immediately (will populate when socket responds)
+  showMPWaitingScreen('Creating session...', hostName);
 };
 
-const _origJoinSession = window.joinSession;
 window.joinSession = function() {
   const code = document.getElementById('join-code')?.value.trim().toUpperCase();
   const playerName = document.getElementById('join-name')?.value.trim();
   if (!code) { toast('Enter a session code!', 'error'); return; }
   if (!playerName) { toast('Enter your name!', 'error'); return; }
+  if (!window.mp.socket) { toast('Connecting to server...', 'error'); return; }
   mpJoinSession(code, playerName);
-  if (_origJoinSession) _origJoinSession();
+  // Show waiting screen — will update when socket confirms join
+  showMPWaitingScreen('Joining ' + code + '...', playerName);
 };
+
+// ─── MP WAITING SCREEN ────────────────────────
+function showMPWaitingScreen(title, playerName) {
+  // Remove old wait screens
+  document.getElementById('wait-screen')?.remove();
+
+  const waitScreen = document.createElement('div');
+  waitScreen.id = 'wait-screen';
+  waitScreen.className = 'screen active';
+  waitScreen.innerHTML = `
+    <div class="screen-inner scroll-content">
+      <h2 class="screen-title">⚔ The War Council Gathers</h2>
+      <div class="session-banner">
+        <span class="session-code-label">SESSION CODE — SHARE WITH YOUR COMPANIONS</span>
+        <div class="session-code session-code-display" id="session-code-big" style="font-size:2.2rem;letter-spacing:0.2em;color:var(--gold);margin:10px 0">
+          ${window.mp.sessionCode || '...'}
+        </div>
+        <div style="font-family:'Crimson Text',serif;color:var(--text-dim);font-size:0.85rem" id="wait-session-name">${title}</div>
+      </div>
+      <div id="waiting-players" class="player-slots" style="margin:16px 0">
+        <div class="player-slot filled"><span class="ps-icon">👤</span><span class="ps-name">${playerName}</span><span class="ps-status">Waiting...</span></div>
+      </div>
+      <p class="step-hint" style="text-align:center">Share the session code with your companions. Once everyone joins, forge your characters!</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="copySessionCode()">📋 Copy Code</button>
+        <button class="btn-primary" onclick="proceedToCharCreation()">⚔ Create My Character</button>
+        <button class="btn-ghost" onclick="showScreen('lobby')">↩ Cancel</button>
+      </div>
+    </div>
+  `;
+
+  // Deactivate other screens
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('app').appendChild(waitScreen);
+}
+
+function copySessionCode() {
+  const code = window.mp.sessionCode;
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => toast('Code copied: ' + code, 'holy'));
+}
+
+// ─── UPDATE WAITING SCREEN WHEN SESSION CREATED/JOINED ──
+// Override session_created handler to update the waiting screen code display
+const _origSocketInit = initMultiplayer;
+
+// Patch socket events after init to update waiting screen properly
+function patchSocketForWaiting(socket) {
+  socket.on('session_created', ({ code, playerId }) => {
+    window.mp.sessionCode = code;
+    window.mp.playerId = playerId;
+    window.mp.isHost = true;
+    gameState.sessionCode = code;
+    gameState.isHost = true;
+    // Update the displayed code
+    document.querySelectorAll('.session-code-display, #session-code-big').forEach(el => el.textContent = code);
+    document.getElementById('wait-session-name') && (document.getElementById('wait-session-name').textContent = 'Session: ' + code);
+  });
+
+  socket.on('session_joined', ({ code, playerId, session }) => {
+    window.mp.sessionCode = code;
+    window.mp.playerId = playerId;
+    window.mp.isHost = false;
+    window.mp.session = session;
+    gameState.sessionCode = code;
+    gameState.isHost = false;
+    document.querySelectorAll('.session-code-display, #session-code-big').forEach(el => el.textContent = code);
+    document.getElementById('wait-session-name') && (document.getElementById('wait-session-name').textContent = 'Joined: ' + code);
+  });
+
+  socket.on('error', ({ msg }) => {
+    toast(msg, 'error');
+    // If join failed, go back to lobby
+    if (msg.includes('not found') || msg.includes('full')) {
+      showScreen('join-session');
+    }
+  });
+}
 
 // Patch finalizeCharacter to broadcast to server
 const _origFinalizeChar = window.finalizeCharacter;
