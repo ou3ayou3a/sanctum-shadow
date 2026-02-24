@@ -176,7 +176,18 @@
         </div>
         <div class="panel-section">
           <h3 class="panel-title">⚔ Your Party</h3>
+          <div id="party-members"></div>
           <div id="party-list"></div>
+        </div>
+        <div class="panel-section" id="mp-chat-section" style="display:none">
+          <h3 class="panel-title">💬 Party Chat</h3>
+          <div class="mp-chat">
+            <div id="mp-chat-log"></div>
+            <div class="mp-chat-row">
+              <input id="mp-chat-input" type="text" placeholder="Say something..." onkeydown="if(event.key==='Enter')submitChat()">
+              <button class="mp-send-btn" onclick="submitChat()">Send</button>
+            </div>
+          </div>
         </div>
         <div class="panel-section" style="flex:1;overflow-y:auto">
           <h3 class="panel-title">📜 Active Quests</h3>
@@ -356,13 +367,14 @@
   </div>
 </div>
 
-<script src="data.js?v=8"></script>
-<script src="audio.js?v=8"></script>
-<script src="map.js?v=8"></script>
-<script src="game.js?v=8"></script>
-<script src="combat.js?v=8"></script>
-<script src="additions.js?v=8"></script>
-<script src="story.js?v=8"></script>
-<script src="dialogue.js?v=8"></script>
+<script src="data.js?v=9"></script>
+<script src="audio.js?v=9"></script>
+<script src="map.js?v=9"></script>
+<script src="game.js?v=9"></script>
+<script src="combat.js?v=9"></script>
+<script src="additions.js?v=9"></script>
+<script src="story.js?v=9"></script>
+<script src="dialogue.js?v=9"></script>
+<script src="multiplayer.js?v=9"></script>
 </body>
 </html>

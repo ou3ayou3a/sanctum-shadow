@@ -1,12 +1,10 @@
 {
   "name": "sanctum-shadow",
-  "version": "1.0.0",
-  "description": "Sanctum & Shadow RPG",
+  "version": "2.0.0",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4"
   }
 }
