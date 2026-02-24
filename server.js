@@ -13,6 +13,21 @@ const io = new Server(server, {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'site')));
 
+// ─── DEBUG ENDPOINT ───────────────────────────
+app.get('/debug', (req, res) => {
+  res.json({
+    status: 'online',
+    socketio: 'loaded',
+    sessions: Object.keys(sessions).map(code => ({
+      code,
+      players: Object.values(sessions[code].players).map(p => ({ name: p.name, connected: p.connected })),
+      state: sessions[code].state,
+    })),
+    uptime: Math.floor(process.uptime()) + 's',
+    time: new Date().toISOString(),
+  });
+});
+
 // ─── ANTHROPIC PROXY ─────────────────────────
 app.post('/api/npc', (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;

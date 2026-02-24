@@ -18,10 +18,25 @@ window.mp = {
 // ─── LOAD SOCKET.IO THEN INIT ─────────────────
 (function loadSocketIO() {
   if (window.io) { initMultiplayer(); return; }
+
+  // Try local first (served by socket.io server)
   const s = document.createElement('script');
   s.src = '/socket.io/socket.io.js';
-  s.onload = initMultiplayer;
-  s.onerror = () => console.warn('Socket.io unavailable');
+  s.onload = () => { console.log('✅ Socket.io loaded locally'); initMultiplayer(); };
+  s.onerror = () => {
+    console.warn('⚠ Local socket.io failed, trying CDN...');
+    // Fallback to CDN
+    const cdn = document.createElement('script');
+    cdn.src = 'https://cdn.socket.io/4.7.4/socket.io.min.js';
+    cdn.onload = () => { console.log('✅ Socket.io loaded from CDN'); initMultiplayer(); };
+    cdn.onerror = () => {
+      console.error('❌ Socket.io completely unavailable');
+      // Show visible error in UI
+      const el = document.getElementById('mp-status');
+      if (el) el.innerHTML = '❌ Multiplayer unavailable';
+    };
+    document.head.appendChild(cdn);
+  };
   document.head.appendChild(s);
 })();
 
@@ -37,9 +52,11 @@ function initMultiplayer() {
     window.mp.connected = true;
     window.mp.playerId = socket.id;
     console.log('🔗 MP connected:', socket.id);
-    // If we had a session before disconnect, try to rejoin
+    const el = document.getElementById('mp-status');
+    if (el) el.innerHTML = '🟢 Server connected — ready to play';
+    if (el) el.style.color = '#4a9a6a';
+    // Rejoin if we had a session
     if (window.mp.sessionCode && window.mp._playerName) {
-      console.log('🔄 Rejoining session:', window.mp.sessionCode);
       socket.emit('rejoin_session', {
         code: window.mp.sessionCode,
         playerName: window.mp._playerName,
@@ -51,6 +68,8 @@ function initMultiplayer() {
   socket.on('disconnect', () => {
     window.mp.connected = false;
     console.warn('MP disconnected');
+    const el = document.getElementById('mp-status');
+    if (el) { el.innerHTML = '🔴 Disconnected — reconnecting...'; el.style.color = '#c0392b'; }
   });
 
   // ── Session created (host) ──
