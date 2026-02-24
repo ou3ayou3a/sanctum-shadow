@@ -34,8 +34,8 @@ function initMultiplayer() {
     window.mp.connected = true;
     window.mp.playerId = socket.id;
     console.log('🔗 Multiplayer connected:', socket.id);
-    // Patch waiting screen handlers
     patchSocketForWaiting(socket);
+    setupStorySync(socket);
   });
 
   socket.on('disconnect', () => {
@@ -62,10 +62,7 @@ function initMultiplayer() {
     renderChatMessage(msg);
   });
 
-  // ── Game log sync ──
-  socket.on('game_log', (entry) => {
-    if (window.addLog) addLog(entry.text, entry.type);
-  });
+  // ── Game log and story sync handled by setupStorySync() ──
 
   // ── Combat events ──
   socket.on('combat_started', (combatState) => {
@@ -153,6 +150,95 @@ function mpBroadcastLog(entry) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
   window.mp.socket.emit('game_log', { code: window.mp.sessionCode, entry });
 }
+
+function mpBroadcastStoryEvent(eventType, payload) {
+  if (!window.mp.socket || !window.mp.sessionCode) return;
+  window.mp.socket.emit('story_event', { code: window.mp.sessionCode, eventType, payload });
+}
+
+// ─── PATCH addLog TO BROADCAST ────────────────
+// Every log entry made by any player syncs to everyone else
+const _origAddLog = window.addLog;
+window.addLog = function(text, type = 'system', playerName = null) {
+  // Always render locally
+  if (_origAddLog) _origAddLog(text, type, playerName);
+  // Broadcast to party if in multiplayer session, but only for meaningful events
+  // (skip types that each client should generate independently)
+  if (window.mp.sessionCode && window.mp.socket && !window.mp._receiving) {
+    const skipTypes = []; // broadcast everything
+    mpBroadcastLog({ text, type, playerName });
+  }
+};
+
+// ─── PATCH chooseSceneOption TO BROADCAST ─────
+// When any player makes a story choice, all players see it and the scene advances
+const _origChooseScene = window.chooseSceneOption;
+window.chooseSceneOption = function(index) {
+  // Run locally
+  if (_origChooseScene) _origChooseScene(index);
+  // Broadcast scene choice to all other players
+  if (window.mp.sessionCode && window.mp.socket) {
+    mpBroadcastStoryEvent('scene_choice', {
+      index,
+      playerName: gameState.character?.name || 'Unknown',
+    });
+  }
+};
+
+// ─── PATCH submitAction TO BROADCAST ──────────
+// When a player takes a free-text action, others see it and its result
+const _origSubmitAction_mp = window.submitAction;
+window.submitAction = function() {
+  // senses.js may have already patched this; call through the chain
+  if (_origSubmitAction_mp) _origSubmitAction_mp();
+  // The log broadcast happens automatically via the patched addLog above
+};
+
+// ─── RECEIVE STORY EVENTS FROM OTHERS ─────────
+function setupStorySync(socket) {
+  // Receive log entries from other players
+  socket.on('game_log', (entry) => {
+    // Guard against re-broadcasting what we sent
+    if (window.mp._receiving) return;
+    window.mp._receiving = true;
+    if (window.addLog) {
+      // Use original to avoid re-broadcasting
+      if (_origAddLog) _origAddLog(entry.text, entry.type, entry.playerName);
+    }
+    window.mp._receiving = false;
+  });
+
+  // Receive scene choices from other players
+  socket.on('story_event', ({ eventType, payload, fromPlayer }) => {
+    if (eventType === 'scene_choice') {
+      // Show who made the choice
+      if (_origAddLog) _origAddLog(
+        `${payload.playerName} makes a choice...`,
+        'system'
+      );
+      // Advance the scene on all clients
+      window.mp._receiving = true;
+      if (window.chooseSceneOption && window.sceneState?._currentOptions?.[payload.index]) {
+        // Only run scene progression, not the log (already received)
+        const option = window.sceneState._currentOptions[payload.index];
+        if (option?.next) {
+          setTimeout(() => {
+            if (window.runScene) window.runScene(option.next);
+          }, 400);
+        } else if (option?.action) {
+          option.action();
+        }
+        // Remove scene panel on all clients
+        setTimeout(() => {
+          const panel = document.getElementById('scene-panel');
+          if (panel) { panel.style.opacity = '0'; setTimeout(() => panel?.remove(), 400); }
+        }, 300);
+      }
+      window.mp._receiving = false;
+    }
+  });
+}
+
 
 // ─── COMBAT SYNC ─────────────────────────────
 function startCombatFromServer(cs) {

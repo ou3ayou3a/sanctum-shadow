@@ -301,6 +301,18 @@ io.on('connection', (socket) => {
     io.to(code).emit('combat_update', { combatState: cs, log: logEntry });
   });
 
+  // ── Story event broadcast ──
+  socket.on('story_event', ({ code, eventType, payload }) => {
+    const s = getSession(code);
+    if (!s) return;
+    const player = s.players[socket.id];
+    // Broadcast to everyone else in the room
+    socket.to(code).emit('story_event', {
+      eventType, payload,
+      fromPlayer: player?.name || 'Unknown'
+    });
+  });
+
   // ── Chat ──
   socket.on('chat', ({ code, text }) => {
     const s = getSession(code);
@@ -316,7 +328,7 @@ io.on('connection', (socket) => {
     const s = getSession(code);
     if (!s) return;
     s.log.push(entry);
-    socket.to(code).emit('game_log', entry); // broadcast to others
+    socket.to(code).emit('game_log', entry); // broadcast to OTHERS only
   });
 
   // ── Disconnect ──
