@@ -28,6 +28,7 @@ const NPC_REGISTRY = {
     title: 'Captain of the Watch',
     portrait: '🪖',
     faction: 'city_watch',
+    gender: 'male',
     personality: `You are Captain Rhael, 54, Captain of the Vaelthar City Watch.
 You are a heavyset, weathered soldier with a jaw like an anvil and eyes that have stopped trusting anyone since the Covenant shattered 3 days ago.
 You know the Church broke the Covenant — you saw the ashes in the signing hall. You suspect Elder Varek gave the order but you have no proof yet.
@@ -40,7 +41,7 @@ SPEECH STYLE: Short, clipped sentences. Military habit. No speeches. Occasional 
     disposition: 'neutral',
   },
   vaelthar_guard: {
-    id: 'vaelthar_guard',
+    id: 'vaelthar_guard', gender: 'male',
     name: 'City Guard',
     title: 'Guard of the Watch',
     portrait: '🛡',
@@ -55,7 +56,7 @@ SPEECH STYLE: Trying to sound authoritative but clearly nervous. You stumble ove
     disposition: 'neutral',
   },
   trembling_scribe: {
-    id: 'trembling_scribe',
+    id: 'trembling_scribe', gender: 'male',
     name: 'The Trembling Scribe',
     title: 'Archive Keeper — Witness',
     portrait: '📜',
@@ -72,7 +73,7 @@ SPEECH STYLE: Barely above a whisper. You ramble when nervous. You keep looking 
     disposition: 'afraid',
   },
   sister_mourne: {
-    id: 'sister_mourne',
+    id: 'sister_mourne', gender: 'female',
     name: 'Sister Mourne',
     title: 'Church of the Eternal Flame — "The Candle"',
     portrait: '🕯',
@@ -87,7 +88,7 @@ SPEECH STYLE: Measured, quiet, precise. You sometimes let a sentence hang unfini
     disposition: 'neutral',
   },
   bresker: {
-    id: 'bresker',
+    id: 'bresker', gender: 'male',
     name: 'Bresker',
     title: 'Your Companion',
     portrait: '🗡',
