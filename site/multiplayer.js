@@ -123,12 +123,10 @@ function initMultiplayer() {
 
   socket.on('enemy_turn_start', ({ enemyId, enemy }) => {
     addLog(`${enemy.icon} ${enemy.name} is acting...`, 'system');
-    // Host triggers enemy AI
-    if (window.mp.isHost) {
-      setTimeout(() => {
-        socket.emit('enemy_turn', { code: window.mp.sessionCode });
-      }, 1000);
-    }
+    // Any connected player can trigger enemy AI — first one wins (server deduplicates)
+    setTimeout(() => {
+      socket.emit('enemy_turn', { code: window.mp.sessionCode });
+    }, 800 + Math.random() * 400); // slight random delay to avoid double-fire
   });
 }
 
@@ -149,8 +147,14 @@ function mpCharacterReady(character) {
 }
 
 function mpStartCombat(enemies) {
-  if (!window.mp.socket || !window.mp.isHost) return;
-  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies });
+  if (!window.mp.socket || !window.mp.sessionCode) return;
+  const initiatorName = gameState.character?.name || window.mp.socket.id;
+  addLog(`⚔ ${initiatorName} initiates combat!`, 'combat');
+  window.mp.socket.emit('start_combat', { 
+    code: window.mp.sessionCode, 
+    enemies,
+    initiatorId: window.mp.playerId 
+  });
 }
 
 function mpCombatAction(action, targetId, spellId) {
@@ -242,15 +246,15 @@ window.castSelectedSpell = function() {
   }
 };
 
-// Override startCombat to sync to server if in MP
+// Override startCombat — ANY player can trigger it in MP
 const _origStartCombat = window.startCombat;
 window.startCombat = function(enemies) {
   if (window.mp.sessionCode) {
-    if (window.mp.isHost) {
-      mpStartCombat(enemies);
-    } else {
-      addLog('⏳ Waiting for host to start combat...', 'system');
+    // If combat already active, don't restart
+    if (window.mp.combatState?.active) {
+      addLog('⚔ Combat is already in progress!', 'system'); return;
     }
+    mpStartCombat(enemies);
   } else {
     if (_origStartCombat) _origStartCombat(enemies);
   }

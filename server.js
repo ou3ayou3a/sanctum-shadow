@@ -116,10 +116,12 @@ io.on('connection', (socket) => {
     io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} is ready as ${character.name} the ${character.class}!` });
   });
 
-  // ── Start combat (host only) ──
-  socket.on('start_combat', ({ code, enemies }) => {
+  // ── Start combat (any player can trigger) ──
+  socket.on('start_combat', ({ code, enemies, initiatorId }) => {
     const s = getSession(code);
-    if (!s || s.host !== socket.id) return;
+    if (!s) return;
+    // Don't restart if already in combat
+    if (s.combatState?.active) return;
 
     // Build full combatant list: all players + enemies
     const combatants = {};
@@ -256,10 +258,15 @@ io.on('connection', (socket) => {
     io.to(code).emit('combat_update', { combatState: cs, log: logEntry });
   });
 
-  // ── Enemy AI turn (host triggers) ──
+  // ── Enemy AI turn (first connected player handles it) ──
   socket.on('enemy_turn', ({ code }) => {
     const s = getSession(code);
-    if (!s || !s.combatState || s.host !== socket.id) return;
+    if (!s || !s.combatState) return;
+    // Dedup: only process once per round/turn using a flag
+    if (s.combatState._processingEnemyTurn) return;
+    s.combatState._processingEnemyTurn = true;
+    setTimeout(() => { if (s.combatState) s.combatState._processingEnemyTurn = false; }, 2000);
+    // Accept from any connected player (first one to respond wins)
     const cs = s.combatState;
     const currentId = cs.turnOrder[cs.currentTurnIndex];
     const enemy = cs.combatants[currentId];

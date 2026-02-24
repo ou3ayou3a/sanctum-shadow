@@ -247,7 +247,19 @@ async function pickNPCOption(index) {
       const npc = window.npcConvState.npc;
       addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
       closeConvPanel();
-      startCombat([{ name: npc.name, hp: 55, ac: 13, atk: 5, icon: npc.portrait, id: npc.id }]);
+      // Build enemy from NPC data or generate from combat templates
+      const enemyTemplateMap = {
+        'captain_rhael': () => generateEnemy('captain_rhael', 1),
+        'vaelthar_guard': () => generateEnemy('city_guard', 1),
+        'trembling_scribe': () => ({ ...generateEnemy('bandit', 1), name:'The Trembling Scribe', icon:'📜', hp:15, flee:true }),
+        'sister_mourne': () => generateEnemy('sister_mourne', 2),
+        'bresker': () => generateEnemy('city_guard', 2),
+      };
+      const enemyFn = enemyTemplateMap[npc.id];
+      const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
+      enemy.name = npc.name;
+      enemy.icon = npc.portrait || '👤';
+      startCombat([enemy]);
       return;
     }
     await sendNPCMessage(`${option.text} [FAILED — rolled ${total} vs DC12, the attack misses]`);
