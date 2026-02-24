@@ -215,6 +215,18 @@ const AudioEngine = (() => {
       nodes.reverb_drone = createDrone([{ freq: 110, detune: 5 }], 0.025, 1200);
     },
 
+    tavern_low: (nodes) => {
+      // Warm tavern — low hum, a distant lute-like pluck, murmur of voices implied
+      nodes.drones = createDrone([
+        { freq: 65.41, detune: 0 }, { freq: 65.41, detune: 5 }
+      ], 0.022, 800);
+      nodes.pad = createPad(130.81, 0.018, 0.12);
+      nodes.pad2 = createPad(196, 0.012, 0.08);
+      // Warm, slow, slightly irregular plucks — like a lute
+      nodes.chimes = scheduleChimes([261.63, 293.66, 329.63, 349.23, 392, 329.63], 6, 0.045);
+      nodes.rumble = createRumble(55, 0.012); // low hearth hum
+    },
+
     forest_dread: (nodes) => {
       // Thornwood — unsettling, alive, breathing
       nodes.drones = createDrone([

@@ -33,6 +33,7 @@ function startGameMusic(trackId = 'city_tense', trackName = 'Vaelthar — Uneasy
 
 const TRACK_NAMES = {
   city_tense: 'Vaelthar — Uneasy Peace', holy_ominous: 'Temple Quarter — Where Faith Bleeds',
+  tavern_low: 'The Tarnished Cup — Last Round',
   forest_dread: 'The Thornwood — Something Watches', dungeon_horror: 'Depths Unknown — It Breathes Below',
   combat: 'Blood & Iron — Combat', boss_ancient: 'The Shattered God — Final Hour',
   village_uneasy: 'Mol — The Heretic\'s Sermon', road_danger: 'Merchant Road — Blood on Stone',
