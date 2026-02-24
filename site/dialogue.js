@@ -502,6 +502,12 @@ function installNPCHook() {
       return;
     }
 
+    // Auto-combat check — "attack X", "stab X", etc.
+    if (typeof checkAutoAttack === 'function' && checkAutoAttack(text)) {
+      input.value = '';
+      return;
+    }
+
     // Talk patterns
     const talkRe = [
       /^(?:talk|speak|chat)(?:\s+(?:to|with))?\s+(?:the\s+)?(.+)/i,
