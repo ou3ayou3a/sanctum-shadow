@@ -90,8 +90,8 @@ io.on('connection', (socket) => {
   // ── Join session ──
   socket.on('join_session', ({ code, playerName }) => {
     const s = getSession(code);
-    if (!s) { socket.emit('error', { msg: 'Session not found. Check the code.' }); return; }
-    if (Object.keys(s.players).length >= s.maxPlayers) { socket.emit('error', { msg: 'Session is full.' }); return; }
+    if (!s) { socket.emit('join_error', { msg: `Session "${code}" not found. Check the code or ask the host to recreate it.` }); return; }
+    if (Object.keys(s.players).length >= s.maxPlayers) { socket.emit('join_error', { msg: 'Session is full.' }); return; }
 
     s.players[socket.id] = { id: socket.id, name: playerName, character: null, hp: null, maxHp: null, ready: false, connected: true };
     socket.join(code);
@@ -102,6 +102,27 @@ io.on('connection', (socket) => {
     broadcastSession(code);
     io.to(code).emit('chat_message', { system: true, text: `${playerName} joined the party.` });
     console.log(`${playerName} joined ${code}`);
+  });
+
+  // ── Rejoin after disconnect ──
+  socket.on('rejoin_session', ({ code, playerName, character }) => {
+    const s = getSession(code);
+    if (!s) { socket.emit('join_error', { msg: `Session "${code}" expired. Ask host to start a new one.` }); return; }
+    // Update existing player entry or add new
+    const existing = Object.values(s.players).find(p => p.name === playerName);
+    if (existing) {
+      existing.id = socket.id;
+      existing.connected = true;
+      s.players[socket.id] = existing;
+    } else {
+      s.players[socket.id] = { id: socket.id, name: playerName, character, hp: character?.hp, maxHp: character?.maxHp, ready: !!character, connected: true };
+    }
+    socket.join(code);
+    socket.sessionCode = code;
+    socket.playerName = playerName;
+    socket.emit('session_joined', { code, playerId: socket.id, session: s });
+    broadcastSession(code);
+    io.to(code).emit('chat_message', { system: true, text: `${playerName} reconnected.` });
   });
 
   // ── Character ready ──
@@ -306,11 +327,7 @@ io.on('connection', (socket) => {
     const s = getSession(code);
     if (!s) return;
     const player = s.players[socket.id];
-    // Broadcast to everyone else in the room
-    socket.to(code).emit('story_event', {
-      eventType, payload,
-      fromPlayer: player?.name || 'Unknown'
-    });
+    socket.to(code).emit('story_event', { eventType, payload, fromPlayer: player?.name || 'Unknown' });
   });
 
   // ── Chat ──
