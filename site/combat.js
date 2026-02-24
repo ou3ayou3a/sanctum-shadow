@@ -114,6 +114,18 @@ function generateEnemy(type, areaLevel) {
   };
 }
 
+// ─── SYNC HP TO UI ───────────────────────────
+function syncPlayerHP() {
+  const player = combatState.combatants['player'];
+  if (!player || !gameState.character) return;
+  // Write back to character
+  gameState.character.hp = Math.max(0, player.hp);
+  gameState.character.mp = Math.max(0, player.mp);
+  // Re-render the left panel stat bars
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  if (typeof renderStatsMini === 'function') renderStatsMini();
+}
+
 // ─── XP & LEVELING ────────────────────────────
 function grantXP(amount) {
   const char = gameState.character;
@@ -456,6 +468,7 @@ function combatAttack() {
   }
   combatState.apRemaining--;
   checkCombatEnd();
+  syncPlayerHP();
   updateCombatUI();
 }
 
@@ -504,6 +517,7 @@ function castSelectedSpell() {
 
   combatState.selectedSpell = null;
   checkCombatEnd();
+  syncPlayerHP();
   updateCombatUI();
 }
 
@@ -631,6 +645,7 @@ function enemyAI(enemyId) {
 
   updateCombatUI();
   checkCombatEnd();
+  syncPlayerHP();
   setTimeout(advanceTurn, 1200);
 }
 
