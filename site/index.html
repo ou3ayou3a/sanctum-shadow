@@ -26,6 +26,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
       <div class="splash-quote">"Between Heaven's grace and Hell's hunger, your soul is the battlefield."</div>
       <div class="splash-buttons">
         <button class="btn-primary" onclick="showScreen('lobby')">⚔ Enter the Chronicle</button>
+        <button class="btn-secondary" id="load-game-btn" onclick="openLoadScreen()" style="display:none">📖 Load Chronicle</button>
         <button class="btn-secondary" onclick="showScreen('rules')">📜 The Sacred Laws</button>
       </div>
       <div class="version-tag">Chapter I: The Shattered Covenant</div>
@@ -237,6 +238,8 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
             <button class="qa-btn spell" onclick="showSpellMenu()">✨ Spells</button>
             <button class="qa-btn quest" onclick="showQuestLog()">📜 Quests</button>
             <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
+            <button class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
+            <button class="qa-btn" style="border-color:rgba(130,100,200,0.4);color:#a07ad4" onclick="openLoadScreen()">📂 Runs</button>
           </div>
         </div>
       </div>
@@ -380,16 +383,32 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=28"></script>
-<script src="audio.js?v=28"></script>
-<script src="map.js?v=28"></script>
-<script src="game.js?v=28"></script>
-<script src="combat.js?v=28"></script>
-<script src="additions.js?v=28"></script>
-<script src="story.js?v=28"></script>
-<script src="dialogue.js?v=28"></script>
-<script src="romance.js?v=28"></script>
-<script src="senses.js?v=28"></script>
-<script src="multiplayer.js?v=28"></script>
+<script src="data.js?v=29"></script>
+<script src="audio.js?v=29"></script>
+<script src="map.js?v=29"></script>
+<script src="game.js?v=29"></script>
+<script src="combat.js?v=29"></script>
+<script src="additions.js?v=29"></script>
+<script src="story.js?v=29"></script>
+<script src="dialogue.js?v=29"></script>
+<script src="romance.js?v=29"></script>
+<script src="senses.js?v=29"></script>
+<script src="multiplayer.js?v=29"></script>
+<script src="saves.js?v=29"></script>
+<script>
+// Show Load Chronicle button on splash if saves exist
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const raw = localStorage.getItem('ss_saves_v1');
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.slots?.length > 0) {
+        const btn = document.getElementById('load-game-btn');
+        if (btn) btn.style.display = '';
+      }
+    }
+  } catch {}
+});
+</script>
 </body>
 </html>
