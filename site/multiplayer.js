@@ -4,6 +4,11 @@
 //   story sync, story broadcast
 // ============================================
 
+// Guard against double-loading
+if (window._mpLoaded) { console.warn('multiplayer.js already loaded, skipping'); }
+else {
+window._mpLoaded = true;
+
 window.mp = {
   socket: null,
   connected: false,
@@ -232,9 +237,9 @@ function mpBroadcastStoryEvent(eventType, payload) {
 }
 
 // ─── PATCH addLog ─────────────────────────────
-const _origAddLog = window.addLog;
+const _mpOrigAddLog = window.addLog;
 window.addLog = function(text, type = 'system', playerName = null) {
-  if (_origAddLog) _origAddLog(text, type, playerName);
+  if (_mpOrigAddLog) _mpOrigAddLog(text, type, playerName);
   if (window.mp.sessionCode && window.mp.socket && !window.mp._receiving) {
     window.mp.socket.emit('game_log', {
       code: window.mp.sessionCode,
@@ -242,7 +247,7 @@ window.addLog = function(text, type = 'system', playerName = null) {
     });
   }
 };
-window.addLog._orig = _origAddLog;
+window.addLog._orig = _mpOrigAddLog;
 
 // ─── PATCH chooseSceneOption ──────────────────
 const _origChooseScene = window.chooseSceneOption;
@@ -502,3 +507,5 @@ mpStyle.textContent = mpCSS;
 document.head.appendChild(mpStyle);
 
 console.log('🔗 Multiplayer v2 loaded.');
+
+} // end double-load guard
