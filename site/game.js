@@ -35,6 +35,15 @@ function showScreen(name) {
     screen.classList.add('active');
     gameState.activeScreen = name;
   }
+  // Always clean up floating game overlays when navigating away from game
+  if (name !== 'game') {
+    document.getElementById('conv-panel')?.remove();
+    document.getElementById('combat-panel')?.remove();
+    document.getElementById('scene-panel')?.remove();
+    document.getElementById('dm-strip')?.remove();
+    if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
+    if (window.combatState) window.combatState.active = false;
+  }
 }
 
 // ─── SESSION MANAGEMENT ───────────────────

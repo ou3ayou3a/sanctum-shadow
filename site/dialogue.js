@@ -466,6 +466,8 @@ function resolveNPCFull(nameOrId) {
 
 // ─── UI FUNCTIONS ─────────────────────────────
 function renderConvPanel(npc) {
+  // Don't open conversation panels if not in the game screen
+  if (gameState?.activeScreen && gameState.activeScreen !== 'game') return;
   document.getElementById('conv-panel')?.remove();
   const panel = document.createElement('div');
   panel.id = 'conv-panel';
