@@ -17,7 +17,7 @@ function getFlag(key) { return !!window.sceneState.flags[key]; }
 function setNPCState(npc, state) { window.sceneState.npcStates[npc] = state; }
 function getNPCState(npc) { return window.sceneState.npcStates[npc] || 'neutral'; }
 
-// ─── SCENE PANEL UI (MODAL) ───────────────────
+// ─── SCENE PANEL UI ───────────────────────────
 function showScene(sceneData) {
   const old = document.getElementById('scene-panel');
   if (old) old.remove();
@@ -39,8 +39,7 @@ function showScene(sceneData) {
   `).join('');
 
   panel.innerHTML = `
-    <div class="sp-backdrop"></div>
-    <div class="sp-modal">
+    <div class="sp-inner">
       <div class="sp-location-bar">
         <span class="sp-loc-icon">${sceneData.locationIcon || '🏰'}</span>
         <span class="sp-loc-name">${sceneData.location || 'Vaelthar'}</span>
@@ -51,18 +50,20 @@ function showScene(sceneData) {
       <div class="sp-options" id="sp-options">${optionsHTML}</div>
       <div class="sp-free-action">
         <span class="sp-free-hint">${isMP
-          ? '🗳 All players must vote — majority wins, ties broken by dice roll'
+          ? '🗳 All players vote — majority wins, ties broken by dice'
           : 'Or type any action freely below ↓'
         }</span>
       </div>
     </div>
   `;
 
-  document.body.appendChild(panel);
-
-  // Hide DM strip while modal is open
-  const dmStrip = document.getElementById('dm-strip');
-  if (dmStrip) dmStrip.style.display = 'none';
+  // Insert inline in the game log area — same as before
+  const gameLog = document.getElementById('game-log');
+  if (gameLog) {
+    gameLog.parentNode.insertBefore(panel, gameLog.nextSibling);
+  } else {
+    document.body.appendChild(panel);
+  }
 
   window.sceneState._currentOptions = sceneData.options || [];
   window.sceneState._currentScene = sceneData;
@@ -71,12 +72,10 @@ function showScene(sceneData) {
   window.sceneState._playerCount = playerCount;
 
   typewriteScene(sceneData.narration, sceneData.sub);
-  // Only log a short summary, not the full narration (modal has it)
   addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
 
-  // In multiplayer, broadcast this scene to all other players
+  // Broadcast scene to all other players in MP
   if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
-    // Serialize scene data (strip functions)
     const safeScene = {
       location: sceneData.location,
       locationIcon: sceneData.locationIcon,
@@ -84,13 +83,8 @@ function showScene(sceneData) {
       narration: sceneData.narration,
       sub: sceneData.sub,
       options: (sceneData.options || []).map(o => ({
-        label: o.label,
-        icon: o.icon,
-        type: o.type,
-        roll: o.roll,
-        cost: o.cost,
-        next: o.next,
-        nextFail: o.nextFail,
+        label: o.label, icon: o.icon, type: o.type,
+        roll: o.roll, cost: o.cost, next: o.next, nextFail: o.nextFail,
       })),
     };
     window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene });
@@ -835,40 +829,21 @@ window.initGameScreen = function() {
   startStoryEngine();
 };
 
-// ─── SCENE CSS (MODAL) ───────────────────────
+// ─── SCENE CSS ───────────────────────────────
 const sceneCSS = `
 .scene-panel {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  animation: sceneFadeIn 0.25s ease;
-  pointer-events: all;
+  margin: 12px 0;
+  animation: sceneFadeIn 0.3s ease;
 }
-.sp-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(4,2,1,0.88);
-  backdrop-filter: blur(3px);
-}
-@keyframes sceneFadeIn { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
-.sp-modal {
-  position: relative;
-  width: 100%;
-  max-width: 560px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background: linear-gradient(160deg, rgba(14,9,4,0.99) 0%, rgba(8,5,2,1) 100%);
-  border: 1px solid rgba(201,168,76,0.35);
+@keyframes sceneFadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.sp-inner {
+  background: linear-gradient(160deg, rgba(14,9,4,0.98) 0%, rgba(8,5,2,1) 100%);
+  border: 1px solid rgba(201,168,76,0.25);
   border-left: 3px solid var(--gold);
-  box-shadow: 0 24px 80px rgba(0,0,0,0.95), 0 0 60px rgba(201,168,76,0.04);
 }
 .sp-location-bar {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px;
+  padding: 7px 14px;
   background: rgba(201,168,76,0.06);
   border-bottom: 1px solid rgba(201,168,76,0.12);
   flex-wrap: wrap;
@@ -878,11 +853,9 @@ const sceneCSS = `
 .sp-threat { font-family:'Cinzel',serif; font-size:0.62rem; color:var(--hell); letter-spacing:0.08em; }
 .sp-vote-status { font-family:'Cinzel',serif; font-size:0.62rem; color:var(--text-dim); margin-left:auto; }
 .sp-narration {
-  padding: 14px 18px 8px 18px;
+  padding: 12px 16px 6px 16px;
   font-family:'IM Fell English','Palatino',serif;
-  font-size:0.88rem; line-height:1.65; color:var(--text-primary);
-  max-height: 28vh;
-  overflow-y: auto;
+  font-size:0.87rem; line-height:1.6; color:var(--text-primary);
 }
 .sp-sub {
   display: block; margin-top: 8px;
@@ -890,7 +863,7 @@ const sceneCSS = `
 }
 .sp-options {
   display: flex; flex-direction: column; gap: 3px;
-  padding: 6px 12px 10px 12px;
+  padding: 6px 12px 8px 12px;
 }
 .scene-option {
   display: flex; align-items: center; gap: 8px;
@@ -915,14 +888,8 @@ const sceneCSS = `
 .so-votes { display:flex; gap:2px; align-items:center; flex-shrink:0; font-size:0.68rem; }
 .vote-pip { opacity:0.85; }
 .vote-count { font-size:0.62rem; color:var(--gold); font-family:'Cinzel',serif; margin-left:2px; }
-.sp-free-action { padding:4px 16px 10px; }
+.sp-free-action { padding:3px 14px 8px; }
 .sp-free-hint { font-size:0.65rem; color:var(--text-dim); font-style:italic; }
-.sp-vote-bar {
-  padding: 6px 14px 8px;
-  border-top: 1px solid rgba(201,168,76,0.08);
-  display: flex; align-items: center; justify-content: space-between;
-  font-family:'Cinzel',serif; font-size:0.65rem; color:var(--text-dim);
-}
 `;
 const sceneStyle = document.createElement('style');
 sceneStyle.id = 'scene-styles';
