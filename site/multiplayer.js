@@ -77,6 +77,24 @@ function initMultiplayer() {
     if (el) { el.innerHTML = '🔴 Disconnected — reconnecting...'; el.style.color = '#c0392b'; }
   });
 
+  socket.on('connect', () => {
+    window.mp.connected = true;
+    const el = document.getElementById('mp-status');
+    if (el) { el.innerHTML = '🟢 Connected'; el.style.color = ''; }
+
+    // Auto-rejoin session if we were in one
+    const code = window.mp.sessionCode || gameState?.sessionCode;
+    const char = gameState?.character;
+    if (code && char) {
+      console.log('Auto-rejoining session', code);
+      socket.emit('rejoin_session', {
+        code,
+        playerName: char.name,
+        character: char
+      });
+    }
+  });
+
   // ── Session created (host) ──
   socket.on('session_created', ({ code, playerId }) => {
     window.mp.sessionCode = code;
@@ -93,7 +111,7 @@ function initMultiplayer() {
     toast('Session created: ' + code, 'holy');
   });
 
-  // ── Session joined (joiner) ──
+  // ── Session joined (joiner or rejoin) ──
   socket.on('session_joined', ({ code, playerId, session }) => {
     window.mp.sessionCode = code;
     window.mp.playerId = playerId;
@@ -106,7 +124,13 @@ function initMultiplayer() {
     if (big) big.textContent = code;
     const nameEl = document.getElementById('wait-session-name');
     if (nameEl) nameEl.textContent = 'Joined session ' + code;
-    toast('Joined session ' + code, 'holy');
+
+    // If already in the game screen (reconnecting), stay there — don't go to lobby
+    if (gameState.activeScreen === 'game' && gameState.character) {
+      toast('🔄 Reconnected to session ' + code, 'holy');
+    } else {
+      toast('Joined session ' + code, 'holy');
+    }
   });
 
   // ── Error ──
