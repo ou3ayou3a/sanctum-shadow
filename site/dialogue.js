@@ -472,6 +472,11 @@ function renderConvPanel(npc) {
   // Don't open conversation panels if not in the game screen
   if (gameState?.activeScreen && gameState.activeScreen !== 'game') return;
   document.getElementById('conv-panel')?.remove();
+
+  // Hide the scene panel while NPC dialogue is open
+  const scenePanel = document.getElementById('scene-panel');
+  if (scenePanel) scenePanel.style.display = 'none';
+
   const panel = document.createElement('div');
   panel.id = 'conv-panel';
   panel.className = 'conv-panel';
@@ -501,7 +506,16 @@ function renderConvPanel(npc) {
       </div>
     </div>
   `;
-  document.body.appendChild(panel);
+  // Insert into the game log so it's inline in the stream (not a floating overlay)
+  const gameLog = document.getElementById('game-log');
+  if (gameLog) {
+    gameLog.appendChild(panel);
+    setTimeout(() => {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  } else {
+    document.body.appendChild(panel);
+  }
   requestAnimationFrame(() => panel.style.opacity = '1');
 }
 
@@ -573,8 +587,16 @@ function closeConvPanel() {
   window.npcConvState.active = false;
   window.npcConvState.npc = null;
   window.npcConvState.history = [];
+
+  // Restore the scene panel if one was hidden
+  const scenePanel = document.getElementById('scene-panel');
+  if (scenePanel) {
+    scenePanel.style.display = '';
+    setTimeout(() => scenePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 350);
+  }
+
   // Broadcast close to all party members
-  if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
+  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('conv_close', {});
   }
 }
@@ -656,19 +678,17 @@ installNPCHook();
 // ─── CSS ─────────────────────────────────────
 const convCSS = `
 .conv-panel {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  z-index: 2000; display: flex; justify-content: center;
+  width: 100%;
   opacity: 0; transition: opacity 0.3s;
-  pointer-events: none;
+  margin: 4px 0 8px 0;
+  animation: sceneFadeIn 0.3s ease;
 }
 .cp-inner {
-  width: 100%; max-width: 900px;
+  width: 100%;
   background: linear-gradient(180deg, rgba(5,3,1,0.99) 0%, rgba(8,5,2,1) 100%);
   border: 1px solid rgba(201,168,76,0.45);
-  border-bottom: none;
-  border-top: 2px solid rgba(201,168,76,0.65);
-  box-shadow: 0 -16px 60px rgba(0,0,0,0.95), 0 -2px 24px rgba(201,168,76,0.12);
-  pointer-events: all;
+  border-left: 3px solid rgba(201,168,76,0.65);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
 }
 .cp-header {
   display: flex; align-items: center; gap: 12px;
