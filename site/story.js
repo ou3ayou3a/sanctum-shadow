@@ -2139,13 +2139,413 @@ const SCENES = {
   ...MISSING_SCENES,
 };
 
+// ══════════════════════════════════════════════════════════════
+//  PERSONAL QUEST SCENES — One hook + one payoff per origin
+//  Triggered by startPersonalQuestHook() after game starts
+// ══════════════════════════════════════════════════════════════
+
+const PERSONAL_QUEST_SCENES = {
+
+  // ── FALLEN NOBLE ─────────────────────────────────────────
+  pq_fallen_noble_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_noble_hook_seen');
+    return {
+      location: 'Vaelthar — A Familiar Coat of Arms',
+      locationIcon: '🏰',
+      narration: `You stop in your tracks. On the wall of a merchant's building — half-obscured by a new coat of paint — is your family's coat of arms. Not a copy. The real seal, carved in the original stone. This building was your family's Vaelthar trading post, sold off during the collapse. The merchant inside notices you staring. He looks nervous. He knows something about who bought the debt.`,
+      sub: `Your family's old trading post. The merchant knows something.`,
+      options: [
+        { icon: '💬', label: 'Go in and ask the merchant directly', type: 'talk',
+          roll: { stat: 'CHA', dc: 11 },
+          onSuccess: () => { setFlag('pq_noble_merchant_talked'); addLog(`📜 PERSONAL QUEST: The merchant confirms — a Church elder bought your family's debts the week before the estate fire. Not after. Before.`, 'hell'); runScene('pq_fallen_noble_payoff'); },
+          onFail: () => { addLog('He shuts up the moment he senses you pressing. Too afraid to talk.', 'system'); runScene('pq_fallen_noble_payoff'); } },
+        { icon: '🔍', label: 'Search the building exterior for evidence first', type: 'explore',
+          roll: { stat: 'INT', dc: 12 },
+          onSuccess: () => { setFlag('pq_noble_evidence'); addLog('📜 CLUE: Carved into the foundation stone — a date, and a Church notary seal. The estate was marked for acquisition before the fire.', 'holy'); runScene('pq_fallen_noble_payoff'); },
+          onFail: () => runScene('pq_fallen_noble_payoff') },
+        { icon: '⏭', label: 'Note the location and come back later', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — found the old trading post. The merchant knows something.`, 'hell'); setFlag('pq_noble_hook_seen'); } },
+      ]
+    };
+  },
+
+  pq_fallen_noble_payoff: () => {
+    const char = gameState.character;
+    setFlag('pq_noble_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Vaelthar — The Merchant\'s Back Room',
+      locationIcon: '🏰',
+      narration: `The merchant, once he's sure the door is locked and no one is watching, pulls out a ledger. His hands shake. "The debt purchase was arranged by a notary working for the Church of the Eternal Flame. I bought the building from the Church, not from your family. I always assumed—" He stops. "I assumed your family sold willingly. I think now they didn't have a choice." He looks at you. "The notary's name was Aldis. He worked at the Archive."`,
+      sub: `The Church engineered your family's ruin. The Archive scribe may know more.`,
+      options: [
+        { icon: '💬', label: 'Find Aldis the Scribe — he\'s connected to everything', type: 'talk',
+          action: () => { setFlag('pq_noble_scribe_link'); addLog('📜 PERSONAL QUEST: Your family\'s fall and the Covenant plot share a name — Aldis, the Archive scribe. This goes deeper than you thought.', 'holy'); runScene('scribe_approach'); } },
+        { icon: '😠', label: '"The Church destroyed my family. I want Elder Varek."', type: 'talk',
+          action: () => { setFlag('pq_noble_varek_target'); grantHellPoints(3); addLog('📜 PERSONAL QUEST: The Church took everything from you. Varek\'s arrest is now personal.', 'hell'); } },
+      ]
+    };
+  },
+
+  // ── WAR ORPHAN ─────────────────────────────────────────
+  pq_war_orphan_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_orphan_hook_seen');
+    return {
+      location: 'Vaelthar — A Soldier\'s Face',
+      locationIcon: '🏰',
+      narration: `In the square, among the Watch soldiers standing guard, you see a face. Old now, heavier, a scar you don't remember — but the jaw, the eyes, the particular way he stands with his weight on his left foot. You were seven when you last saw that face. He was giving orders. You were hiding in a root cellar, listening to your village burn above you. He's a Watch sergeant now. He hasn't seen you yet.`,
+      sub: `One of the men who ordered the raid on your village. Right here. Right now.`,
+      options: [
+        { icon: '👁', label: 'Watch him — don\'t act yet. Confirm it\'s him.', type: 'explore',
+          roll: { stat: 'WIS', dc: 10 },
+          onSuccess: () => { setFlag('pq_orphan_confirmed'); addLog('📜 CONFIRMED: It\'s him. Sergeant Mael. You\'d know him anywhere. He works directly under Captain Rhael.', 'hell'); runScene('pq_war_orphan_payoff'); },
+          onFail: () => { addLog('You can\'t be certain from this distance. He moves off before you can get closer.', 'system'); runScene('pq_war_orphan_payoff'); } },
+        { icon: '😠', label: 'Confront him now — you\'ve waited long enough', type: 'combat',
+          roll: { stat: 'CHA', dc: 16 },
+          onSuccess: () => { setFlag('pq_orphan_confronted'); addLog('📜 He goes pale. He remembers you — or the raid. Same thing.', 'hell'); runScene('pq_war_orphan_payoff'); },
+          onFail: () => { grantHellPoints(3); setFlag('guards_alerted'); addLog('He shouts for the Watch. Your face is now known. +3 Hell Points.', 'hell'); runScene('arrested_scene'); } },
+        { icon: '⏭', label: 'Let him go. Not today. But you\'ll find him again.', type: 'move',
+          action: () => { setFlag('pq_orphan_hook_seen'); addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — Sergeant Mael of the Vaelthar Watch. You\'ll be back.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_war_orphan_payoff: () => {
+    setFlag('pq_orphan_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Vaelthar — The Truth About the Raid',
+      locationIcon: '🏰',
+      narration: `You find what you can from the Watch records — a clerk who owes you a favour, a ledger left open too long. The raid on your village is listed as "pacification action, commissioned by the Church of the Eternal Flame, year 14 of the current covenant period." It was paid for. Your village was targeted because it sat on land the Church wanted for a reliquary road. The commander's name is listed. General Vane. He's alive. He's in the capital.`,
+      sub: `The raid was commissioned by the Church. General Vane ordered it. He's alive.`,
+      options: [
+        { icon: '📜', label: 'Copy the record — you\'ll need proof', type: 'explore',
+          action: () => { addLog('📜 ITEM GAINED: Watch Pacification Ledger (copy) — proof the raid was Church-commissioned.', 'holy'); gameState.character?.inventory?.push('Pacification Ledger (copy)'); grantHolyPoints(3); addLog('📜 PERSONAL QUEST: You have a name. General Vane. A face. Sergeant Mael. And proof.', 'holy'); } },
+        { icon: '😠', label: 'Burn the record — let Vane think it\'s gone', type: 'explore',
+          action: () => { grantHellPoints(5); addLog('📜 You burn the record. Vane won\'t know you have a copy. Or won\'t know there isn\'t one. +5 Hell Points.', 'hell'); } },
+      ]
+    };
+  },
+
+  // ── CURSED BLOODLINE ───────────────────────────────────
+  pq_cursed_blood_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_curse_hook_seen');
+    return {
+      location: 'Vaelthar — The Voice, Louder',
+      locationIcon: '🏰',
+      threat: '⚠ Bloodline Stirs',
+      narration: `It hasn't spoken since you arrived in Vaelthar — and then, in the quiet of the evening, standing near the Archive, it does. Clearer than usual. A single sentence, in a language you didn't know you knew: "The seal is broken. I am waking." And then, very quietly: "I have been waiting for you specifically." Your palm burns where the scar sits. Across the square, a woman in grey robes turns and looks directly at you. She couldn't have heard. But she smiles as if she did.`,
+      sub: `The Voice in your blood is awake. The woman in grey knows something.`,
+      options: [
+        { icon: '💬', label: 'Follow the woman in grey — she recognised something', type: 'talk',
+          roll: { stat: 'WIS', dc: 11 },
+          onSuccess: () => { setFlag('pq_curse_woman_found'); addLog('📜 She stops and waits for you. "You carry a shard," she says. "So do I. There are six of us."', 'hell'); runScene('pq_cursed_blood_payoff'); },
+          onFail: () => { addLog('She\'s gone by the time you reach the corner. But she left something — a mark on the wall, like your scar.', 'system'); runScene('pq_cursed_blood_payoff'); } },
+        { icon: '🔍', label: 'Examine your scar — it\'s changed since arriving here', type: 'explore',
+          roll: { stat: 'INT', dc: 12 },
+          onSuccess: () => { setFlag('pq_curse_scar_read'); addLog('📜 CLUE: The scar has new lines. A symbol you recognise from the monastery walls: "It breathes below." Your bloodline curse and the monastery Voice are the same thing.', 'holy'); runScene('pq_cursed_blood_payoff'); },
+          onFail: () => runScene('pq_cursed_blood_payoff') },
+        { icon: '⏭', label: 'Ignore it. You can\'t afford distractions right now.', type: 'move',
+          action: () => { grantHellPoints(2); addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — the Voice is awake. Ignoring it costs something. +2 Hell Points.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_cursed_blood_payoff: () => {
+    setFlag('pq_curse_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Vaelthar — The Shard Bearers',
+      locationIcon: '🏰',
+      narration: `The woman finds you instead, eventually. Her name is Ysel. She carries the same mark on her wrist, different shape. "When the old god shattered," she says, "its essence split into pieces. Some pieces went into bloodlines. Your grandmother didn't make a deal with a demon. She was chosen as a vessel — involuntarily, I think — for one of the fragments." She holds out her wrist. "The Covenant was the seal that kept the fragments dormant. It's broken now. We're all waking up." She pauses. "There are six of us I know of. The seventh fragment went somewhere worse."`,
+      sub: `Your curse is a god-fragment. Six carriers exist. The seventh fragment is the Voice Below.`,
+      options: [
+        { icon: '💬', label: '"Is this curable? Can the fragment be removed?"', type: 'talk',
+          action: () => { addLog('Ysel: "Removed? No. Controlled? Yes — if you understand it. Mastered? One person has managed that. They\'re not available anymore."', 'narrator'); grantXP(50); setFlag('pq_curse_understands'); } },
+        { icon: '🤝', label: '"Tell me the other bearers\' names. We should find each other."', type: 'talk',
+          action: () => { setFlag('pq_curse_network'); addLog('📜 PERSONAL QUEST: Ysel gives you two names. The bloodline curse network has begun. This connects to Chapter 2.', 'holy'); grantXP(75); } },
+      ]
+    };
+  },
+
+  // ── DIVINELY CHOSEN ───────────────────────────────────
+  pq_divine_chosen_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_divine_hook_seen');
+    return {
+      location: 'Church of the Eternal Flame — Vaelthar',
+      locationIcon: '🕯',
+      narration: `You step into the church for reasons you can't fully explain — the light was wrong, or the door was open, or something pulled. Inside, past the rows of candles, you see it. On the back wall behind the main altar, carved into stone that predates the current building by centuries: a phrase in old script. You can read it, somehow, despite not knowing the language. It says: "The Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Below it, crudely scratched in fresher marks: your description. Physical. Exact.`,
+      sub: `Someone carved your description into a church wall centuries ago. Before you were born.`,
+      options: [
+        { icon: '🔍', label: 'Study the carving — when was it made?', type: 'explore',
+          roll: { stat: 'INT', dc: 12 },
+          onSuccess: () => { setFlag('pq_divine_carving_dated'); addLog('📜 CLUE: Stone analysis — the carving is 400 years old at minimum. Someone prophesied you centuries before your birth.', 'holy'); runScene('pq_divine_chosen_payoff'); },
+          onFail: () => runScene('pq_divine_chosen_payoff') },
+        { icon: '🙏', label: 'Pray — ask for clarity. You were told you\'d be guided.', type: 'explore',
+          roll: { stat: 'WIS', dc: 13 },
+          onSuccess: () => { setFlag('pq_divine_prayer_answered'); grantHolyPoints(8); addLog('📜 The certainty comes: not words, just direction. Something is wrong in this city, and you are specifically needed to fix it. +8 Holy Points.', 'holy'); runScene('pq_divine_chosen_payoff'); },
+          onFail: () => { addLog('Silence. As usual.', 'system'); runScene('pq_divine_chosen_payoff'); } },
+        { icon: '⏭', label: 'Leave. You don\'t want to know what "no choice" means yet.', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — a carving in the old church describes you exactly. Dated centuries ago.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_divine_chosen_payoff: () => {
+    setFlag('pq_divine_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Church Archive — Lower Level',
+      locationIcon: '🕯',
+      narration: `A priest finds you still staring at the wall. He's old enough to have heard of the carving before. "We call it the Anticipatory Saint," he says. "Every generation, someone matches the description. They always arrive near a breaking point." He leads you to a locked cabinet. Inside: a scroll listing every previous Chosen, what they did, and what it cost them. The list is long. None of them survived past the age you are now. The last entry has no name. Just a date. Six months from today.`,
+      sub: `Every Chosen has died young. The scroll ends six months from now. Your name isn't on it yet.`,
+      options: [
+        { icon: '📜', label: 'Take the scroll — you need to read every entry', type: 'explore',
+          action: () => { addLog('📜 ITEM GAINED: The Anticipatory Saint Scroll — records of every Chosen, their deeds, their deaths.', 'holy'); gameState.character?.inventory?.push('The Anticipatory Saint Scroll'); grantHolyPoints(5); addLog('📜 PERSONAL QUEST: You have six months by the scroll\'s reckoning. What happens then is unclear.', 'holy'); } },
+        { icon: '💬', label: '"Why do they all die? What kills them?"', type: 'talk',
+          action: () => { addLog('The priest: "The task. Whatever they were chosen for. It always costs more than a person has. That\'s why it takes a Chosen — ordinary people don\'t have enough to spend."', 'narrator'); grantHolyPoints(3); } },
+      ]
+    };
+  },
+
+  // ── EXILE ─────────────────────────────────────────────
+  pq_exile_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_exile_hook_seen');
+    return {
+      location: 'Vaelthar — The Brand Is Recognised',
+      locationIcon: '🏰',
+      threat: '⚠ Exposed',
+      narration: `Your collar slips in the crowd. Just for a moment. But a man with a sharp face and sharper eyes catches the edge of the brand on your neck, and his expression shifts — not hostile, something more considered. He falls into step beside you. "The exile brand of the city of Hareth," he says quietly. "I know that brand. I know the case it came from. I also know the man who gave the false testimony that put it there." He doesn't slow. "His name is worth something to you, I think."`,
+      sub: `Someone knows your case. And they know who lied.`,
+      options: [
+        { icon: '💬', label: '"Who are you and what do you want for the name?"', type: 'talk',
+          roll: { stat: 'WIS', dc: 11 },
+          onSuccess: () => { setFlag('pq_exile_contact_trusted'); addLog('📜 His name is Cael. Former court recorder. He has the original testimony documents — the unedited version. He wants protection.', 'holy'); runScene('pq_exile_payoff'); },
+          onFail: () => { addLog('He doesn\'t give you his name. But he gives you a location: the archive basement, third shelf, green ledger.', 'system'); runScene('pq_exile_payoff'); } },
+        { icon: '🔍', label: 'Follow him — see where he goes before trusting him', type: 'explore',
+          roll: { stat: 'DEX', dc: 12 },
+          onSuccess: () => { setFlag('pq_exile_followed'); addLog('📜 He goes to the Church Archive. He works there. He has access to sealed documents. He could be useful or dangerous.', 'holy'); runScene('pq_exile_payoff'); },
+          onFail: () => { addLog('You lose him in the crowd. He didn\'t look back.', 'system'); runScene('pq_exile_payoff'); } },
+        { icon: '⏭', label: 'Ignore him. It could be a trap.', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — someone recognised your brand and says they know who lied. Possible trap. Possible truth.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_exile_payoff: () => {
+    setFlag('pq_exile_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Church Archive — Basement',
+      locationIcon: '📜',
+      narration: `Green ledger, third shelf. It's there. Court testimony transcripts — including a case from Hareth, including your name, including the witness statement that exiled you. And next to it, in the same handwriting but a different ink, the original version. Before it was edited. The difference is one sentence. One sentence that completely inverts the testimony. The editor's initials are stamped on the revision: E.V. Elder Varek's initials. The man you're already hunting arranged your exile.`,
+      sub: `Elder Varek arranged your false exile. This just became very personal.`,
+      options: [
+        { icon: '📜', label: 'Take both documents — the original and the edited version', type: 'explore',
+          action: () => { addLog('📜 ITEM GAINED: Exile Testimony (original + edited) — proof of falsification, initialled by Elder Varek.', 'holy'); gameState.character?.inventory?.push("Exile Testimony Documents"); grantHolyPoints(5); addLog('📜 PERSONAL QUEST: Varek exiled you. The Covenant investigation and your personal quest are now the same quest.', 'holy'); setFlag('pq_exile_varek_connected'); } },
+        { icon: '😠', label: 'Varek is already going down. Now it\'s more than duty.', type: 'explore',
+          action: () => { grantHellPoints(3); setFlag('pq_exile_rage'); addLog('📜 The cold fury that carries you from here is something different from justice. +3 Hell Points.', 'hell'); } },
+      ]
+    };
+  },
+
+  // ── MONSTER HUNTER ────────────────────────────────────
+  pq_hunter_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_hunter_hook_seen');
+    return {
+      location: 'Vaelthar — A Familiar Kill Pattern',
+      locationIcon: '🏰',
+      narration: `The Watch sergeant is briefing his men near the fountain. You catch fragments: bodies arranged in a circle, no signs of struggle, markings on the palms. You've seen this before. Not here — three years ago, in a village two hundred miles east, at the start of a case you never closed. The same pattern. The same markings. Which means whatever did this then has been following the same path as you for three years, and you've only just noticed.`,
+      sub: `The Vaelthar murders match a case you couldn't close three years ago. It followed you here.`,
+      options: [
+        { icon: '💬', label: 'Talk to the Watch sergeant — get the full details', type: 'talk',
+          roll: { stat: 'CHA', dc: 11 },
+          onSuccess: () => { setFlag('pq_hunter_watch_briefed'); addLog('📜 The sergeant gives you access. The details are worse than you expected — the circle has a specific diameter. The same every time. It\'s measuring something.', 'holy'); runScene('pq_hunter_payoff'); },
+          onFail: () => { addLog('He shoos you off. But you saw enough.', 'system'); runScene('pq_hunter_payoff'); } },
+        { icon: '🔍', label: 'Examine the scene yourself — don\'t wait for permission', type: 'explore',
+          roll: { stat: 'INT', dc: 13 },
+          onSuccess: () => { setFlag('pq_hunter_scene_read'); addLog('📜 CLUE: The palm symbol isn\'t decorative — it\'s a seal mark. The creature is tagging people it intends to return for. The children with blank memories bear the same mark.', 'holy'); runScene('pq_hunter_payoff'); },
+          onFail: () => runScene('pq_hunter_payoff') },
+        { icon: '⏭', label: 'File it away. Focus on the Covenant first.', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — the thing you hunted three years ago is here. It followed you.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_hunter_payoff: () => {
+    setFlag('pq_hunter_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Vaelthar — The Creature\'s Trail',
+      locationIcon: '🏰',
+      narration: `Your old case notes. You kept them, of course — hunters keep notes. The first incident: eleven people, circle, palm marks. Second: nine. Third: fourteen. The numbers aren't random. They're primes. The circles have been getting larger. The palm marks have been getting clearer. It's not hunting randomly — it's getting ready for something. The children with blank memories are the most recent marks. They're being prepared for something specific. The pattern ends at a number you recognise: forty-nine.`,
+      sub: `49 marked victims and then — the ritual completes. Currently at 37. You have time. Not much.`,
+      options: [
+        { icon: '📜', label: 'Document the full pattern — you\'ll need this to stop it', type: 'explore',
+          action: () => { addLog('📜 ITEM GAINED: Hunter\'s Case File — full pattern documentation. 37 of 49 marked. 12 remain.', 'holy'); gameState.character?.inventory?.push("Hunter's Case File (Ritual Pattern)"); addLog('📜 PERSONAL QUEST: 12 more victims before the ritual completes. Whatever it\'s building toward connects to the shattered god.', 'holy'); setFlag('pq_hunter_ritual_known'); } },
+        { icon: '💬', label: 'Find the children — they\'re the key to understanding this', type: 'talk',
+          action: () => { addLog('📜 QUEST LINK: The children with blank memories (c1q10) are directly connected to your personal hunt. Investigating one advances both.', 'system'); setFlag('pq_hunter_children_link'); } },
+      ]
+    };
+  },
+
+  // ── CORRUPTED SAINT ───────────────────────────────────
+  pq_saint_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_saint_hook_seen');
+    return {
+      location: 'Church of the Eternal Flame — Confession',
+      locationIcon: '🕯',
+      threat: '⚠ The Debt Stirs',
+      narration: `The confessional smells of old wood and other people's sins. You're not here to confess — you're here because you followed a rumour about a priest who hears more than he should. But the moment you step inside the booth, the darkness changes. Not the demon you made your deal with — something else. A collector. "Your invoice is overdue," it says, pleasantly. "The original entity assigned to you has been — retired. I'm handling the outstanding accounts now." A pause. "The first payment is simple. Let the man across the street leave the city tonight. That's all."`,
+      sub: `Someone is collecting on your deal. They want you to let a man escape tonight.`,
+      options: [
+        { icon: '💬', label: '"Who is the man? What does it matter if he leaves?"', type: 'talk',
+          roll: { stat: 'WIS', dc: 12 },
+          onSuccess: () => { setFlag('pq_saint_learned_target'); addLog('📜 The man is a Church witness scheduled to testify about the Covenant burning. If he leaves, Varek\'s case weakens significantly.', 'hell'); runScene('pq_saint_payoff'); },
+          onFail: () => { addLog('"You don\'t need to know. You need to comply."', 'narrator'); runScene('pq_saint_payoff'); } },
+        { icon: '😠', label: '"No. I\'m not doing anything for you."', type: 'talk',
+          action: () => { grantHellPoints(5); setFlag('pq_saint_refused'); addLog('📜 The voice goes cold. "Then the Church learns your secret before sunrise." +5 Hell Points.', 'hell'); runScene('pq_saint_payoff'); } },
+        { icon: '⏭', label: 'Leave without answering', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — someone is collecting on your old deal. First payment: let a man flee the city.`, 'hell'); } },
+      ]
+    };
+  },
+
+  pq_saint_payoff: () => {
+    setFlag('pq_saint_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Vaelthar — The Choice',
+      locationIcon: '🕯',
+      narration: `The man across the street is exactly where the voice said he'd be. Middle-aged, merchant-looking, nervous. You watch him for ten minutes. He's about to board a coach. If you do nothing, he leaves. The Covenant case loses a witness. Varek's prosecution becomes harder. If you stop him — report him to Rhael, hold him here — you've defied the collector. The Church probably won't learn your secret immediately. But the collector will find another way to call in the debt.`,
+      sub: `Let him go and serve darkness, or stop him and pay later. Both have a cost.`,
+      options: [
+        { icon: '✋', label: 'Stop him — report him to Rhael. Defy the collector.', type: 'talk',
+          action: () => { grantHolyPoints(10); setFlag('pq_saint_defied'); addLog('📜 You stop him. The Covenant case holds. The collector will remember. +10 Holy Points.', 'holy'); addLog('📜 PERSONAL QUEST: You chose conscience over the debt. The consequences are coming — but they\'re not here yet.', 'holy'); } },
+        { icon: '👁', label: 'Do nothing. Let him board the coach.', type: 'explore',
+          action: () => { grantHellPoints(8); setFlag('pq_saint_complied'); addLog('📜 He goes. The collector will leave you alone — for now. +8 Hell Points.', 'hell'); addLog('📜 PERSONAL QUEST: You served the darkness once more. The debt shrinks. So does something else.', 'hell'); } },
+      ]
+    };
+  },
+
+  // ── BLOOD DEBT ────────────────────────────────────────
+  pq_blood_debt_hook: () => {
+    const char = gameState.character;
+    setFlag('pq_debt_hook_seen');
+    return {
+      location: 'Vaelthar — A Letter, Hand-Delivered',
+      locationIcon: '🏰',
+      narration: `A child hands you a folded letter and runs before you can ask questions. The handwriting is familiar — you've been trying to find it for years. It belongs to Senna, the person who saved your life at a cost you've never been able to repay. The letter is short: "I know you've been looking. Please stop. What I gave was given freely and I don't want it returned. I'm fine. Don't come here." The seal on the letter is a church seal. Of the Eternal Flame.`,
+      sub: `Senna is alive. She's connected to the Church of the Eternal Flame. She wants you to leave her alone.`,
+      options: [
+        { icon: '🔍', label: 'Investigate the church seal — which parish sent this?', type: 'explore',
+          roll: { stat: 'INT', dc: 11 },
+          onSuccess: () => { setFlag('pq_debt_seal_traced'); addLog('📜 CLUE: The seal is from the monastery at Saint Aldric. Senna is at the monastery. That\'s where Elder Varek is hiding.', 'holy'); runScene('pq_blood_debt_payoff'); },
+          onFail: () => runScene('pq_blood_debt_payoff') },
+        { icon: '💬', label: 'Try to find the child who delivered it', type: 'talk',
+          roll: { stat: 'CHA', dc: 12 },
+          onSuccess: () => { setFlag('pq_debt_child_found'); addLog('A woman gave him a coin to deliver it. Grey robes. He thinks she came from the direction of the Archive.', 'system'); runScene('pq_blood_debt_payoff'); },
+          onFail: () => { addLog('The child is long gone.', 'system'); runScene('pq_blood_debt_payoff'); } },
+        { icon: '⏭', label: 'Respect her wishes. Leave it alone.', type: 'move',
+          action: () => { grantHolyPoints(5); addLog(`📜 PERSONAL QUEST: "${char.name}" chose to respect Senna\'s wishes. +5 Holy Points. But this won\'t stay quiet.`, 'holy'); } },
+      ]
+    };
+  },
+
+  pq_blood_debt_payoff: () => {
+    setFlag('pq_debt_payoff_seen');
+    grantXP(200);
+    return {
+      location: 'Following the Trail — Senna',
+      locationIcon: '🏰',
+      narration: `The trail leads, inevitably, toward the monastery. A monk you speak to on the road remembers her: "Sister Senna. She came to us three years ago. Gave a great deal to the Order." He pauses. "Elder Varek gave her a position. She serves him directly." He looks away. "She doesn't seem… free to leave." The word he chose carefully was "doesn't seem." What he meant was: she isn't.`,
+      sub: `Senna is at the monastery, serving Elder Varek under duress. She's not free.`,
+      options: [
+        { icon: '😠', label: 'Varek has Senna. This is no longer just duty.', type: 'talk',
+          action: () => { grantHellPoints(3); setFlag('pq_debt_varek_target'); addLog('📜 PERSONAL QUEST: Varek took Senna. Arresting him means freeing her. The debt and the mission are the same thing now.', 'hell'); } },
+        { icon: '🏃', label: 'Head to the monastery — find her before you confront Varek', type: 'move',
+          action: () => { setFlag('pq_debt_rescue_intent'); addLog('📜 PERSONAL QUEST: Find Senna inside the monastery. She may be leverage — or she may be the reason Varek thinks he\'s safe.', 'holy');
+            if (window.travelToLocation && WORLD_LOCATIONS['monastery_aldric']) travelToLocation(WORLD_LOCATIONS['monastery_aldric']); else runScene('monastery_arrival'); } },
+      ]
+    };
+  },
+
+};
+
+
 // ─── HOOK INTO GAME INIT ─────────────────────
+function startPersonalQuestHook() {
+  const char = gameState.character;
+  if (!char?.origin) return;
+
+  const sceneMap = {
+    fallen_noble:     'pq_fallen_noble_hook',
+    orphan_war:       'pq_war_orphan_hook',
+    cursed_bloodline: 'pq_cursed_blood_hook',
+    divine_chosen:    'pq_divine_chosen_hook',
+    exile:            'pq_exile_hook',
+    monster_hunter:   'pq_hunter_hook',
+    corrupted_saint:  'pq_saint_hook',
+    blood_debt:       'pq_blood_debt_hook',
+  };
+
+  const sceneId = sceneMap[char.origin];
+  if (!sceneId) return;
+  if (getFlag(sceneId + '_seen')) return;
+
+  setTimeout(() => {
+    if (document.getElementById('scene-panel')) {
+      setTimeout(() => runScene(sceneId), 30000);
+    } else {
+      addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+      addLog(`🔖 A memory surfaces — something from ${char.name}'s past is here in Vaelthar.`, 'hell');
+      runScene(sceneId);
+    }
+  }, 90000);
+}
+
+// Mark personal quests as completed when payoff flags are set
+function checkPersonalQuestCompletion() {
+  const char = gameState.character;
+  if (!char?.personalQuests) return;
+  const payoffFlags = {
+    fallen_noble:     'pq_noble_payoff_seen',
+    orphan_war:       'pq_orphan_payoff_seen',
+    cursed_bloodline: 'pq_curse_payoff_seen',
+    divine_chosen:    'pq_divine_payoff_seen',
+    exile:            'pq_exile_payoff_seen',
+    monster_hunter:   'pq_hunter_payoff_seen',
+    corrupted_saint:  'pq_saint_payoff_seen',
+    blood_debt:       'pq_debt_payoff_seen',
+  };
+  const flag = payoffFlags[char.origin];
+  if (flag && getFlag(flag) && char.personalQuests[0]?.status === 'active') {
+    char.personalQuests[0].status = 'completed';
+    addLog(`📜 PERSONAL QUEST COMPLETE: "${char.personalQuests[0].title}"`, 'holy');
+    grantHolyPoints(5);
+  }
+}
+// Run completion check whenever a scene closes
+const _origExecuteForPQ = window.executeSceneOption;
+window.executeSceneOption = function(index) {
+  if (_origExecuteForPQ) _origExecuteForPQ(index);
+  setTimeout(checkPersonalQuestCompletion, 500);
+};
+
 function startStoryEngine() {
-  // Small delay to let everything initialize
   setTimeout(() => {
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
     runScene('arrival_vaelthar');
   }, 2000);
+  // Trigger personal quest hook after opening scene
+  startPersonalQuestHook();
 }
 
 // Patch initGameScreen to start the story engine — but only for solo
