@@ -120,8 +120,23 @@ function initMultiplayer() {
     window.mp.session = session;
     updateSessionUI();
     updatePartyPanel();
+    // If ready room is showing, update it
+    if (document.getElementById('ready-room') && window.updateReadyRoom) {
+      window.updateReadyRoom();
+    }
     const chatSection = document.getElementById('mp-chat-section');
     if (chatSection) chatSection.style.display = 'block';
+  });
+
+  // ── Game started — everyone launches ──
+  socket.on('game_started', () => {
+    if (window.launchGame) {
+      window.launchGame();
+      // Start story engine after launch
+      setTimeout(() => {
+        if (window.startStoryEngine) window.startStoryEngine();
+      }, 1500);
+    }
   });
 
   // ── Chat ──
@@ -526,5 +541,6 @@ mpStyle.textContent = mpCSS;
 document.head.appendChild(mpStyle);
 
 console.log('🔗 Multiplayer v2 loaded.');
+window.updateReadyRoom = updateReadyRoom;
 
 } // end double-load guard

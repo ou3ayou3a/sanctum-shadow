@@ -341,6 +341,16 @@ io.on('connection', (socket) => {
     io.to(code).emit('combat_update', { combatState: cs, log: logEntry });
   });
 
+  // ── Start game (host only) ──
+  socket.on('start_game', ({ code }) => {
+    const s = getSession(code);
+    if (!s) return;
+    if (s.host !== socket.id) { socket.emit('join_error', { msg: 'Only the host can start the game.' }); return; }
+    s.state = 'playing';
+    io.to(code).emit('game_started', { code });
+    console.log(`Game started for session ${code}`);
+  });
+
   // ── Story event broadcast ──
   socket.on('story_event', ({ code, eventType, payload }) => {
     const s = getSession(code);

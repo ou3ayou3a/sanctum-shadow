@@ -822,11 +822,16 @@ function startStoryEngine() {
   }, 2000);
 }
 
-// Patch initGameScreen to start the story engine
+// Patch initGameScreen to start the story engine — but only for solo
+// In multiplayer, story starts when host fires start_game
 const _origInitForStory = window.initGameScreen;
 window.initGameScreen = function() {
   if (_origInitForStory) _origInitForStory();
-  startStoryEngine();
+  // Solo: start immediately. MP: wait for host's start_game signal
+  if (!window.mp?.sessionCode) {
+    startStoryEngine();
+  }
+  // MP story start is triggered by launchGame → server start_game event
 };
 
 // ─── SCENE CSS ───────────────────────────────

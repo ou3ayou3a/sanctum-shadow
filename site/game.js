@@ -398,21 +398,105 @@ function setRevealChoice(choice) {
 function enterGame() {
   if (!gameState.character.revealChoice) { toast('Choose how to present yourself to your companions!', 'error'); return; }
 
-  // Save character to session
-  const code = localStorage.getItem('ss_my_session');
-  if (code) {
-    const stored = localStorage.getItem('ss_session_' + code);
-    if (stored) {
-      const sessionData = JSON.parse(stored);
-      const myId = localStorage.getItem('ss_my_id') || 'host';
-      if (sessionData.players[myId]) {
-        sessionData.players[myId].character = gameState.character;
-        sessionData.players[myId].ready = true;
-        localStorage.setItem('ss_session_' + code, JSON.stringify(sessionData));
-      }
+  // In multiplayer — go to ready room, not straight to game
+  if (window.mp?.sessionCode) {
+    // Broadcast character ready to server
+    if (window.mp.socket) {
+      window.mp.socket.emit('character_ready', {
+        code: window.mp.sessionCode,
+        character: gameState.character,
+      });
     }
+    showReadyRoom();
+    return;
   }
 
+  // Solo — go straight to game
+  initGameScreen();
+  showScreen('game');
+}
+
+// ─── READY ROOM ───────────────────────────────
+function showReadyRoom() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('ready-room')?.remove();
+
+  const room = document.createElement('div');
+  room.id = 'ready-room';
+  room.className = 'screen active';
+  room.innerHTML = `
+    <div class="screen-inner scroll-content">
+      <h2 class="screen-title">⚔ The Chronicle Awaits</h2>
+      <p class="screen-subtitle" style="text-align:center">
+        Your character is ready. Wait for your companions.
+      </p>
+      <div id="ready-player-list" style="margin:20px auto;max-width:400px"></div>
+      <div style="text-align:center;margin-top:16px" id="ready-actions">
+        ${window.mp?.isHost
+          ? `<button class="btn-primary" id="start-chronicle-btn" onclick="hostStartChronicle()" disabled
+              style="opacity:0.5;cursor:not-allowed">
+              ⚔ Start the Chronicle
+              <span id="ready-count" style="font-size:0.7rem;margin-left:8px">(0/? ready)</span>
+            </button>
+            <p class="step-hint" style="margin-top:8px">Wait for all players to be ready, then start.</p>`
+          : `<p class="step-hint">Waiting for the host to start the chronicle...</p>`
+        }
+      </div>
+    </div>`;
+  document.getElementById('app').appendChild(room);
+  updateReadyRoom();
+}
+
+function updateReadyRoom() {
+  const list = document.getElementById('ready-player-list');
+  if (!list || !window.mp?.session) return;
+
+  const players = Object.values(window.mp.session.players);
+  const readyCount = players.filter(p => p.ready).length;
+  const total = players.length;
+  const allReady = readyCount === total && total > 0;
+
+  list.innerHTML = players.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;margin-bottom:6px;
+      background:rgba(10,6,2,0.8);border:1px solid rgba(201,168,76,${p.ready ? '0.3' : '0.1'});
+      border-left:3px solid ${p.ready ? '#4a9a6a' : 'rgba(201,168,76,0.2)'}">
+      <span style="font-size:1.2rem">${p.ready ? '✅' : '⏳'}</span>
+      <div style="flex:1">
+        <div style="font-family:'Cinzel',serif;font-size:0.8rem;color:${p.ready ? '#c9a84c' : 'var(--text-dim)'}">
+          ${p.name}${p.id === window.mp.playerId ? ' (You)' : ''}
+        </div>
+        ${p.character ? `<div style="font-size:0.7rem;color:var(--text-dim)">
+          ${p.character.race ? (window.RACES?.find(r=>r.id===p.character.race)?.name || '') : ''} 
+          ${p.character.class ? (window.CLASSES?.find(c=>c.id===p.character.class)?.name || '') : ''}
+        </div>` : '<div style="font-size:0.7rem;color:var(--text-dim)">Creating character...</div>'}
+      </div>
+      <span style="font-family:\'Cinzel\',serif;font-size:0.65rem;color:${p.ready ? '#4a9a6a' : 'var(--text-dim)'}">
+        ${p.ready ? 'READY' : 'NOT READY'}
+      </span>
+    </div>`).join('');
+
+  // Update start button
+  const btn = document.getElementById('start-chronicle-btn');
+  const countEl = document.getElementById('ready-count');
+  if (btn) {
+    btn.disabled = !allReady;
+    btn.style.opacity = allReady ? '1' : '0.5';
+    btn.style.cursor = allReady ? 'pointer' : 'not-allowed';
+  }
+  if (countEl) countEl.textContent = `(${readyCount}/${total} ready)`;
+}
+
+function hostStartChronicle() {
+  if (!window.mp?.isHost) return;
+  const players = Object.values(window.mp.session?.players || {});
+  if (!players.every(p => p.ready)) { toast('Not all players are ready!', 'error'); return; }
+  // Tell server to start the game for everyone
+  window.mp.socket.emit('start_game', { code: window.mp.sessionCode });
+}
+
+function launchGame() {
+  // Called when server says go — on all clients
+  document.getElementById('ready-room')?.remove();
   initGameScreen();
   showScreen('game');
 }
