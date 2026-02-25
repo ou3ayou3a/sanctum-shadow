@@ -75,7 +75,7 @@ function showScene(sceneData) {
   addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
 
   // Broadcast scene to all other players in MP
-  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     const safeScene = {
       location: sceneData.location,
       locationIcon: sceneData.locationIcon,
@@ -226,7 +226,7 @@ function checkVoteResolution() {
   if (statusEl) { statusEl.textContent = `✅ Decided!`; statusEl.style.color = '#4a9a6a'; }
 
   // Broadcast resolution to all other players
-  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('scene_resolved', {
       index: chosenIndex,
       label: window.sceneState._currentOptions[chosenIndex]?.label || '',
@@ -811,6 +811,116 @@ const SCENES = {
       ]
     };
   },
+
+  // ── CHAPTER 1 FINALE ─────────────────────
+  monastery_arrival: () => {
+    setFlag('chapter1_finale');
+    return {
+      location: 'Monastery of Saint Aldric',
+      locationIcon: '⛪',
+      threat: '⚔ HIGH DANGER',
+      narration: `The monastery sits on a ridge above Vaelthar — walls of grey stone, torches burning despite the daylight. As you approach, you spot Elder Varek through the courtyard gate: a heavyset man in white robes, surrounded by four armed Church soldiers. He hasn't seen you yet. This is the moment. The evidence is in your hands. Varek ordered the Covenant burned, triggered a crisis that's already cost lives. How this ends is up to you.`,
+      sub: `Elder Varek is here. You have the evidence. The chapter ends here — one way or another.`,
+      options: [
+        { icon: '⚔', label: 'Storm in and arrest Varek — take the soldiers if they resist', type: 'combat',
+          roll: { stat: 'STR', dc: 14 },
+          onSuccess: () => { setFlag('varek_arrested_force'); runScene('chapter1_end_arrest'); },
+          onFail: () => { startCombat([
+            { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
+            { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
+            { name: 'Elder Varek', hp:35, ac:11, atk:3, icon:'📿', id:'varek', boss:true },
+          ]); }
+        },
+        { icon: '🗣', label: 'Confront Varek openly — show the document and demand surrender', type: 'talk',
+          roll: { stat: 'CHA', dc: 15 },
+          onSuccess: () => { setFlag('varek_surrendered'); runScene('chapter1_end_surrender'); },
+          onFail: () => { addLog('Varek signals his soldiers. They draw weapons.', 'combat');
+            startCombat([
+              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
+              { name: 'Elder Varek', hp:35, ac:11, atk:3, icon:'📿', id:'varek', boss:true },
+            ]); }
+        },
+        { icon: '🕵', label: 'Slip in and steal Varek\'s communications before confronting him', type: 'explore',
+          roll: { stat: 'DEX', dc: 14 },
+          onSuccess: () => { setFlag('varek_evidence_doubled'); addLog('📜 ITEM GAINED: Varek\'s private correspondence — more evidence.', 'holy'); runScene('chapter1_end_surrender'); },
+          onFail: () => runScene('monastery_caught_sneaking') },
+        { icon: '🏃', label: 'This is bigger than you. Go back — alert Captain Rhael first', type: 'move',
+          action: () => { setFlag('called_rhael_help'); runScene('chapter1_end_rhael_leads'); } },
+      ]
+    };
+  },
+
+  chapter1_end_arrest: () => {
+    setFlag('chapter1_complete');
+    grantHolyPoints(15);
+    addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
+    addLog('Elder Varek is in chains. The truth about the Covenant is out. Vaelthar will never be the same.', 'narrator');
+    return {
+      location: 'Monastery Courtyard — After the Storm',
+      locationIcon: '⛪',
+      narration: `The soldiers yielded when Varek fell. He's on his knees in the monastery courtyard, wrists bound, his white robes dusty and torn. He looks older suddenly — not an elder of the Church, just a frightened man who made a catastrophic decision and got caught. Captain Rhael arrives within the hour, takes Varek into Watch custody, and looks at you for a long moment. "The city owes you something," he says. "It won't say so publicly. But it does." Chapter I is over. The road ahead leads deeper into the shadow of what the Covenant's death has already set in motion.`,
+      sub: `Chapter I complete. Chapter II begins: "What the Covenant Left Behind."`,
+      options: [
+        { icon: '📖', label: 'Begin Chapter II — the aftermath', type: 'move',
+          action: () => { addLog('⚔ Chapter II begins. The world has changed.', 'system'); } },
+      ]
+    };
+  },
+
+  chapter1_end_surrender: () => {
+    setFlag('chapter1_complete');
+    grantHolyPoints(12);
+    addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
+    return {
+      location: 'Monastery — Varek Yields',
+      locationIcon: '⛪',
+      narration: `The document does what a sword could not. Varek reads it once — his own seal, his own order — and something goes out of him. He dismisses his soldiers with a gesture, and when they hesitate he repeats it. He surrenders quietly, without theatrics. "I acted to protect the Church," he says. "Whether that justifies it — that's for the magistrates now." You escort him back to Vaelthar. The streets are quiet. Word travels faster than you do. By evening, the crisis has a name, a face, and a verdict pending. Chapter I is over.`,
+      sub: `Chapter I complete. Chapter II begins.`,
+      options: [
+        { icon: '📖', label: 'Begin Chapter II', type: 'move',
+          action: () => { addLog('⚔ Chapter II begins. The world has changed.', 'system'); } },
+      ]
+    };
+  },
+
+  chapter1_end_rhael_leads: () => {
+    setFlag('chapter1_complete');
+    grantHolyPoints(10);
+    addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
+    return {
+      location: 'Vaelthar — Rhael Mobilizes',
+      locationIcon: '🏰',
+      narration: `Rhael doesn't hesitate. Within an hour the Watch is moving in force toward the monastery. Varek's soldiers yield at the gate — they're soldiers, not martyrs, and they know what the document means. Varek is taken alive. At the debriefing afterward, Rhael gives you a look across the table. "You could have done this alone," he says. "You chose not to. That's either wisdom or doubt. I haven't decided which." Either way, it's over — for now. Chapter I ends not with thunder, but with paperwork and the sound of chains.`,
+      sub: `Chapter I complete. You chose caution over glory.`,
+      options: [
+        { icon: '📖', label: 'Begin Chapter II', type: 'move',
+          action: () => { addLog('⚔ Chapter II begins.', 'system'); } },
+      ]
+    };
+  },
+
+  monastery_caught_sneaking: () => ({
+    location: 'Monastery Corridor',
+    locationIcon: '⛪',
+    threat: '⚠ CAUGHT',
+    narration: `A soldier rounds a corner and you're face to face. He shouts. The alarm spreads through the monastery in seconds — boots on stone, doors slamming. You have seconds to decide.`,
+    sub: `Caught inside the monastery. Fight or flee.`,
+    options: [
+      { icon: '⚔', label: 'Fight your way to Varek', type: 'combat',
+        action: () => startCombat([
+          { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
+          { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
+        ]) },
+      { icon: '🏃', label: 'Flee — regroup and try again', type: 'move',
+        roll: { stat: 'DEX', dc: 12 },
+        onSuccess: () => runScene('monastery_arrival'),
+        onFail: () => { addLog('You\'re surrounded. There\'s no escape.', 'combat');
+          startCombat([{ name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' }]); } },
+    ]
+  }),
 };
 
 // ─── HOOK INTO GAME INIT ─────────────────────

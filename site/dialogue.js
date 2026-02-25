@@ -124,6 +124,7 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   window.npcConvState.active = true;
   window.npcConvState.npc = npc;
   window.npcConvState.history = [];
+  window.npcConvState.turnCount = 0;
 
   // Broadcast FIRST so friends see panel open before response arrives
   if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
@@ -153,7 +154,6 @@ async function sendNPCMessage(playerText, isOpener = false) {
 
   if (!isOpener) {
     addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
-    // Broadcast player action to all observers
     if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
       window.mpBroadcastStoryEvent('conv_player_action', {
         playerName: char?.name || 'Unknown',
@@ -162,31 +162,44 @@ async function sendNPCMessage(playerText, isOpener = false) {
     }
   }
 
+  // Track turn depth — conversations max 8 exchanges before forcing a scene break
+  window.npcConvState.turnCount = (window.npcConvState.turnCount || 0) + 1;
+  if (window.npcConvState.turnCount > 8) {
+    addLog(`*The conversation has run its course. ${npc.name} signals that it's time to act, not talk.*`, 'narrator');
+    closeConvPanel();
+    // Try to trigger a relevant scene based on story flags
+    if (window.runScene) {
+      const flags = window.sceneState?.flags || {};
+      if (flags.knows_varek_location) window.runScene('monastery_arrival');
+      else if (flags.has_document) window.runScene('vaelthar_main');
+      else if (flags.talked_to_rhael) window.runScene('rhael_reveals_covenant');
+    }
+    return;
+  }
+
   showTypingIndicator();
 
   const systemPrompt = `${npc.personality}
 
 CURRENT CONTEXT:
-- You are speaking with ${char?.name}, a ${race?.name} ${cls?.name} (Level ${char?.level})
+- Speaking with ${char?.name}, a ${race?.name} ${cls?.name} (Level ${char?.level})
 - Location: ${loc?.name}
-- Story progress flags: ${storyFlags}
-- Your current disposition toward this player: ${npc.disposition}
+- Story flags: ${storyFlags}
+- Disposition: ${npc.disposition}
+- Conversation turn: ${window.npcConvState.turnCount}/8
 
-HOW TO RESPOND:
-1. Stay in character completely. You ARE ${npc.name}.
-2. Write your dialogue naturally. Use *asterisks* for brief physical actions/descriptions.
-3. React authentically to what the player says — if they're rude, react to rudeness. If threatening, react to threat.
-4. After your dialogue, write OPTIONS: on a new line, then 3-4 player choices starting with •
-5. Make options SPECIFIC and meaningful — no generic choices.
-6. If an option requires a skill check, add [ROLL:STAT:DC] — e.g. [ROLL:CHA:13]
-7. Include at least one option that could escalate to violence if dramatically appropriate.
-8. Always include an option to end or step back from the conversation.
+RULES:
+1. Stay in character. You ARE ${npc.name}.
+2. Write dialogue naturally. Use *asterisks* for physical actions.
+3. After dialogue, write OPTIONS: then 3-4 choices starting with •
+4. Options that need a skill check: add [ROLL:STAT:DC] e.g. [ROLL:CHA:13]
+5. OPTIONS THAT CHANGE STORY MUST REQUIRE A ROLL. Persuasion, intimidation, romance, convincing someone — always need [ROLL:CHA:DC]. Physical feats always need [ROLL:STR:DC] or [ROLL:DEX:DC].
+6. Pure speech options (ask a question, say something) do NOT need rolls.
+7. Include an option to end conversation.
+8. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line. Use scene names: vaelthar_main, rhael_reveals_covenant, mourne_confrontation, monastery_arrival, arrested_scene.
 9. NEVER break character. NEVER acknowledge being an AI.`;
 
-  const userMsg = isOpener
-    ? `[The player ${playerText}]`
-    : playerText;
-
+  const userMsg = isOpener ? `[The player ${playerText}]` : playerText;
   const messages = isOpener
     ? [{ role: 'user', content: userMsg }]
     : [...history, { role: 'user', content: userMsg }];
@@ -203,13 +216,16 @@ HOW TO RESPOND:
     return;
   }
 
-  // Update history
+  // Check for scene break directive
+  const sceneBreakMatch = response.match(/\[SCENE_BREAK:([^\]]+)\]/);
+  const cleanResponse = response.replace(/\[SCENE_BREAK:[^\]]+\]/g, '').trim();
+
   history.push({ role: 'user', content: userMsg });
-  history.push({ role: 'assistant', content: response });
+  history.push({ role: 'assistant', content: cleanResponse });
 
-  const { speech, options } = parseNPCResponse(response);
+  const { speech, options } = parseNPCResponse(cleanResponse);
 
-  // Broadcast to all party members IMMEDIATELY (before typewriting starts)
+  // Broadcast immediately
   if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
     window.mpBroadcastStoryEvent('conv_response', {
       npcName: npc?.name,
@@ -223,6 +239,16 @@ HOW TO RESPOND:
   const cleanSpeech = speech.replace(/\*[^*]+\*/g, '').trim();
   addLog(`${npc.name}: "${cleanSpeech.substring(0, 120)}${cleanSpeech.length > 120 ? '...' : ''}"`, 'narrator');
   if (window.showDMStrip) showDMStrip(`${npc.name}: "${cleanSpeech.substring(0, 100)}..."`, false);
+
+  // If scene break detected, close popup and launch scene after player reads response
+  if (sceneBreakMatch) {
+    const sceneName = sceneBreakMatch[1].trim();
+    setTimeout(() => {
+      addLog(`📖 *The conversation reaches a turning point...*`, 'system');
+      closeConvPanel();
+      if (window.runScene) window.runScene(sceneName);
+    }, 4000); // Give player time to read the response
+  }
 }
 
 // ─── PLAYER PICKS OPTION ──────────────────────
@@ -318,6 +344,35 @@ async function submitConvInput() {
   const text = (input?.value || '').trim();
   if (!text || !window.npcConvState.active) return;
   input.value = '';
+
+  const char = gameState.character;
+  const lower = text.toLowerCase();
+
+  // Detect if this action needs a roll (not pure speech)
+  const needsCHA = ['flirt', 'seduce', 'charm', 'persuade', 'convince', 'bribe', 'threaten', 'intimidate', 'bluff', 'lie', 'deceive', 'stand down', 'back off', 'surrender'].some(w => lower.includes(w));
+  const needsSTR = ['shove', 'push', 'grapple', 'restrain', 'lift', 'break', 'force'].some(w => lower.includes(w));
+  const needsDEX = ['sneak', 'steal', 'pickpocket', 'slip', 'dodge', 'hide'].some(w => lower.includes(w));
+
+  if (needsCHA || needsSTR || needsDEX) {
+    const statKey = needsCHA ? 'cha' : needsSTR ? 'str' : 'dex';
+    const statLabel = statKey.toUpperCase();
+    const dc = needsCHA ? 13 : 12;
+    const statVal = char?.stats?.[statKey] || 10;
+    const mod = Math.floor((statVal - 10) / 2);
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const total = roll + mod;
+    const crit = roll === 20;
+    const fumble = roll === 1;
+    const success = crit || (!fumble && total >= dc);
+
+    addLog(`🎲 ${statLabel} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice();
+
+    const resultMsg = `${text} [${success ? 'SUCCESS' : 'FAILURE'} — rolled ${total} vs DC${dc}${crit ? ', critical' : fumble ? ', fumble' : ''}]`;
+    await sendNPCMessage(resultMsg);
+    return;
+  }
+
   await sendNPCMessage(text);
 }
 

@@ -672,34 +672,99 @@ function addLog(text, type = 'system', playerName = null) {
 }
 
 // ─── ACTION SUBMISSION ────────────────────
+// ─── ACTION CLASSIFICATION ────────────────────
+function classifyAction(text) {
+  const t = text.toLowerCase();
+
+  // Pure speech — no roll needed
+  const speechPhrases = ['say ', 'tell ', 'ask ', 'talk to ', 'speak to ', 'shout ', 'whisper ', 'yell ', 'call out', 'greet ', 'introduce ', 'announce ', '"', "'"];
+  if (speechPhrases.some(p => t.startsWith(p) || t.includes(p))) return 'speech';
+
+  // Combat — handled by checkAutoAttack
+  const combatWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'fight', 'kill', 'shoot', 'slash', 'draw sword', 'draw weapon'];
+  if (combatWords.some(w => t.includes(w))) return 'combat';
+
+  // Charisma actions — CHA roll
+  const chaActions = ['flirt', 'seduce', 'romance', 'charm', 'persuade', 'convince', 'beg', 'plead', 'negotiate', 'bribe', 'threaten to', 'intimidate', 'bluff', 'lie to', 'deceive'];
+  if (chaActions.some(w => t.includes(w))) return 'charisma';
+
+  // Strength actions — STR roll
+  const strActions = ['lift', 'break', 'force', 'kick down', 'smash', 'shove', 'push', 'pull', 'grapple', 'restrain', 'carry', 'climb', 'jump over'];
+  if (strActions.some(w => t.includes(w))) return 'strength';
+
+  // Dexterity actions — DEX roll
+  const dexActions = ['sneak', 'hide', 'steal', 'pickpocket', 'pick the lock', 'pick lock', 'dodge', 'escape', 'slip past', 'creep', 'tiptoe', 'vanish', 'disappear into', 'follow without'];
+  if (dexActions.some(w => t.includes(w))) return 'dexterity';
+
+  // Intelligence actions — INT roll
+  const intActions = ['decipher', 'decode', 'analyze', 'examine the', 'study the', 'research', 'recall', 'identify the', 'read the', 'translate', 'figure out', 'solve'];
+  if (intActions.some(w => t.includes(w))) return 'intelligence';
+
+  // Wisdom actions — WIS roll
+  const wisActions = ['sense', 'detect', 'notice', 'feel', 'intuit', 'meditate', 'pray', 'discern', 'read the room', 'judge', 'assess'];
+  if (wisActions.some(w => t.includes(w))) return 'wisdom';
+
+  // Default to no roll — narrative action
+  return 'free';
+}
+
 async function submitAction() {
   const input = document.getElementById('action-input');
   const text = input.value.trim();
   if (!text) return;
 
   const charName = gameState.character?.name || 'Unknown';
-  addLog(text, 'action', charName);
+  addLog(`${charName}: "${text}"`, 'action', charName);
   input.value = '';
 
-  // Analyze action for morality
+  // ── Combat check FIRST ──
+  if (!combatState.active && typeof checkAutoAttack === 'function') {
+    if (checkAutoAttack(text)) return;
+  }
+
   analyzeActionMorality(text.toLowerCase());
 
-  // Check if it's a major story moment for AI narration
-  const isMajorMoment = detectMajorMoment(text);
-  if (isMajorMoment) {
-    await narrateMajorMoment(text);
+  const actionType = classifyAction(text);
+
+  // Speech — pass to NPC dialogue if target mentioned, else narrate freely
+  if (actionType === 'speech') {
+    // Try to extract NPC name
+    const talkMatch = text.match(/(?:say to|tell|ask|talk to|speak to|shout at|whisper to|call out to)\s+(.+?)(?:\s+that|\s+to|\s*"|\s*$)/i);
+    const npcName = talkMatch?.[1]?.trim();
+    if (npcName && typeof startNPCConversation === 'function') {
+      startNPCConversation(npcName, text);
+    } else {
+      addLog(`*${text}*`, 'narrator');
+    }
     return;
   }
 
-  // Check if it's contested (involves another character)
-  if (detectContested(text)) {
-    showContestedRoll(text);
+  // Free narrative actions (movement, looking, basic interaction)
+  if (actionType === 'free') {
+    const roll = Math.floor(Math.random() * 20) + 1;
+    resolveAction(text, roll, 'free', 10);
     return;
   }
 
-  // Regular action — roll d20 for outcome
+  // All other action types — require a stat roll with real consequences
+  const statMap = { charisma: 'cha', strength: 'str', dexterity: 'dex', intelligence: 'int', wisdom: 'wis' };
+  const statKey = statMap[actionType];
+  const dcMap = { charisma: 13, strength: 12, dexterity: 13, intelligence: 12, wisdom: 11 };
+  const dc = dcMap[actionType] || 12;
+
+  const statVal = gameState.character?.stats?.[statKey] || 10;
+  const mod = Math.floor((statVal - 10) / 2);
   const roll = Math.floor(Math.random() * 20) + 1;
-  setTimeout(() => resolveAction(text, roll), 300);
+  const total = roll + mod;
+  const crit = roll === 20;
+  const fumble = roll === 1;
+  const success = crit || (!fumble && total >= dc);
+
+  const statLabel = statKey.toUpperCase();
+  addLog(`🎲 ${statLabel} check DC${dc}: [${roll}] + ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '✨ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
+  if (window.AudioEngine) AudioEngine.sfx?.dice();
+
+  resolveAction(text, roll, actionType, dc, total, success);
 }
 
 function detectMajorMoment(text) {
@@ -709,7 +774,7 @@ function detectMajorMoment(text) {
 
 function detectContested(text) {
   const names = ['bresker', 'party', 'companion', 'ally', 'enemy', 'bandit', 'guard', 'them', 'him', 'her'];
-  const contestVerbs = ['grab', 'attack', 'push', 'shove', 'wrestle', 'tie', 'wrap', 'piss', 'fight', 'seduce', 'deceive', 'sneak past', 'tackle', 'disarm'];
+  const contestVerbs = ['grab', 'push', 'shove', 'wrestle', 'tie', 'wrap', 'piss', 'seduce', 'deceive', 'sneak past', 'tackle', 'disarm'];
   const lower = text.toLowerCase();
   return contestVerbs.some(v => lower.includes(v)) && names.some(n => lower.includes(n));
 }
@@ -822,24 +887,56 @@ function narrate_contest_outcome(playerWon, action, p1, p2, r1, r2) {
   addLog(text, 'narrator');
 }
 
-function resolveAction(text, roll) {
+async function resolveAction(text, roll, actionType, dc, total, success) {
+  const char = gameState.character;
   const isCrit = roll === 20;
   const isFumble = roll === 1;
-  const isSuccess = roll >= 10;
 
-  addLog(`🎲 You roll: [${roll}]${isCrit ? ' — CRITICAL SUCCESS!!' : isFumble ? ' — CRITICAL FAILURE!' : isSuccess ? ' — Success!' : ' — Failure!'}`, 'dice');
-
-  if (isCrit) {
-    addLog(`Everything goes better than you could have hoped. The fates smile upon you today.`, 'holy');
-    grantHolyPoints(2);
-  } else if (isFumble) {
-    addLog(`Something goes catastrophically wrong. You have made things significantly worse.`, 'dark');
-    grantHellPoints(2);
-  } else if (isSuccess) {
-    addLog(`Your action succeeds. The path forward is clear — for now.`, 'system');
-  } else {
-    addLog(`Your action fails. Not catastrophically, but a failure nonetheless.`, 'combat');
+  // For free actions just narrate via Claude
+  if (actionType === 'free') {
+    const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
+    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 1-2 sentences. Be atmospheric, specific to ${loc?.name}. No dice mention.`;
+    const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 100);
+    if (narration) addLog(narration, 'narrator');
+    return;
   }
+
+  const resultLabel = isCrit ? 'CRITICAL SUCCESS' : isFumble ? 'CRITICAL FAILURE' : success ? 'SUCCESS' : 'FAILURE';
+
+  const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
+  const cls = CLASSES?.find(c => c.id === char?.class);
+  const race = RACES?.find(r => r.id === char?.race);
+  const flags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
+
+  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 sentences. Be specific to the setting. Never mention dice or rolls. Stay in narrative voice.`;
+
+  const userMsg = `Player: ${char?.name}, ${race?.name} ${cls?.name}
+Location: ${loc?.name}
+Story flags: ${flags}
+Action: "${text}"
+Result: ${resultLabel} (rolled ${total} vs DC${dc})
+
+${isCrit ? 'CRITICAL SUCCESS — narrate something unexpectedly great happening.' : ''}
+${isFumble ? 'CRITICAL FAILURE — narrate something going badly and immediately wrong.' : ''}
+${success && !isCrit ? 'SUCCESS — it works but with a complication or cost.' : ''}
+${!success && !isFumble ? 'FAILURE — it fails and there is a real negative consequence. NPC reacts badly, opportunity lost, or situation worsens.' : ''}`;
+
+  const narration = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 150);
+
+  if (narration) {
+    addLog(narration, success ? 'narrator' : 'combat');
+  } else {
+    // Fallback
+    if (isCrit) addLog(`A critical success — everything goes better than hoped.`, 'holy');
+    else if (isFumble) addLog(`A catastrophic failure — things have gotten significantly worse.`, 'dark');
+    else if (success) addLog(`The action succeeds, though not without complication.`, 'narrator');
+    else addLog(`The action fails. The consequences are immediate.`, 'combat');
+  }
+
+  // Apply consequences
+  if (isCrit) grantHolyPoints(1);
+  if (isFumble) { grantHellPoints(1); if (char) { char.hp = Math.max(1, char.hp - 3); renderPlayerCard(); } }
+  if (!success && !isFumble && actionType === 'charisma') grantHellPoints(1);
 }
 
 function analyzeActionMorality(text) {
