@@ -1,8 +1,12 @@
+console.log('Starting Sanctum & Shadow server...');
 const express = require('express');
+console.log('express loaded');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+console.log('Loading socket.io...');
 const { Server } = require('socket.io');
+console.log('socket.io loaded');
 
 const app = express();
 const server = http.createServer(app);
