@@ -57,10 +57,14 @@ function showScene(sceneData) {
     </div>
   `;
 
-  // Insert inline in the game log area — same as before
+  // Insert INSIDE the game log so it scrolls with the chat and never covers it
   const gameLog = document.getElementById('game-log');
   if (gameLog) {
-    gameLog.parentNode.insertBefore(panel, gameLog.nextSibling);
+    gameLog.appendChild(panel);
+    // Auto-scroll so the new scene is visible
+    requestAnimationFrame(() => {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   } else {
     document.body.appendChild(panel);
   }
@@ -2563,8 +2567,9 @@ window.initGameScreen = function() {
 // ─── SCENE CSS ───────────────────────────────
 const sceneCSS = `
 .scene-panel {
-  margin: 12px 0;
+  margin: 4px 0 8px 0;
   animation: sceneFadeIn 0.3s ease;
+  width: 100%;
 }
 @keyframes sceneFadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
 .sp-inner {
@@ -2604,7 +2609,7 @@ const sceneCSS = `
   font-family:'Cinzel',serif; font-size:0.7rem;
   padding: 8px 12px; cursor: pointer;
   letter-spacing:0.03em; text-align:left;
-  transition: all 0.15s;
+  transition: all 0.15s; width: 100%;
 }
 .scene-option:hover { border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,0.05); transform:translateX(2px); }
 .scene-option.my-vote { border-color:var(--gold); background:rgba(201,168,76,0.12); color:var(--gold); }
@@ -2621,11 +2626,43 @@ const sceneCSS = `
 .vote-count { font-size:0.62rem; color:var(--gold); font-family:'Cinzel',serif; margin-left:2px; }
 .sp-free-action { padding:3px 14px 8px; }
 .sp-free-hint { font-size:0.65rem; color:var(--text-dim); font-style:italic; }
+
+/* Fullscreen button */
+#fullscreen-btn {
+  position: fixed; bottom: 14px; right: 14px; z-index: 9000;
+  background: rgba(8,5,2,0.92); border: 1px solid rgba(201,168,76,0.3);
+  color: var(--gold); font-size: 0.7rem; font-family:'Cinzel',serif;
+  padding: 6px 10px; cursor: pointer; letter-spacing:0.08em;
+  transition: all 0.15s;
+}
+#fullscreen-btn:hover { background: rgba(201,168,76,0.12); border-color:var(--gold); }
 `;
 const sceneStyle = document.createElement('style');
 sceneStyle.id = 'scene-styles';
 sceneStyle.textContent = sceneCSS;
 document.head.appendChild(sceneStyle);
+
+// ─── FULLSCREEN BUTTON ────────────────────────
+(function addFullscreenButton() {
+  const btn = document.createElement('button');
+  btn.id = 'fullscreen-btn';
+  btn.title = 'Toggle Fullscreen';
+  btn.textContent = '⛶ FULLSCREEN';
+  btn.onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      btn.textContent = '✕ EXIT FULL';
+    } else {
+      document.exitFullscreen();
+      btn.textContent = '⛶ FULLSCREEN';
+    }
+  };
+  document.addEventListener('fullscreenchange', () => {
+    btn.textContent = document.fullscreenElement ? '✕ EXIT FULL' : '⛶ FULLSCREEN';
+  });
+  // Add after game screen is ready
+  setTimeout(() => document.body.appendChild(btn), 500);
+})();
 
 console.log('🎭 Story engine loaded. Scenes will guide the player through Vaelthar.');
 window.receiveVote = receiveVote;
