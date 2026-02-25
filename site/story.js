@@ -754,6 +754,7 @@ const MISSING_SCENES = {
   mourne_surrenders: () => {
     setFlag('mourne_in_custody');
     grantHolyPoints(8);
+    grantXP(300);
     addLog('📜 Sister Mourne surrenders peacefully. She will testify against Elder Varek.', 'holy');
     return {
       location: 'Temple Quarter',
@@ -1239,6 +1240,7 @@ const MISSING_SCENES = {
   cartographer_found: () => {
     setFlag('cartographer_found');
     grantHolyPoints(10);
+    grantXP(175);
     addLog('📜 QUEST COMPLETE: "The Missing Cartographer." Edden found alive. Maps secured.', 'holy');
     return {
       location: 'Thornwood — Edden\'s Shelter',
@@ -1638,6 +1640,7 @@ const SCENES = {
   rhael_reveals_covenant: () => {
     setFlag('knows_covenant_broken_by_church');
     addLog('📜 CLUE: Captain Rhael believes the Church broke the Covenant first.', 'holy');
+    grantXP(100);
     return {
       location: 'Vaelthar Gate — Captain Rhael',
       locationIcon: '🪖',
@@ -1769,6 +1772,8 @@ const SCENES = {
   scribe_gives_document: () => {
     addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order — proof the Covenant was sabotaged.', 'holy');
     gameState.character.inventory.push("Elder Varek's Sealed Order");
+    grantXP(200);
+    grantHolyPoints(5);
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
@@ -1859,6 +1864,7 @@ const SCENES = {
     setFlag('mourne_ally');
     addLog('📜 ALLY GAINED: Sister Mourne will lead you to Elder Varek.', 'holy');
     grantHolyPoints(5);
+    grantXP(250);
     return {
       location: 'Temple Quarter',
       locationIcon: '🕯',
@@ -1978,6 +1984,7 @@ const SCENES = {
   scribe_rescued_scene: () => {
     addLog('📜 QUEST UPDATE: The Trembling Scribe is safe. He\'ll meet you at the Thornwood Gate inn.', 'holy');
     grantHolyPoints(8);
+    grantXP(120);
     return {
       location: 'Vaelthar Back Alley',
       locationIcon: '🏚',
@@ -2053,6 +2060,8 @@ const SCENES = {
   chapter1_end_arrest: () => {
     setFlag('chapter1_complete');
     grantHolyPoints(15);
+    grantXP(600);
+    grantXP(800);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
     addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
     addLog('Elder Varek is in chains. The truth about the Covenant is out. Vaelthar will never be the same.', 'narrator');
@@ -2071,6 +2080,8 @@ const SCENES = {
   chapter1_end_surrender: () => {
     setFlag('chapter1_complete');
     grantHolyPoints(12);
+    grantXP(500);
+    grantXP(700);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
     addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
     return {
@@ -2088,6 +2099,8 @@ const SCENES = {
   chapter1_end_rhael_leads: () => {
     setFlag('chapter1_complete');
     grantHolyPoints(10);
+    grantXP(400);
+    grantXP(600);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
     addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
     return {

@@ -11,6 +11,7 @@ const MAX_AP = 3;
 
 // XP needed per level (level 1→2 needs 100 XP, etc.)
 const XP_TABLE = [0,100,250,450,700,1000,1400,1900,2500,3200,4000];
+window.XP_TABLE = XP_TABLE;
 
 // Spells learned at each level (max 5 spells, last at level 10)
 const SPELL_LEARN_LEVELS = [1, 3, 5, 7, 10];
@@ -135,93 +136,186 @@ function grantXP(amount) {
   const char = gameState.character;
   if (!char) return;
   char.xp = (char.xp || 0) + amount;
-  addLog(`✨ +${amount} XP (Total: ${char.xp})`, 'system');
+  const nextNeeded = XP_TABLE[(char.level || 1) + 1] || 99999;
+  addLog(`✨ +${amount} XP  (${char.xp} / ${nextNeeded} to next level)`, 'system');
 
-  // Check for level up
-  const nextLevel = (char.level || 1) + 1;
-  const needed = XP_TABLE[nextLevel] || 99999;
-  if (char.xp >= needed && nextLevel <= 20) {
+  // Loop — handles gaining multiple levels in one shot
+  let levelled = false;
+  while (true) {
+    const nextLevel = (char.level || 1) + 1;
+    if (nextLevel > 20) break;
+    const needed = XP_TABLE[nextLevel];
+    if (!needed || char.xp < needed) break;
     levelUp(char);
+    levelled = true;
   }
+
+  // Always refresh character panel and XP bar
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  else if (window.updateCharacterPanel) updateCharacterPanel();
+  updateXPBar();
+}
+
+function updateXPBar() {
+  const char = gameState.character;
+  if (!char) return;
+  const bar = document.getElementById('xp-bar-fill');
+  const label = document.getElementById('xp-bar-label');
+  if (!bar || !label) return;
+  const lvl = char.level || 1;
+  const cur = char.xp || 0;
+  const prev = XP_TABLE[lvl] || 0;
+  const next = XP_TABLE[lvl + 1] || prev + 1000;
+  const pct = Math.min(100, Math.round(((cur - prev) / (next - prev)) * 100));
+  bar.style.width = pct + '%';
+  label.textContent = `${cur} / ${next} XP`;
 }
 
 function levelUp(char) {
   char.level = (char.level || 1) + 1;
-  const cls = CLASSES.find(c => c.id === char.class);
 
-  // HP/MP increase
-  char.maxHp += 8;
-  char.hp = Math.min(char.hp + 8, char.maxHp);
+  // ── HP / MP ──
+  const conMod = Math.floor(((char.stats?.con || 10) - 10) / 2);
+  const hpGain = 8 + conMod;
+  char.maxHp += hpGain;
+  char.hp = Math.min(char.hp + hpGain, char.maxHp);
   char.maxMp = (char.maxMp || 100) + 10;
   char.mp = Math.min((char.mp || 100) + 10, char.maxMp);
 
-  addLog(`🎉 LEVEL UP! ${char.name} is now Level ${char.level}!`, 'holy');
-  addLog(`   +8 Max HP, +10 Max MP`, 'system');
-
-  // Learn new spell?
-  if (SPELL_LEARN_LEVELS.includes(char.level)) {
-    learnNewSpell(char);
+  // ── STAT POINT every 2 levels (even levels) ──
+  char.statPoints = (char.statPoints || 0);
+  if (char.level % 2 === 0) {
+    char.statPoints += 1;
   }
 
-  // Above level 10 — upgrade points
+  addLog(`🎉 LEVEL UP! ${char.name} is now Level ${char.level}!`, 'holy');
+  addLog(`   +${hpGain} Max HP  +10 Max MP${char.level % 2 === 0 ? '  +1 Stat Point' : ''}`, 'system');
+
+  // ── NEW SPELL ──
+  let newSpell = null;
+  if (SPELL_LEARN_LEVELS.includes(char.level)) {
+    newSpell = learnNewSpell(char);
+  }
+
+  // ── UPGRADE POINTS above level 10 ──
   if (char.level > 10) {
     char.upgradePoints = (char.upgradePoints || 0) + 1;
     addLog(`⬆ +1 Spell Upgrade Point (Total: ${char.upgradePoints})`, 'holy');
   }
 
-  showLevelUpPanel(char);
-  if (window.updateCharacterPanel) updateCharacterPanel();
+  if (window.AudioEngine) AudioEngine.sfx?.levelup();
+  showLevelUpPanel(char, newSpell);
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  else if (window.updateCharacterPanel) updateCharacterPanel();
+  if (typeof renderStatsMini === 'function') renderStatsMini();
+  updateXPBar();
 }
 
 function learnNewSpell(char) {
   const classSpells = CLASS_SPELLS[char.class] || [];
   const learnedIds = (char.spells || []).map(s => s.id);
   const available = classSpells.filter(s => s.level <= char.level && !learnedIds.includes(s.id));
-  if (available.length === 0) return;
-
+  if (available.length === 0) return null;
   const newSpell = available[0];
   if (!char.spells) char.spells = [];
-  if (char.spells.length < 5) {
-    char.spells.push({ ...newSpell, upgraded: false });
-    addLog(`📖 NEW SPELL LEARNED: ${newSpell.icon} ${newSpell.name}!`, 'holy');
-  }
+  char.spells.push({ ...newSpell, upgraded: false });
+  addLog(`📖 NEW SPELL LEARNED: ${newSpell.icon} ${newSpell.name}!`, 'holy');
+  return newSpell;
 }
 
-function showLevelUpPanel(char) {
-  const old = document.getElementById('levelup-panel');
-  if (old) old.remove();
+function showLevelUpPanel(char, newSpell) {
+  document.getElementById('levelup-panel')?.remove();
+
+  const lvl = char.level || 1;
+  const prev = XP_TABLE[lvl] || 0;
+  const next = XP_TABLE[lvl + 1] || prev + 1000;
+  const xpPct = Math.min(100, Math.round(((char.xp - prev) / (next - prev)) * 100));
+
+  const statPointMsg = (char.statPoints > 0)
+    ? `<div style="color:#8bc87a;font-size:0.78rem;margin-top:6px">
+        🎯 ${char.statPoints} Stat Point${char.statPoints>1?'s':''} available — assign below
+       </div>`
+    : '';
+
+  const spellMsg = newSpell
+    ? `<div style="color:#c090ff;font-size:0.78rem;margin-top:6px">📖 New spell: ${newSpell.icon} ${newSpell.name}</div>`
+    : '';
+
+  // Build stat assignment UI if points available
+  const statKeys = ['str','dex','con','int','wis','cha'];
+  const statNames = ['STR','DEX','CON','INT','WIS','CHA'];
+  const statUI = char.statPoints > 0 ? `
+    <div style="margin-top:14px;border-top:1px solid rgba(201,168,76,0.2);padding-top:12px">
+      <div style="font-size:0.68rem;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:8px">ASSIGN STAT POINT</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+        ${statKeys.map((k,i) => `
+          <button onclick="assignStatPoint('${k}')" style="
+            background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);
+            color:var(--text-secondary);font-family:'Cinzel',serif;font-size:0.65rem;
+            padding:6px 4px;cursor:pointer;transition:background 0.15s;
+          " onmouseover="this.style.background='rgba(201,168,76,0.18)'"
+            onmouseout="this.style.background='rgba(201,168,76,0.08)'">
+            ${statNames[i]}<br>
+            <span style="color:var(--gold);font-size:0.8rem">${char.stats?.[k] || 10}</span>
+          </button>`).join('')}
+      </div>
+    </div>` : '';
 
   const panel = document.createElement('div');
   panel.id = 'levelup-panel';
   panel.style.cssText = `
     position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
     z-index:3000;background:linear-gradient(135deg,rgba(5,3,1,0.99),rgba(12,8,3,0.99));
-    border:2px solid var(--gold);padding:30px 40px;text-align:center;
-    font-family:'Cinzel',serif;color:var(--gold);min-width:320px;
+    border:2px solid var(--gold);padding:28px 36px;text-align:center;
+    font-family:'Cinzel',serif;color:var(--gold);min-width:340px;max-width:420px;
     box-shadow:0 0 60px rgba(201,168,76,0.3);
     animation:levelUpPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
   `;
 
-  const spellMsg = SPELL_LEARN_LEVELS.includes(char.level)
-    ? `<div style="color:#aaa;font-size:0.8rem;margin-top:8px">📖 New spell unlocked!</div>`
-    : char.level > 10
-    ? `<div style="color:#aaa;font-size:0.8rem;margin-top:8px">⬆ +1 Upgrade Point earned</div>`
-    : '';
-
   panel.innerHTML = `
-    <div style="font-size:2.5rem;margin-bottom:8px">⭐</div>
-    <div style="font-size:1.4rem;letter-spacing:0.15em;margin-bottom:4px">LEVEL UP</div>
-    <div style="font-size:2rem;margin:8px 0">${char.name}</div>
-    <div style="font-size:1rem;color:#aaa">is now Level <span style="color:var(--gold);font-size:1.3rem">${char.level}</span></div>
-    <div style="font-size:0.78rem;color:#888;margin-top:8px">+8 HP • +10 MP</div>
-    ${spellMsg}
+    <div style="font-size:2.5rem;margin-bottom:6px">⭐</div>
+    <div style="font-size:1.3rem;letter-spacing:0.18em;margin-bottom:4px">LEVEL UP</div>
+    <div style="font-size:1.9rem;margin:6px 0">${char.name}</div>
+    <div style="font-size:0.9rem;color:#aaa">Level <span style="color:var(--gold);font-size:1.2rem">${lvl}</span></div>
+    <div style="font-size:0.72rem;color:#888;margin-top:6px">
+      +${8 + Math.floor(((char.stats?.con||10)-10)/2)} HP &nbsp;•&nbsp; +10 MP
+    </div>
+    ${spellMsg}${statPointMsg}
+    <!-- XP progress bar -->
+    <div style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-dim);margin-bottom:3px">
+        <span>XP Progress</span><span>${char.xp} / ${next}</span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px">
+        <div style="height:100%;width:${xpPct}%;background:var(--gold);border-radius:3px;transition:width 0.5s"></div>
+      </div>
+    </div>
+    ${statUI}
+    ${char.statPoints === 0 ? `
     <button onclick="document.getElementById('levelup-panel').remove()"
-      style="margin-top:20px;background:rgba(201,168,76,0.15);border:1px solid var(--gold);
-      color:var(--gold);font-family:'Cinzel',serif;font-size:0.8rem;padding:8px 24px;cursor:pointer;
-      letter-spacing:0.1em;">CONTINUE</button>
+      style="margin-top:18px;background:rgba(201,168,76,0.15);border:1px solid var(--gold);
+      color:var(--gold);font-family:'Cinzel',serif;font-size:0.8rem;padding:8px 28px;cursor:pointer;
+      letter-spacing:0.1em;">CONTINUE</button>` : ''}
   `;
   document.body.appendChild(panel);
 }
+
+function assignStatPoint(statKey) {
+  const char = gameState.character;
+  if (!char || !char.statPoints) return;
+  char.stats[statKey] = (char.stats[statKey] || 10) + 1;
+  char.statPoints -= 1;
+  addLog(`📈 ${statKey.toUpperCase()} increased to ${char.stats[statKey]}!`, 'holy');
+  // Refresh panel
+  showLevelUpPanel(char, null);
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  if (typeof renderStatsMini === 'function') renderStatsMini();
+  updateXPBar();
+}
+window.assignStatPoint = assignStatPoint;
+window.grantXP = grantXP;
+window.levelUp = levelUp;
+window.updateXPBar = updateXPBar;
 
 // ─── INITIALIZE PLAYER SPELLS ─────────────────
 function initPlayerSpells(char) {
