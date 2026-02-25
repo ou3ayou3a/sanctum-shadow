@@ -127,6 +127,18 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
 
   renderConvPanel(npc);
   await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
+
+  // Broadcast conversation open to all party members
+  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+    window.mpBroadcastStoryEvent('conv_open', {
+      npcId: npc.id,
+      npcName: npc.name,
+      npcTitle: npc.title,
+      npcPortrait: npc.portrait,
+      npcFaction: npc.faction,
+      playerName: gameState.character?.name || 'Unknown',
+    });
+  }
 }
 
 // ─── SEND MESSAGE ─────────────────────────────
@@ -437,7 +449,6 @@ function displayNPCLine(npc, speech, options) {
   lineEl.innerHTML = '';
 
   // Typewrite
-  const plainText = speech.replace(/\*[^*]+\*/g, match => match); // keep for later
   const chars = speech.split('');
   let i = 0;
   const interval = setInterval(() => {
@@ -446,6 +457,14 @@ function displayNPCLine(npc, speech, options) {
       clearInterval(interval);
       lineEl.innerHTML = speech.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
       renderConvOptions(options);
+      // Broadcast NPC response to all party members
+      if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+        window.mpBroadcastStoryEvent('conv_response', {
+          npcName: npc?.name,
+          text: speech,
+          options: options,
+        });
+      }
     }
   }, 14);
 }
@@ -484,6 +503,10 @@ function closeConvPanel() {
   window.npcConvState.active = false;
   window.npcConvState.npc = null;
   window.npcConvState.history = [];
+  // Broadcast close to all party members
+  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+    window.mpBroadcastStoryEvent('conv_close', {});
+  }
 }
 
 function factionLabel(f) {
@@ -670,4 +693,5 @@ s.id = 'conv-styles';
 s.textContent = convCSS;
 document.head.appendChild(s);
 
+window.renderConvPanel = renderConvPanel;
 console.log('🎭 Live NPC engine ready. Claude controls every NPC in real time.');

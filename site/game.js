@@ -398,12 +398,14 @@ function setRevealChoice(choice) {
 function enterGame() {
   if (!gameState.character.revealChoice) { toast('Choose how to present yourself to your companions!', 'error'); return; }
 
-  // In multiplayer — go to ready room, not straight to game
-  if (window.mp?.sessionCode) {
+  // In multiplayer — go to ready room
+  const inMP = !!(window.mp?.sessionCode || gameState.sessionCode);
+  if (inMP) {
+    const code = window.mp?.sessionCode || gameState.sessionCode;
     // Broadcast character ready to server
-    if (window.mp.socket) {
+    if (window.mp?.socket) {
       window.mp.socket.emit('character_ready', {
-        code: window.mp.sessionCode,
+        code,
         character: gameState.character,
       });
     }

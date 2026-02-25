@@ -152,27 +152,24 @@ function initMultiplayer() {
   });
 
   // ── Story event from other players ──
-  socket.on('story_event', ({ eventType, payload }) => {
+  socket.on('story_event', ({ eventType, payload, fromPlayer }) => {
     if (eventType === 'player_vote') {
       if (window.receiveVote) {
         window.receiveVote(payload.playerId, payload.playerName, payload.index, payload.roll);
       }
     }
     if (eventType === 'show_scene') {
-      // Another player triggered a scene — show it on our screen too
       if (window.showScene && payload.sceneData && !document.getElementById('scene-panel')) {
         setTimeout(() => window.showScene(payload.sceneData), 200);
       }
     }
     if (eventType === 'scene_resolved') {
-      // Vote resolved on another client — execute winning option here too
       if (window.executeSceneOption) {
         addLog(`🗳 The party chose: "${payload.label}"`, 'system');
         setTimeout(() => window.executeSceneOption(payload.index), 600);
       }
     }
     if (eventType === 'scene_choice') {
-      // Legacy single-player choice broadcast
       const option = window.sceneState?._currentOptions?.[payload.index];
       if (option) {
         setTimeout(() => {
@@ -185,6 +182,45 @@ function initMultiplayer() {
         }, 300);
       }
     }
+
+    // ── NPC Dialogue sync ──
+    if (eventType === 'conv_open') {
+      // Another player started talking to an NPC — open panel for observers
+      addLog(`💬 ${payload.playerName} approaches ${payload.npcName}...`, 'action');
+      // Show a read-only version of the conv panel
+      const existing = document.getElementById('conv-panel');
+      if (!existing && window.renderConvPanel) {
+        const npc = {
+          id: payload.npcId, name: payload.npcName, title: payload.npcTitle,
+          portrait: payload.npcPortrait || '🧑', faction: payload.npcFaction,
+          disposition: 'neutral',
+        };
+        window.renderConvPanel(npc);
+        // Mark as observer — can't type but can see
+        const input = document.getElementById('conv-input');
+        if (input) { input.placeholder = '👁 Observing conversation...'; input.disabled = true; }
+        const sendBtn = document.querySelector('.cp-send');
+        if (sendBtn) sendBtn.style.display = 'none';
+      }
+    }
+    if (eventType === 'conv_response') {
+      // NPC said something — show it in the panel for all observers
+      const lineEl = document.getElementById('cp-npc-line');
+      if (lineEl && payload.text) {
+        lineEl.textContent = payload.text;
+        // Also add options as read-only
+        const optionsEl = document.getElementById('cp-options');
+        if (optionsEl && payload.options?.length) {
+          optionsEl.innerHTML = payload.options.map((o, i) =>
+            `<button class="cp-option observer-option" style="opacity:0.7;cursor:default">${o.icon||'▸'} ${o.text}</button>`
+          ).join('');
+        }
+      }
+    }
+    if (eventType === 'conv_close') {
+      document.getElementById('conv-panel')?.remove();
+    }
+
     if (eventType === 'location_change') {
       if (window.mp._receiving) return;
       window.mp._receiving = true;
