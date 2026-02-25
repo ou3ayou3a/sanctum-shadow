@@ -96,10 +96,14 @@ function generateEnemy(type, areaLevel) {
     skeleton:      { name:'Risen Skeleton',   icon:'💀', baseHp:20, baseAc:9,  baseAtk:3, xp:40,  spells:[], flee:false, boss:false },
     wolf:          { name:'Dire Wolf',        icon:'🐺', baseHp:35, baseAc:12, baseAtk:5, xp:70,  spells:['savage_bite'], flee:false, boss:false },
     shadow_wraith: { name:'Shadow Wraith',    icon:'🌑', baseHp:40, baseAc:14, baseAtk:4, xp:90,  spells:['shadow_drain'], flee:false, boss:false },
-    // Bosses — hidden HP, unknown spells
-    captain_rhael: { name:'Captain Rhael',    icon:'🪖', baseHp:80, baseAc:16, baseAtk:7, xp:300, spells:['war_cry','execute'], flee:false, boss:true },
-    sister_mourne: { name:'Sister Mourne',    icon:'🕯', baseHp:65, baseAc:14, baseAtk:5, xp:250, spells:['shadow_curse','soul_drain'], flee:false, boss:true },
-    elder_varek:   { name:'Elder Varek',      icon:'🔥', baseHp:120,baseAc:17, baseAtk:8, xp:600, spells:['hellfire','divine_wrath','summon_flame'], flee:false, boss:true },
+    // ── Strong NPCs — very dangerous but NOT bosses. Visible HP. Only fought if player chooses violence.
+    captain_rhael: { name:'Captain Rhael',    icon:'🪖', baseHp:80, baseAc:16, baseAtk:7, xp:300, spells:['war_cry','execute'], flee:false, boss:false },
+    sister_mourne: { name:'Sister Mourne',    icon:'🕯', baseHp:65, baseAc:14, baseAtk:5, xp:250, spells:['shadow_curse','soul_drain'], flee:false, boss:false },
+    // ── True Bosses — hidden HP bar (??? displayed), cannot be persuaded out, must be defeated
+    elder_varek:      { name:'Elder Varek',        icon:'🔥', baseHp:120,baseAc:17, baseAtk:8, xp:600,  spells:['hellfire','divine_wrath','summon_flame'], flee:false, boss:true },
+    the_voice_below:  { name:'The Voice Below',    icon:'🕳', baseHp:180,baseAc:18, baseAtk:10,xp:900,  spells:['void_scream','soul_rend','dark_surge'],    flee:false, boss:true },
+    shattered_god:    { name:'The Shattered God',  icon:'⚡', baseHp:250,baseAc:20, baseAtk:12,xp:1500, spells:['divine_wrath','hellfire','soul_rend','void_scream'], flee:false, boss:true },
+    harren_fallen:    { name:'Sir Harren (Fallen)', icon:'🩸', baseHp:140,baseAc:18, baseAtk:9, xp:750,  spells:['execute','holy_smite_corrupted','war_cry'], flee:false, boss:true },
   };
   const t = templates[type] || templates['bandit'];
   return {
@@ -667,6 +671,11 @@ function checkCombatEnd() {
 function endCombat(victory) {
   combatState.active = false;
 
+  // Identify who was just defeated (for story triggers)
+  const defeatedIds = Object.values(combatState.combatants)
+    .filter(c => !c.isPlayer)
+    .map(c => c.id);
+
   if (victory) {
     let totalXP = 0;
     Object.values(combatState.combatants).filter(c => !c.isPlayer).forEach(c => {
@@ -677,6 +686,13 @@ function endCombat(victory) {
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
     grantXP(totalXP);
     if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
+
+    // Story triggers after boss defeats
+    setTimeout(() => {
+      if (defeatedIds.some(id => id === 'elder_varek' || id?.startsWith('elder_varek'))) {
+        if (window.runScene) window.runScene('chapter1_end_arrest');
+      }
+    }, 2500);
   } else {
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`💀 DEFEATED! You wake up, wounded but alive...`, 'combat');
@@ -712,27 +728,30 @@ function checkAutoAttack(text) {
   attackWords.forEach(w => { targetName = targetName.replace(w, '').trim(); });
   targetName = targetName.replace(/^(the|a|an)\s+/, '').trim();
 
-  // Check if target is a "fearful" NPC who might flee
+  // Fearful NPCs might flee — auto-roll, no manual dice
   const fearfulNPCs = ['scribe', 'aldis', 'merchant', 'peasant', 'child', 'farmer'];
   const isFearful = fearfulNPCs.some(n => targetName.includes(n));
-
   if (isFearful) {
     const playerRoll = Math.floor(Math.random()*20)+1;
     const npcRoll = Math.floor(Math.random()*20)+1;
-    addLog(`🎲 ${text}: Your roll [${playerRoll}] vs NPC flee [${npcRoll}]`, 'dice');
+    addLog(`🎲 ${gameState.character?.name} [${playerRoll}] vs ${targetName} flee roll [${npcRoll}]`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice();
     if (npcRoll > playerRoll) {
       addLog(`💨 ${targetName} bolts in terror before you can reach them!`, 'narrator');
       grantHellPoints(2);
       return true;
     }
+    // Didn't flee — fall through to combat below
   }
 
-  // Look up NPC in registry or generate appropriate enemy
+  // Look up NPC or generate enemy
   const npcMap = {
     'captain rhael': () => generateEnemy('captain_rhael', 1),
     'rhael': () => generateEnemy('captain_rhael', 1),
     'guard': () => generateEnemy('city_guard', 1),
+    'guards': () => generateEnemy('city_guard', 1),
     'city guard': () => generateEnemy('city_guard', 1),
+    'soldier': () => generateEnemy('city_guard', 1),
     'sister mourne': () => generateEnemy('sister_mourne', 2),
     'mourne': () => generateEnemy('sister_mourne', 2),
     'church agent': () => generateEnemy('church_agent', 2),
@@ -745,7 +764,7 @@ function checkAutoAttack(text) {
   const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
   if (!enemyFn) enemy.name = targetName.charAt(0).toUpperCase() + targetName.slice(1);
 
-  addLog(`⚔ ${text} — COMBAT STARTS!`, 'combat');
+  addLog(`⚔ ${gameState.character?.name} attacks ${enemy.name}! Combat begins!`, 'combat');
   startCombat([enemy]);
   return true;
 }

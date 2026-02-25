@@ -826,21 +826,41 @@ const SCENES = {
       options: [
         { icon: '⚔', label: 'Storm in and arrest Varek — take the soldiers if they resist', type: 'combat',
           roll: { stat: 'STR', dc: 14 },
-          onSuccess: () => { setFlag('varek_arrested_force'); runScene('chapter1_end_arrest'); },
-          onFail: () => { startCombat([
-            { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
-            { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
-            { name: 'Elder Varek', hp:35, ac:11, atk:3, icon:'📿', id:'varek', boss:true },
-          ]); }
+          onSuccess: () => {
+            addLog(`Your charge scatters the soldiers — but Varek draws a blade. "I won't be chained." The real fight begins.`, 'combat');
+            startCombat([
+              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
+                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
+            ]);
+          },
+          onFail: () => {
+            addLog(`The soldiers hold the line. Varek watches coldly from behind them.`, 'combat');
+            startCombat([
+              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
+              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
+              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
+                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
+            ]);
+          }
         },
         { icon: '🗣', label: 'Confront Varek openly — show the document and demand surrender', type: 'talk',
           roll: { stat: 'CHA', dc: 15 },
-          onSuccess: () => { setFlag('varek_surrendered'); runScene('chapter1_end_surrender'); },
-          onFail: () => { addLog('Varek signals his soldiers. They draw weapons.', 'combat');
+          onSuccess: () => {
+            addLog(`⚔ Varek's soldiers lower their weapons — but Varek himself draws a blade. "I will not be taken alive." The fight is unavoidable.`, 'combat');
+            startCombat([
+              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
+                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
+            ]);
+          },
+          onFail: () => {
+            addLog(`Varek signals his soldiers. "Kill them." They draw weapons.`, 'combat');
             startCombat([
               { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
-              { name: 'Elder Varek', hp:35, ac:11, atk:3, icon:'📿', id:'varek', boss:true },
-            ]); }
+              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
+              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
+                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
+            ]);
+          }
         },
         { icon: '🕵', label: 'Slip in and steal Varek\'s communications before confronting him', type: 'explore',
           roll: { stat: 'DEX', dc: 14 },

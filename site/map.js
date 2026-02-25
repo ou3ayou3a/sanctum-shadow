@@ -765,9 +765,16 @@ function travelToLocation(loc) {
   }, 600);
 
   // Check for random encounters
-  const encounterChance = loc.danger * 0.12;
-  if (Math.random() < encounterChance && loc.encounters?.length) {
-    setTimeout(() => triggerEncounter(loc), 2000);
+  // Dungeons/wilderness always get an encounter check. Cities/taverns never do.
+  const noEncounterTypes = ['city', 'tavern', 'village'];
+  const alwaysEncounterTypes = ['dungeon', 'wilderness'];
+  if (!noEncounterTypes.includes(loc.type) && loc.encounters?.length) {
+    const encounterChance = alwaysEncounterTypes.includes(loc.type)
+      ? 0.85  // Dungeons — almost certain
+      : Math.min(0.25 + loc.danger * 0.12, 0.75); // Roads/outposts — scales with danger
+    if (Math.random() < encounterChance) {
+      setTimeout(() => triggerEncounter(loc), 2200);
+    }
   }
 }
 
@@ -802,20 +809,252 @@ async function narrateLocation(loc) {
   }
 }
 
+// ─── BOSS DEFINITIONS ────────────────────────
+// Bosses MUST be fought — no talking out of it, even on a 20
+// Strong NPCs like Rhael are NOT bosses unless player chose the dark path
+const BOSS_IDS = [
+  'elder_varek',
+  'the_voice_below',     // Chapter 1 dungeon boss — Monastery
+  'shattered_god',       // Chapter 1 endgame — Ashen Tower
+  'harren_fallen',       // Sir Harren gone fully dark
+  'demon_lord',          // Chapter 2+
+];
+
+// ─── AMBUSH ENCOUNTER TABLE ──────────────────
+// Each location's encounters array maps to these
+const AMBUSH_TEMPLATES = {
+  bandit: {
+    name: 'Road Bandits',
+    icon: '🗡',
+    enemies: () => [
+      { ...generateEnemy('bandit', 1), id: 'bandit_1' },
+      { ...generateEnemy('bandit', 1), id: 'bandit_2' },
+    ],
+    flavor: [
+      `Two figures drop from the trees. Blades out, eyes hungry. "Coin or blood," the taller one says. "Your choice."`,
+      `A rope snaps across the road. You hear boots behind you before you see them — two bandits, blades drawn, moving fast.`,
+      `"Stand and deliver." The voice is almost bored. They've done this a hundred times. That's what makes them dangerous.`,
+    ],
+    persuadeText: `"Walk away. There's nothing here worth dying for."`,
+  },
+  wolf: {
+    name: 'Dire Wolves',
+    icon: '🐺',
+    enemies: () => [
+      { ...generateEnemy('wolf', 2), id: 'wolf_1' },
+      { ...generateEnemy('wolf', 2), id: 'wolf_2' },
+    ],
+    flavor: [
+      `Low growls from both sides of the path. Two dire wolves — eyes reflecting no light, teeth already bared. They're not hunting prey. They're eliminating a threat.`,
+      `The first wolf you see is a decoy. You feel the second one's breath on the back of your neck before it lunges.`,
+    ],
+    persuadeText: `"Easy. Easy. You don't want this fight either."`,
+  },
+  cultist: {
+    name: 'Covenant Cultists',
+    icon: '😈',
+    enemies: () => [
+      { ...generateEnemy('cultist', 2), id: 'cultist_1' },
+      { ...generateEnemy('cultist', 2), id: 'cultist_2' },
+    ],
+    flavor: [
+      `Three hooded figures step from the shadows. Their sigils mark them as Covenant fanatics. One points at you. "The Candle says your name. It says you interfere."`,
+      `"You carry the document." It's not a question. The cultist on the left is already raising a hand to cast. "We need it back."`,
+    ],
+    persuadeText: `"I'm not your enemy. Stand down."`,
+  },
+  skeleton: {
+    name: 'Risen Skeletons',
+    icon: '💀',
+    enemies: () => [
+      { ...generateEnemy('skeleton', 2), id: 'skel_1' },
+      { ...generateEnemy('skeleton', 2), id: 'skel_2' },
+      { ...generateEnemy('skeleton', 2), id: 'skel_3' },
+    ],
+    flavor: [
+      `The monastery floor cracks. Bone fingers push through the flagstones. Three sets of empty eye sockets turn toward you in perfect unison.`,
+      `They don't speak. They don't hesitate. The skeletons simply rise and begin to close the distance with the mechanical patience of things that cannot be tired.`,
+    ],
+    persuadeText: null, // Can't persuade undead — they don't understand language
+  },
+  shadow_wraith: {
+    name: 'Shadow Wraith',
+    icon: '🌑',
+    enemies: () => [
+      { ...generateEnemy('shadow_wraith', 3), id: 'wraith_1' },
+    ],
+    flavor: [
+      `The torchlight bends wrong. A shadow detaches from the wall and coalesces into something with too many angles and no face. The air drops ten degrees.`,
+      `You hear it before you see it — a sound like paper tearing, very slowly. The shadow wraith drifts toward you with no urgency and no mercy.`,
+    ],
+    persuadeText: null, // Wraiths can't be reasoned with
+  },
+  church_agent: {
+    name: 'Church Agents',
+    icon: '🗡',
+    enemies: () => [
+      { ...generateEnemy('church_agent', 2), id: 'agent_1' },
+      { ...generateEnemy('church_agent', 2), id: 'agent_2' },
+    ],
+    flavor: [
+      `Plain clothes, but the way they move gives them away immediately. Church agents — the kind that don't arrest, they eliminate. "Varek sends his regards."`,
+      `They came prepared. The first one has already circled behind you while the second kept your attention. Professional work.`,
+    ],
+    persuadeText: `"You don't have to do this. Walk away and I forget your faces."`,
+  },
+  demon_minor: {
+    name: 'Ashen Demon',
+    icon: '🔥',
+    enemies: () => [
+      { ...generateEnemy('cultist', 4), name: 'Ashen Demon', icon: '🔥', id: 'demon_1', hp: 55, ac: 13 },
+    ],
+    flavor: [
+      `The grey earth bubbles. Something pulls itself free — a figure of ash and blue flame, shaped almost like a person but wrong in every proportion.`,
+      `The air smells of burning stone. The demon doesn't walk toward you — it flows, leaving scorched footprints that glow and fade.`,
+    ],
+    persuadeText: `"I am not what you were sent to destroy."`,
+  },
+  captain: {
+    name: 'Deserter Captain',
+    icon: '⚔',
+    enemies: () => [
+      { ...generateEnemy('city_guard', 2), name: 'Deserter Captain', icon: '⚔', id: 'deser_1', hp: 60, ac: 15, atk: 6, boss: false },
+      { ...generateEnemy('city_guard', 1), id: 'deser_2' },
+    ],
+    flavor: [
+      `A soldier in torn guard livery blocks the road, a smaller man behind him. "No one passes. Lord Commander's orders." His eyes say he stopped caring about orders weeks ago.`,
+      `"You're the one causing trouble in the city." The deserter captain has been waiting for this. He's not wrong that you've made enemies.`,
+    ],
+    persuadeText: `"Stand down, soldier. This road is open by Crown authority."`,
+  },
+};
+
+// ─── AMBUSH TRIGGER ──────────────────────────
 function triggerEncounter(loc) {
-  if (!loc.encounters?.length) return;
-  const enemyType = loc.encounters[Math.floor(Math.random() * loc.encounters.length)];
-  const enemy = STARTING_ENEMIES.find(e => e.id === enemyType);
-  if (!enemy) return;
+  if (!loc.encounters?.length || combatState?.active) return;
+
+  const encounterKey = loc.encounters[Math.floor(Math.random() * loc.encounters.length)];
+  const template = AMBUSH_TEMPLATES[encounterKey];
+  if (!template) return;
+
+  const flavor = template.flavor[Math.floor(Math.random() * template.flavor.length)];
+  const enemies = template.enemies();
+  const isBossEncounter = enemies.some(e => BOSS_IDS.includes(e.id));
+  const canPersuade = !isBossEncounter && template.persuadeText !== null;
 
   addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
-  addLog(`⚔ ENCOUNTER! A ${enemy.name} appears!`, 'combat');
-  addLog(`${enemy.icon} ${enemy.name} — HP: ${enemy.hp} | AC: ${enemy.ac} | ATK: ${enemy.attack}`, 'combat');
-  addLog(`Roll for initiative! Use the Attack or Spell buttons to engage.`, 'system');
+  addLog(`⚔ AMBUSH — ${template.name}!`, 'combat');
+  addLog(flavor, 'narrator');
+  if (window.AudioEngine) AudioEngine.sfx?.dice();
 
-  if (window.AudioEngine) AudioEngine.transition('combat');
-  toast(`⚔ ${enemy.name} attacks!`, 'error');
+  // Show ambush decision panel
+  showAmbushPanel(template, enemies, canPersuade, isBossEncounter);
 }
+
+function showAmbushPanel(template, enemies, canPersuade, isBossEncounter) {
+  // Remove any existing ambush panel
+  document.getElementById('ambush-panel')?.remove();
+
+  const panel = document.createElement('div');
+  panel.id = 'ambush-panel';
+  panel.style.cssText = `
+    position:fixed; inset:0; z-index:4000;
+    background:rgba(4,2,1,0.92); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    animation:sceneFadeIn 0.25s ease;
+  `;
+
+  const enemyList = enemies.map(e =>
+    `<span style="color:var(--hell);margin-right:8px">${e.icon} ${e.name} (Lv${e.level || 1})</span>`
+  ).join('');
+
+  const persuadeSection = canPersuade ? `
+    <div style="margin-top:16px;padding:12px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.15);border-radius:2px">
+      <div style="font-family:'Cinzel',serif;font-size:0.62rem;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:6px">PERSUASION ATTEMPT</div>
+      <div style="font-family:'IM Fell English',serif;font-size:0.82rem;color:var(--text-secondary);font-style:italic;margin-bottom:10px">
+        "${template.persuadeText}"<br>
+        <span style="font-size:0.7rem;color:var(--text-dim)">Requires a natural 20 — nothing less will work.</span>
+      </div>
+      <button onclick="attemptAmbushPersuade()" style="
+        width:100%;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);
+        color:var(--gold);font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.06em;
+        padding:8px;cursor:pointer;transition:background 0.15s;
+      " onmouseover="this.style.background='rgba(201,168,76,0.18)'" onmouseout="this.style.background='rgba(201,168,76,0.1)'">
+        🎲 ATTEMPT PERSUASION — Roll d20 (need 20)
+      </button>
+    </div>` : (isBossEncounter ? `
+    <div style="margin-top:16px;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);text-align:center">
+      <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--hell);letter-spacing:0.08em">
+        ☠ BOSS ENCOUNTER — This fight cannot be avoided
+      </span>
+    </div>` : `
+    <div style="margin-top:16px;padding:10px;background:rgba(60,60,60,0.2);border:1px solid rgba(100,100,100,0.2);text-align:center">
+      <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--text-dim);letter-spacing:0.08em">
+        These enemies cannot be reasoned with
+      </span>
+    </div>`);
+
+  panel.innerHTML = `
+    <div style="width:100%;max-width:480px;padding:24px">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:2.5rem;margin-bottom:8px">${template.icon}</div>
+        <div style="font-family:'Cinzel Decorative',serif;font-size:1rem;color:var(--hell);letter-spacing:0.1em">
+          ${isBossEncounter ? '☠ BOSS FIGHT' : '⚔ AMBUSH'}
+        </div>
+        <div style="font-family:'Cinzel',serif;font-size:0.75rem;color:var(--gold);margin-top:4px">${template.name}</div>
+      </div>
+      <div style="margin-bottom:16px;font-size:0.75rem">${enemyList}</div>
+      <button onclick="launchAmbushCombat()" style="
+        width:100%;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.4);
+        color:#e87060;font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.08em;
+        padding:12px;cursor:pointer;transition:background 0.15s;
+      " onmouseover="this.style.background='rgba(192,57,43,0.25)'" onmouseout="this.style.background='rgba(192,57,43,0.15)'">
+        ⚔ FIGHT — Draw your weapon
+      </button>
+      ${persuadeSection}
+    </div>
+  `;
+
+  // Store enemies for when panel resolves
+  window._pendingAmbushEnemies = enemies;
+  document.body.appendChild(panel);
+}
+
+function launchAmbushCombat() {
+  document.getElementById('ambush-panel')?.remove();
+  const enemies = window._pendingAmbushEnemies || [];
+  if (!enemies.length) return;
+  window._pendingAmbushEnemies = null;
+  startCombat(enemies);
+}
+
+function attemptAmbushPersuade() {
+  const char = gameState.character;
+  const mod = Math.floor(((char?.stats?.cha || 10) - 10) / 2);
+  const roll = Math.floor(Math.random() * 20) + 1;
+
+  addLog(`🎲 Persuasion — rolling d20: [${roll}]`, 'dice');
+  if (window.AudioEngine) AudioEngine.sfx?.dice();
+
+  if (roll === 20) {
+    // Natural 20 — they back down
+    document.getElementById('ambush-panel')?.remove();
+    window._pendingAmbushEnemies = null;
+    addLog(`✨ NATURAL 20 — A critical success. Against all expectation, they hesitate. Something in your bearing, your words, the certainty in your voice — they back down. No blood today.`, 'holy');
+    grantHolyPoints(3);
+    addLog(`☩ +3 Holy Points — You turned the blade without drawing yours.`, 'holy');
+    if (window.AudioEngine) AudioEngine.transition(WORLD_LOCATIONS[mapState?.currentLocation]?.music || 'city_tense', 1000);
+  } else {
+    // Anything less than 20 fails — no matter how high the CHA mod
+    addLog(`❌ [${roll}] — Not enough. They don't believe you, or they don't care. The attack comes.`, 'combat');
+    setTimeout(() => launchAmbushCombat(), 800);
+  }
+}
+
+// Expose globally
+window.triggerEncounter = triggerEncounter;
+window.launchAmbushCombat = launchAmbushCombat;
+window.attemptAmbushPersuade = attemptAmbushPersuade;
 
 function showLocationPanel(loc, cantTravel = false) {
   const panel = document.getElementById('location-detail-panel');
