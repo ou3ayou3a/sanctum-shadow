@@ -160,7 +160,13 @@ function initMultiplayer() {
     }
     if (eventType === 'show_scene') {
       if (window.showScene && payload.sceneData && !document.getElementById('scene-panel')) {
-        setTimeout(() => window.showScene(payload.sceneData), 200);
+        // Calculate chars already typed based on elapsed time (14ms per char)
+        const elapsed = payload.startedAt ? (Date.now() - payload.startedAt) : 0;
+        const startAt = Math.min(Math.floor(elapsed / 14), (payload.sceneData.narration || '').length);
+        // Temporarily override typewriteScene to start at the right position
+        window._sceneStartAt = startAt;
+        window.showScene(payload.sceneData);
+        window._sceneStartAt = 0;
       }
     }
     if (eventType === 'scene_resolved') {
@@ -215,19 +221,39 @@ function initMultiplayer() {
     }
     if (eventType === 'conv_response') {
       console.log('🎭 conv_response received');
-      // NPC said something — show full typewritten response on observer screens
       const lineEl = document.getElementById('cp-npc-line');
       const typingEl = document.getElementById('cp-typing');
       if (typingEl) typingEl.style.display = 'none';
       if (lineEl) {
+        // Archive previous line to transcript
+        const transcript = document.getElementById('cp-transcript');
+        if (lineEl.textContent.trim() && transcript) {
+          const entry = document.createElement('div');
+          entry.className = 'cp-transcript-entry';
+          entry.textContent = lineEl.textContent;
+          transcript.appendChild(entry);
+          transcript.scrollTop = transcript.scrollHeight;
+        }
         lineEl.innerHTML = '';
-        const chars = (payload.text || '').split('');
-        let i = 0;
+
+        const text = payload.text || '';
+        const speed = payload.typewriterSpeed || 14;
+        // Calculate how many chars the sender has already typed based on elapsed time
+        const elapsed = payload.startedAt ? (Date.now() - payload.startedAt) : 0;
+        const charsAlreadyTyped = Math.min(Math.floor(elapsed / speed), text.length);
+
+        // Start at the same character the sender is currently on
+        let i = charsAlreadyTyped;
+        lineEl.textContent = text.substring(0, i); // catch up instantly
+
         const interval = setInterval(() => {
-          if (i < chars.length) { lineEl.textContent += chars[i]; i++; }
-          else {
+          if (i < text.length) {
+            lineEl.textContent += text[i];
+            i++;
+          } else {
             clearInterval(interval);
-            lineEl.innerHTML = (payload.text || '').replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+            lineEl.innerHTML = text.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+            // Show read-only options
             const optEl = document.getElementById('cp-options');
             if (optEl && payload.options?.length) {
               optEl.innerHTML = payload.options.map(o =>
@@ -235,7 +261,7 @@ function initMultiplayer() {
               ).join('');
             }
           }
-        }, 14);
+        }, speed);
       }
     }
     if (eventType === 'conv_player_action') {

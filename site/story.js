@@ -71,7 +71,8 @@ function showScene(sceneData) {
   window.sceneState._myVote = null;
   window.sceneState._playerCount = playerCount;
 
-  typewriteScene(sceneData.narration, sceneData.sub);
+  const sceneStartedAt = Date.now();
+  typewriteScene(sceneData.narration, sceneData.sub, window._sceneStartAt || 0);
   addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
 
   // Broadcast scene to all other players in MP
@@ -87,7 +88,7 @@ function showScene(sceneData) {
         roll: o.roll, cost: o.cost, next: o.next, nextFail: o.nextFail,
       })),
     };
-    window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene });
+    window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene, startedAt: sceneStartedAt });
   }
 }
 
@@ -274,11 +275,12 @@ function executeSceneOption(index) {
 
 
 
-function typewriteScene(text, sub) {
+function typewriteScene(text, sub, startAt = 0) {
   const el = document.getElementById('sp-narration');
   if (!el) return;
   el.innerHTML = '';
-  let i = 0;
+  let i = startAt;
+  if (startAt > 0) el.textContent = text.substring(0, startAt); // catch up instantly
   const interval = setInterval(() => {
     if (i < text.length) { el.textContent += text[i]; i++; }
     else {

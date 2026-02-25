@@ -225,12 +225,15 @@ RULES:
 
   const { speech, options } = parseNPCResponse(cleanResponse);
 
-  // Broadcast immediately
+  // Broadcast immediately with timestamp — receivers sync typewriter to same position
+  const broadcastTime = Date.now();
   if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
     window.mpBroadcastStoryEvent('conv_response', {
       npcName: npc?.name,
       text: speech,
       options: options,
+      startedAt: broadcastTime,
+      typewriterSpeed: 14, // ms per char — match displayNPCLine
     });
   }
 
