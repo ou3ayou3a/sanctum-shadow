@@ -125,20 +125,21 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   window.npcConvState.npc = npc;
   window.npcConvState.history = [];
 
-  renderConvPanel(npc);
-  await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
-
-  // Broadcast conversation open to all party members
-  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+  // Broadcast FIRST so friends see panel open before response arrives
+  if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('conv_open', {
       npcId: npc.id,
       npcName: npc.name,
       npcTitle: npc.title,
       npcPortrait: npc.portrait,
       npcFaction: npc.faction,
+      disposition: npc.disposition,
       playerName: gameState.character?.name || 'Unknown',
     });
   }
+
+  renderConvPanel(npc);
+  await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
 }
 
 // ─── SEND MESSAGE ─────────────────────────────
@@ -152,6 +153,13 @@ async function sendNPCMessage(playerText, isOpener = false) {
 
   if (!isOpener) {
     addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
+    // Broadcast player action to all observers
+    if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
+      window.mpBroadcastStoryEvent('conv_player_action', {
+        playerName: char?.name || 'Unknown',
+        text: playerText,
+      });
+    }
   }
 
   showTypingIndicator();
@@ -200,6 +208,16 @@ HOW TO RESPOND:
   history.push({ role: 'assistant', content: response });
 
   const { speech, options } = parseNPCResponse(response);
+
+  // Broadcast to all party members IMMEDIATELY (before typewriting starts)
+  if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
+    window.mpBroadcastStoryEvent('conv_response', {
+      npcName: npc?.name,
+      text: speech,
+      options: options,
+    });
+  }
+
   displayNPCLine(npc, speech, options);
 
   const cleanSpeech = speech.replace(/\*[^*]+\*/g, '').trim();
@@ -457,14 +475,6 @@ function displayNPCLine(npc, speech, options) {
       clearInterval(interval);
       lineEl.innerHTML = speech.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
       renderConvOptions(options);
-      // Broadcast NPC response to all party members
-      if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
-        window.mpBroadcastStoryEvent('conv_response', {
-          npcName: npc?.name,
-          text: speech,
-          options: options,
-        });
-      }
     }
   }, 14);
 }
@@ -504,7 +514,7 @@ function closeConvPanel() {
   window.npcConvState.npc = null;
   window.npcConvState.history = [];
   // Broadcast close to all party members
-  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+  if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('conv_close', {});
   }
 }

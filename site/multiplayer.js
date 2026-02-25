@@ -185,40 +185,80 @@ function initMultiplayer() {
 
     // ── NPC Dialogue sync ──
     if (eventType === 'conv_open') {
-      // Another player started talking to an NPC — open panel for observers
+      console.log('🎭 conv_open received:', payload);
       addLog(`💬 ${payload.playerName} approaches ${payload.npcName}...`, 'action');
-      // Show a read-only version of the conv panel
-      const existing = document.getElementById('conv-panel');
-      if (!existing && window.renderConvPanel) {
+      // Open panel for all observers immediately
+      document.getElementById('conv-panel')?.remove();
+      if (window.renderConvPanel) {
         const npc = {
-          id: payload.npcId, name: payload.npcName, title: payload.npcTitle,
-          portrait: payload.npcPortrait || '🧑', faction: payload.npcFaction,
-          disposition: 'neutral',
+          id: payload.npcId,
+          name: payload.npcName,
+          title: payload.npcTitle || '',
+          portrait: payload.npcPortrait || '🧑',
+          faction: payload.npcFaction || '',
+          disposition: payload.disposition || 'neutral',
         };
         window.renderConvPanel(npc);
-        // Mark as observer — can't type but can see
+        // Show typing indicator — NPC response is coming
+        const typingEl = document.getElementById('cp-typing');
+        if (typingEl) typingEl.style.display = 'flex';
+        const optEl = document.getElementById('cp-options');
+        if (optEl) optEl.innerHTML = '<div class="cp-thinking">Waiting for response...</div>';
+        // Mark as observer — disable input
         const input = document.getElementById('conv-input');
-        if (input) { input.placeholder = '👁 Observing conversation...'; input.disabled = true; }
+        if (input) { input.placeholder = '👁 Observing — you can watch but not type'; input.disabled = true; }
         const sendBtn = document.querySelector('.cp-send');
         if (sendBtn) sendBtn.style.display = 'none';
+      } else {
+        console.warn('⚠ renderConvPanel not available yet');
       }
     }
     if (eventType === 'conv_response') {
-      // NPC said something — show it in the panel for all observers
+      console.log('🎭 conv_response received');
+      // NPC said something — show full typewritten response on observer screens
       const lineEl = document.getElementById('cp-npc-line');
-      if (lineEl && payload.text) {
-        lineEl.textContent = payload.text;
-        // Also add options as read-only
-        const optionsEl = document.getElementById('cp-options');
-        if (optionsEl && payload.options?.length) {
-          optionsEl.innerHTML = payload.options.map((o, i) =>
-            `<button class="cp-option observer-option" style="opacity:0.7;cursor:default">${o.icon||'▸'} ${o.text}</button>`
-          ).join('');
-        }
+      const typingEl = document.getElementById('cp-typing');
+      if (typingEl) typingEl.style.display = 'none';
+      if (lineEl) {
+        lineEl.innerHTML = '';
+        const chars = (payload.text || '').split('');
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i < chars.length) { lineEl.textContent += chars[i]; i++; }
+          else {
+            clearInterval(interval);
+            lineEl.innerHTML = (payload.text || '').replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+            const optEl = document.getElementById('cp-options');
+            if (optEl && payload.options?.length) {
+              optEl.innerHTML = payload.options.map(o =>
+                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${o.text}</button>`
+              ).join('');
+            }
+          }
+        }, 14);
+      }
+    }
+    if (eventType === 'conv_player_action') {
+      // Show that the active player said something — show typing indicator
+      const typingEl = document.getElementById('cp-typing');
+      if (typingEl) typingEl.style.display = 'flex';
+      const optEl = document.getElementById('cp-options');
+      if (optEl) optEl.innerHTML = `<div class="cp-thinking">${payload.playerName} said: "${payload.text}" — waiting for response...</div>`;
+      // Archive previous NPC line to transcript
+      const lineEl = document.getElementById('cp-npc-line');
+      const transcript = document.getElementById('cp-transcript');
+      if (lineEl?.textContent.trim() && transcript) {
+        const entry = document.createElement('div');
+        entry.className = 'cp-transcript-entry';
+        entry.textContent = lineEl.textContent;
+        transcript.appendChild(entry);
+        transcript.scrollTop = transcript.scrollHeight;
+        lineEl.textContent = '';
       }
     }
     if (eventType === 'conv_close') {
-      document.getElementById('conv-panel')?.remove();
+      const p = document.getElementById('conv-panel');
+      if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
     }
 
     if (eventType === 'location_change') {
@@ -302,8 +342,22 @@ function mpChat(text) {
 }
 
 function mpBroadcastStoryEvent(eventType, payload) {
-  if (!window.mp.socket || !window.mp.sessionCode) return;
-  window.mp.socket.emit('story_event', { code: window.mp.sessionCode, eventType, payload });
+  const code = window.mp?.sessionCode || gameState?.sessionCode;
+  if (!window.mp?.socket || !code) {
+    console.warn('mpBroadcast skipped — no socket or code', eventType, window.mp?.sessionCode, gameState?.sessionCode);
+    return;
+  }
+  console.log('📡 Broadcasting:', eventType, payload);
+  window.mp.socket.emit('story_event', { code, eventType, payload });
+}
+// Expose globally so dialogue.js, story.js etc. can call it
+// This replaces the early stub set in index.html <head>
+window.mpBroadcastStoryEvent = mpBroadcastStoryEvent;
+// Flush any events queued before socket connected
+if (window._mpEventQueue?.length) {
+  console.log('📡 Flushing', window._mpEventQueue.length, 'queued story events');
+  window._mpEventQueue.forEach(e => mpBroadcastStoryEvent(e.eventType, e.payload));
+  window._mpEventQueue = [];
 }
 
 // ─── PATCH addLog ─────────────────────────────
@@ -578,5 +632,9 @@ document.head.appendChild(mpStyle);
 
 console.log('🔗 Multiplayer v2 loaded.');
 window.updateReadyRoom = updateReadyRoom;
+window.mpBroadcastStoryEvent = mpBroadcastStoryEvent;
+window.submitChat = submitChat;
+window.copySessionCode = copySessionCode;
+window.updatePartyPanel = updatePartyPanel;
 
 } // end double-load guard

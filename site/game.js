@@ -266,6 +266,10 @@ function rollStats(isReroll = false) {
     document.getElementById('reroll-btn').style.display = 'none';
   }
 
+  // Disable roll button during animation and after first roll
+  const rollBtn = document.getElementById('roll-btn');
+  if (rollBtn) { rollBtn.disabled = true; rollBtn.style.opacity = '0.4'; }
+
   const stats = ['str','dex','con','int','wis','cha'];
   let rollCount = 0;
 
@@ -302,9 +306,12 @@ function rollStats(isReroll = false) {
       }
 
       document.getElementById('finalize-btn').style.display = 'inline-block';
-      if (!isReroll) {
+      if (!isReroll && !gameState.rerollUsed) {
+        // Show reroll button, keep roll button disabled
         document.getElementById('reroll-btn').style.display = 'inline-block';
       }
+      // Roll button stays disabled — use reroll button for second chance
+      if (rollBtn) rollBtn.style.display = 'none';
       toast('Fate has spoken!');
     }
   }, 80);
