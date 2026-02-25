@@ -17,9 +17,8 @@ function getFlag(key) { return !!window.sceneState.flags[key]; }
 function setNPCState(npc, state) { window.sceneState.npcStates[npc] = state; }
 function getNPCState(npc) { return window.sceneState.npcStates[npc] || 'neutral'; }
 
-// ─── SCENE PANEL UI ───────────────────────────
+// ─── SCENE PANEL UI (MODAL) ───────────────────
 function showScene(sceneData) {
-  // Remove old scene panel
   const old = document.getElementById('scene-panel');
   if (old) old.remove();
 
@@ -27,46 +26,259 @@ function showScene(sceneData) {
   panel.id = 'scene-panel';
   panel.className = 'scene-panel';
 
+  const isMP = !!(window.mp?.sessionCode);
+  const playerCount = isMP ? Object.keys(window.mp?.session?.players || {}).length : 1;
+
   const optionsHTML = (sceneData.options || []).map((opt, i) => `
-    <button class="scene-option ${opt.type || ''}" onclick="chooseSceneOption(${i})">
+    <button class="scene-option ${opt.type || ''}" id="scene-opt-${i}" onclick="castVote(${i})">
       <span class="so-icon">${opt.icon || '▸'}</span>
       <span class="so-text">${opt.label}</span>
       ${opt.roll ? `<span class="so-roll">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
-      ${opt.cost ? `<span class="so-cost">${opt.cost}</span>` : ''}
+      <span class="so-votes" id="votes-${i}" style="display:none"></span>
     </button>
   `).join('');
 
   panel.innerHTML = `
-    <div class="sp-inner">
+    <div class="sp-backdrop"></div>
+    <div class="sp-modal">
       <div class="sp-location-bar">
         <span class="sp-loc-icon">${sceneData.locationIcon || '🏰'}</span>
         <span class="sp-loc-name">${sceneData.location || 'Vaelthar'}</span>
         ${sceneData.threat ? `<span class="sp-threat">${sceneData.threat}</span>` : ''}
+        ${isMP ? `<span class="sp-vote-status" id="vote-status">⏳ 0/${playerCount} voted</span>` : ''}
       </div>
       <div class="sp-narration" id="sp-narration"></div>
       <div class="sp-options" id="sp-options">${optionsHTML}</div>
       <div class="sp-free-action">
-        <span class="sp-free-hint">Or type any action freely below ↓</span>
+        <span class="sp-free-hint">${isMP
+          ? '🗳 All players must vote — majority wins, ties broken by dice roll'
+          : 'Or type any action freely below ↓'
+        }</span>
       </div>
     </div>
   `;
 
-  const gameLog = document.getElementById('game-log');
-  if (gameLog) {
-    gameLog.parentNode.insertBefore(panel, gameLog.nextSibling);
-  } else {
-    document.body.appendChild(panel);
-  }
+  document.body.appendChild(panel);
+
+  // Hide DM strip while modal is open
+  const dmStrip = document.getElementById('dm-strip');
+  if (dmStrip) dmStrip.style.display = 'none';
 
   window.sceneState._currentOptions = sceneData.options || [];
   window.sceneState._currentScene = sceneData;
+  window.sceneState._votes = {};
+  window.sceneState._myVote = null;
+  window.sceneState._playerCount = playerCount;
 
-  // Typewrite the narration
   typewriteScene(sceneData.narration, sceneData.sub);
-  addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-  addLog('📖 ' + sceneData.narration, 'narrator');
-  if (window.showDMStrip) showDMStrip(sceneData.narration, true);
+  // Only log a short summary, not the full narration (modal has it)
+  addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
+
+  // In multiplayer, broadcast this scene to all other players
+  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+    // Serialize scene data (strip functions)
+    const safeScene = {
+      location: sceneData.location,
+      locationIcon: sceneData.locationIcon,
+      threat: sceneData.threat,
+      narration: sceneData.narration,
+      sub: sceneData.sub,
+      options: (sceneData.options || []).map(o => ({
+        label: o.label,
+        icon: o.icon,
+        type: o.type,
+        roll: o.roll,
+        cost: o.cost,
+        next: o.next,
+        nextFail: o.nextFail,
+      })),
+    };
+    window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene });
+  }
 }
+
+// ─── VOTE SYSTEM ─────────────────────────────
+function castVote(index) {
+  const isMP = !!(window.mp?.sessionCode);
+
+  if (!isMP) {
+    // Solo — just choose immediately
+    chooseSceneOption(index);
+    return;
+  }
+
+  const char = gameState.character;
+  const playerId = window.mp.playerId;
+
+  if (window.sceneState._myVote !== null) {
+    addLog(`You already voted. Wait for others.`, 'system');
+    return;
+  }
+
+  window.sceneState._myVote = index;
+  window.sceneState._votes[playerId] = {
+    index,
+    playerName: char?.name || 'Unknown',
+    roll: Math.floor(Math.random() * 20) + 1,
+  };
+
+  // Highlight my choice
+  document.querySelectorAll('.scene-option').forEach(b => b.classList.remove('my-vote'));
+  document.getElementById(`scene-opt-${index}`)?.classList.add('my-vote');
+  addLog(`🗳 ${char?.name} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'action');
+
+  // Update vote display
+  updateVoteDisplay();
+
+  // Broadcast vote to party
+  if (window.mpBroadcastStoryEvent) {
+    window.mpBroadcastStoryEvent('player_vote', {
+      playerId,
+      playerName: char?.name || 'Unknown',
+      index,
+      roll: window.sceneState._votes[playerId].roll,
+    });
+  }
+
+  // Check if all votes are in
+  checkVoteResolution();
+}
+
+function receiveVote(playerId, playerName, index, roll) {
+  window.sceneState._votes[playerId] = { index, playerName, roll };
+  addLog(`🗳 ${playerName} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'action');
+  updateVoteDisplay();
+  checkVoteResolution();
+}
+
+function updateVoteDisplay() {
+  const votes = window.sceneState._votes;
+  const options = window.sceneState._currentOptions;
+  if (!options) return;
+
+  const counts = {};
+  Object.values(votes).forEach(v => {
+    if (!counts[v.index]) counts[v.index] = [];
+    counts[v.index].push(v.playerName);
+  });
+
+  const maxCount = Math.max(0, ...Object.values(counts).map(v => v.length));
+
+  options.forEach((_, i) => {
+    const el = document.getElementById(`votes-${i}`);
+    const btn = document.getElementById(`scene-opt-${i}`);
+    if (!el) return;
+    const voters = counts[i] || [];
+    if (voters.length > 0) {
+      el.innerHTML = `<span class="vote-pip">${voters.map(n => '👤').join('')}</span><span class="vote-count">${voters.length}</span>`;
+      el.style.display = 'flex';
+    } else {
+      el.innerHTML = '';
+      el.style.display = 'none';
+    }
+    // Highlight leading option
+    if (btn) btn.classList.toggle('winning', voters.length === maxCount && voters.length > 0);
+  });
+
+  const total = Object.keys(votes).length;
+  const needed = window.sceneState._playerCount;
+  const statusEl = document.getElementById('vote-status');
+  if (statusEl) {
+    statusEl.textContent = `⏳ ${total}/${needed} voted`;
+    if (total >= needed) { statusEl.textContent = '✅ All voted!'; statusEl.style.color = '#4a9a6a'; }
+  }
+}
+
+function checkVoteResolution() {
+  const votes = window.sceneState._votes;
+  const needed = window.sceneState._playerCount;
+  const total = Object.keys(votes).length;
+
+  if (total < needed) return; // not everyone voted yet
+
+  // Count votes per option
+  const counts = {};
+  Object.values(votes).forEach(v => {
+    counts[v.index] = (counts[v.index] || 0) + 1;
+  });
+
+  const maxVotes = Math.max(...Object.values(counts));
+  const winners = Object.keys(counts).filter(i => counts[i] === maxVotes).map(Number);
+
+  let chosenIndex;
+  if (winners.length === 1) {
+    // Clear majority
+    chosenIndex = winners[0];
+    addLog(`🗳 Party votes resolved: "${window.sceneState._currentOptions[chosenIndex]?.label}" wins (${maxVotes} vote${maxVotes>1?'s':''})`, 'system');
+  } else {
+    // Tie — highest dice roll among tied voters wins
+    let bestRoll = -1;
+    let bestIndex = winners[0];
+    winners.forEach(optIdx => {
+      Object.values(votes).forEach(v => {
+        if (v.index === optIdx && v.roll > bestRoll) {
+          bestRoll = v.roll;
+          bestIndex = optIdx;
+          addLog(`🎲 Tiebreak — ${v.playerName} rolled [${v.roll}] for "${window.sceneState._currentOptions[optIdx]?.label}"`, 'dice');
+        }
+      });
+    });
+    chosenIndex = bestIndex;
+    addLog(`🗳 Tie broken by dice! "${window.sceneState._currentOptions[chosenIndex]?.label}" wins`, 'system');
+  }
+
+  // Update status
+  const statusEl = document.getElementById('vote-status');
+  if (statusEl) { statusEl.textContent = `✅ Decided!`; statusEl.style.color = '#4a9a6a'; }
+
+  // Broadcast resolution to all other players
+  if (window.mp?.sessionCode && window.mpBroadcastStoryEvent) {
+    window.mpBroadcastStoryEvent('scene_resolved', {
+      index: chosenIndex,
+      label: window.sceneState._currentOptions[chosenIndex]?.label || '',
+    });
+  }
+
+  // Execute the winning choice after a short delay
+  setTimeout(() => executeSceneOption(chosenIndex), 800);
+}
+
+function executeSceneOption(index) {
+  const option = window.sceneState._currentOptions[index];
+  if (!option) return;
+  const char = gameState.character;
+
+  if (option.roll) {
+    const stat = option.roll.stat.toLowerCase();
+    const statVal = char?.stats?.[stat] || 10;
+    const mod = Math.floor((statVal - 10) / 2);
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const total = roll + mod;
+    const success = total >= option.roll.dc || roll === 20;
+    const crit = roll === 20;
+    const fumble = roll === 1;
+    addLog(`🎲 ${option.roll.stat} check DC${option.roll.dc}: [${roll}] + ${mod>=0?'+':''}${mod} = ${total} — ${crit?'CRITICAL!':fumble?'FUMBLE!':success?'Success!':'Failure!'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice();
+    if (option.onSuccess && success) option.onSuccess(roll, total);
+    else if (option.onFail && !success) option.onFail(roll, total);
+    else if (success && option.next) setTimeout(() => runScene(option.next), 600);
+    else if (!success) {
+      if (option.nextFail) setTimeout(() => runScene(option.nextFail), 600);
+      else if (option.next) setTimeout(() => runScene(option.next + '_fail'), 600);
+    }
+  } else {
+    if (option.action) option.action();
+    else if (option.next) setTimeout(() => runScene(option.next), 400);
+  }
+
+  // Close modal
+  setTimeout(() => {
+    const panel = document.getElementById('scene-panel');
+    if (panel) { panel.style.opacity = '0'; setTimeout(() => panel?.remove(), 400); }
+  }, 300);
+}
+
+
 
 function typewriteScene(text, sub) {
   const el = document.getElementById('sp-narration');
@@ -88,44 +300,17 @@ function typewriteScene(text, sub) {
 }
 
 function chooseSceneOption(index) {
-  const option = window.sceneState._currentOptions[index];
-  if (!option) return;
-  const char = gameState.character;
-
-  addLog(`${char?.name}: ${option.label}`, 'action', char?.name);
-
-  if (option.roll) {
-    const stat = option.roll.stat.toLowerCase();
-    const statVal = char?.stats?.[stat] || 10;
-    const mod = Math.floor((statVal - 10) / 2);
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const total = roll + mod;
-    const success = total >= option.roll.dc || roll === 20;
-    const crit = roll === 20;
-    const fumble = roll === 1;
-
-    addLog(`🎲 ${option.roll.stat} check DC${option.roll.dc}: [${roll}] + ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? 'CRITICAL SUCCESS!' : fumble ? 'CRITICAL FAILURE!' : success ? 'Success!' : 'Failure!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-    if (option.onSuccess && success) option.onSuccess(roll, total);
-    else if (option.onFail && !success) option.onFail(roll, total);
-    else if (success) {
-      if (option.next) setTimeout(() => runScene(option.next), 600);
-    } else {
-      if (option.nextFail) setTimeout(() => runScene(option.nextFail), 600);
-      else if (option.next) setTimeout(() => runScene(option.next + '_fail'), 600);
-    }
+  // In multiplayer, castVote handles this. In solo, execute directly.
+  const isMP = !!(window.mp?.sessionCode);
+  if (isMP) {
+    castVote(index);
   } else {
-    if (option.action) option.action();
-    else if (option.next) setTimeout(() => runScene(option.next), 400);
+    const option = window.sceneState._currentOptions[index];
+    if (!option) return;
+    const char = gameState.character;
+    addLog(`${char?.name}: ${option.label}`, 'action', char?.name);
+    executeSceneOption(index);
   }
-
-  // Remove scene panel after choice
-  setTimeout(() => {
-    const panel = document.getElementById('scene-panel');
-    if (panel) panel.style.opacity = '0';
-    setTimeout(() => panel?.remove(), 400);
-  }, 300);
 }
 
 // ─── SCENE RUNNER ────────────────────────────
@@ -650,62 +835,94 @@ window.initGameScreen = function() {
   startStoryEngine();
 };
 
-// ─── SCENE CSS ────────────────────────────────
+// ─── SCENE CSS (MODAL) ───────────────────────
 const sceneCSS = `
 .scene-panel {
-  margin: 8px 0;
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  animation: sceneFadeIn 0.25s ease;
+  pointer-events: all;
+}
+.sp-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4,2,1,0.88);
+  backdrop-filter: blur(3px);
+}
+@keyframes sceneFadeIn { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
+.sp-modal {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: linear-gradient(160deg, rgba(14,9,4,0.99) 0%, rgba(8,5,2,1) 100%);
   border: 1px solid rgba(201,168,76,0.35);
   border-left: 3px solid var(--gold);
-  background: linear-gradient(135deg, rgba(12,8,4,0.97) 0%, rgba(8,5,2,0.99) 100%);
-  animation: sceneFadeIn 0.4s ease;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.95), 0 0 60px rgba(201,168,76,0.04);
 }
-@keyframes sceneFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-.sp-inner { padding: 0; }
 .sp-location-bar {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px;
+  padding: 8px 14px;
   background: rgba(201,168,76,0.06);
   border-bottom: 1px solid rgba(201,168,76,0.12);
+  flex-wrap: wrap;
 }
-.sp-loc-icon { font-size: 1rem; }
-.sp-loc-name { font-family:'Cinzel',serif; font-size:0.78rem; color:var(--gold); letter-spacing:0.1em; flex:1; }
-.sp-threat { font-family:'Cinzel',serif; font-size:0.68rem; color:var(--hell); letter-spacing:0.08em; }
+.sp-loc-icon { font-size:0.9rem; }
+.sp-loc-name { font-family:'Cinzel',serif; font-size:0.72rem; color:var(--gold); letter-spacing:0.1em; flex:1; }
+.sp-threat { font-family:'Cinzel',serif; font-size:0.62rem; color:var(--hell); letter-spacing:0.08em; }
+.sp-vote-status { font-family:'Cinzel',serif; font-size:0.62rem; color:var(--text-dim); margin-left:auto; }
 .sp-narration {
   padding: 14px 18px 8px 18px;
   font-family:'IM Fell English','Palatino',serif;
-  font-size:0.9rem; line-height:1.7; color:var(--text-main);
-  border-left: 2px solid rgba(201,168,76,0.15);
-  margin: 0 12px;
+  font-size:0.88rem; line-height:1.65; color:var(--text-primary);
+  max-height: 28vh;
+  overflow-y: auto;
 }
 .sp-sub {
   display: block; margin-top: 8px;
-  font-size:0.8rem; color:var(--gold); font-style:italic;
-  opacity:0.85;
+  font-size:0.78rem; color:var(--gold); font-style:italic; opacity:0.85;
 }
 .sp-options {
   display: flex; flex-direction: column; gap: 3px;
-  padding: 8px 12px 10px 12px;
+  padding: 6px 12px 10px 12px;
 }
 .scene-option {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   background: rgba(15,10,5,0.9);
-  border: 1px solid rgba(201,168,76,0.12);
+  border: 1px solid rgba(201,168,76,0.1);
   color: var(--text-secondary);
-  font-family:'Cinzel',serif; font-size:0.75rem;
-  padding: 8px 14px; cursor: pointer;
-  letter-spacing:0.04em; text-align:left;
+  font-family:'Cinzel',serif; font-size:0.7rem;
+  padding: 8px 12px; cursor: pointer;
+  letter-spacing:0.03em; text-align:left;
   transition: all 0.15s;
 }
 .scene-option:hover { border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,0.05); transform:translateX(2px); }
+.scene-option.my-vote { border-color:var(--gold); background:rgba(201,168,76,0.12); color:var(--gold); }
+.scene-option.winning { border-color:#4a9a6a; background:rgba(74,154,100,0.08); color:#8bc87a; }
 .scene-option.combat { border-color:rgba(192,57,43,0.2); }
 .scene-option.combat:hover { border-color:var(--hell); color:var(--hell-glow); }
 .scene-option.move { border-color:rgba(74,120,154,0.2); }
-.so-icon { font-size:0.9rem; flex-shrink:0; }
+.so-icon { font-size:0.85rem; flex-shrink:0; }
 .so-text { flex:1; }
-.so-roll { font-size:0.68rem; color:var(--hell-glow); white-space:nowrap; opacity:0.8; }
-.so-cost { font-size:0.68rem; color:var(--text-dim); white-space:nowrap; }
+.so-roll { font-size:0.65rem; color:var(--hell-glow); white-space:nowrap; opacity:0.8; }
+.so-cost { font-size:0.65rem; color:var(--text-dim); white-space:nowrap; }
+.so-votes { display:flex; gap:2px; align-items:center; flex-shrink:0; font-size:0.68rem; }
+.vote-pip { opacity:0.85; }
+.vote-count { font-size:0.62rem; color:var(--gold); font-family:'Cinzel',serif; margin-left:2px; }
 .sp-free-action { padding:4px 16px 10px; }
-.sp-free-hint { font-size:0.68rem; color:var(--text-dim); font-style:italic; }
+.sp-free-hint { font-size:0.65rem; color:var(--text-dim); font-style:italic; }
+.sp-vote-bar {
+  padding: 6px 14px 8px;
+  border-top: 1px solid rgba(201,168,76,0.08);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family:'Cinzel',serif; font-size:0.65rem; color:var(--text-dim);
+}
 `;
 const sceneStyle = document.createElement('style');
 sceneStyle.id = 'scene-styles';
@@ -713,3 +930,4 @@ sceneStyle.textContent = sceneCSS;
 document.head.appendChild(sceneStyle);
 
 console.log('🎭 Story engine loaded. Scenes will guide the player through Vaelthar.');
+window.receiveVote = receiveVote;

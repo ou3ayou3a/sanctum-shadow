@@ -138,10 +138,26 @@ function initMultiplayer() {
 
   // ── Story event from other players ──
   socket.on('story_event', ({ eventType, payload }) => {
+    if (eventType === 'player_vote') {
+      if (window.receiveVote) {
+        window.receiveVote(payload.playerId, payload.playerName, payload.index, payload.roll);
+      }
+    }
+    if (eventType === 'show_scene') {
+      // Another player triggered a scene — show it on our screen too
+      if (window.showScene && payload.sceneData && !document.getElementById('scene-panel')) {
+        setTimeout(() => window.showScene(payload.sceneData), 200);
+      }
+    }
+    if (eventType === 'scene_resolved') {
+      // Vote resolved on another client — execute winning option here too
+      if (window.executeSceneOption) {
+        addLog(`🗳 The party chose: "${payload.label}"`, 'system');
+        setTimeout(() => window.executeSceneOption(payload.index), 600);
+      }
+    }
     if (eventType === 'scene_choice') {
-      const orig = window.addLog._orig || window.addLog;
-      orig(`⚔ ${payload.playerName} chose: "${payload.label}"`, 'action');
-      // Advance scene on all clients
+      // Legacy single-player choice broadcast
       const option = window.sceneState?._currentOptions?.[payload.index];
       if (option) {
         setTimeout(() => {
@@ -155,9 +171,12 @@ function initMultiplayer() {
       }
     }
     if (eventType === 'location_change') {
-      if (window.travelToLocation && WORLD_LOCATIONS[payload.locId]) {
+      if (window.mp._receiving) return;
+      window.mp._receiving = true;
+      if (window.travelToLocation && WORLD_LOCATIONS?.[payload.locId]) {
         window.travelToLocation(WORLD_LOCATIONS[payload.locId]);
       }
+      window.mp._receiving = false;
     }
   });
 
