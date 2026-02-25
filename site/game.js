@@ -589,10 +589,24 @@ function renderPlayerCard() {
       <div class="bar-label"><span>⛧ HELL</span><span>${char.hellPoints}</span></div>
       <div class="bar-track"><div class="bar-fill hell" style="width:${hellPct}%"></div></div>
     </div>
+    <div class="health-bar-wrap">
+      <div class="bar-label">
+        <span>⭐ XP  Lv.${char.level}</span>
+        <span id="xp-bar-label">${char.xp} / ${(window.XP_TABLE||[])[( char.level||1)+1] || '∞'}</span>
+      </div>
+      <div class="bar-track">
+        <div id="xp-bar-fill" class="bar-fill xp" style="width:${(()=>{
+          const tbl=window.XP_TABLE||[0,100,250,450,700,1000,1400,1900,2500,3200,4000];
+          const lvl=char.level||1, cur=char.xp||0;
+          const prev=tbl[lvl]||0, next=tbl[lvl+1]||prev+1000;
+          return Math.min(100,Math.round((cur-prev)/(next-prev)*100));
+        })()}%"></div>
+      </div>
+    </div>
     <div class="morality-display">
-      <span class="holy-pts">✝ ${char.holyPoints} HP</span>
-      <span>${char.xp} XP</span>
-      <span class="hell-pts">⛧ ${char.hellPoints} HP</span>
+      <span class="holy-pts">✝ ${char.holyPoints}</span>
+      ${char.statPoints > 0 ? `<span style="color:#8bc87a;animation:pulse 1s infinite">🎯 ${char.statPoints} pt${char.statPoints>1?'s':''}</span>` : `<span style="color:var(--text-dim);font-size:0.65rem">${char.xp} xp</span>`}
+      <span class="hell-pts">⛧ ${char.hellPoints}</span>
     </div>
   `;
 }
@@ -674,8 +688,14 @@ function addLog(text, type = 'system', playerName = null) {
   } else {
     entry.textContent = text;
   }
+
+  // Always append at the very end of the log (after any scene panel)
   log.appendChild(entry);
-  log.scrollTop = log.scrollHeight;
+
+  // Force scroll to bottom
+  requestAnimationFrame(() => {
+    log.scrollTop = log.scrollHeight;
+  });
 
   gameState.log.push({ text, type, playerName, time: Date.now() });
 }

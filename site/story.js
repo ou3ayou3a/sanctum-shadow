@@ -61,10 +61,10 @@ function showScene(sceneData) {
   const gameLog = document.getElementById('game-log');
   if (gameLog) {
     gameLog.appendChild(panel);
-    // Auto-scroll so the new scene is visible
-    requestAnimationFrame(() => {
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    // Scroll so panel top is visible, with a moment for render
+    setTimeout(() => {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
   } else {
     document.body.appendChild(panel);
   }
