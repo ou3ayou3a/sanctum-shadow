@@ -785,7 +785,6 @@ async function narrateLocation(loc) {
     return;
   }
 
-  // Show static description first immediately
   addLog(loc.description, 'narrator');
 
   if (loc.quests?.length) {
@@ -807,6 +806,41 @@ async function narrateLocation(loc) {
       addLog(`👥 Present here: ${loc.npcs.join(', ')}`, 'system');
     }, 1200);
   }
+
+  // ── QUEST SCENE TRIGGERS ON ARRIVAL ──────────
+  setTimeout(() => {
+    const flags = window.sceneState?.flags || {};
+    const id = loc.id;
+
+    // Mol Village — Heretic's Torch
+    if (id === 'mol_village' && !flags.arrived_mol && window.runScene) {
+      window.runScene('mol_village_arrival');
+    }
+    // Thornwood Gate — Missing Cartographer
+    if (id === 'thornwood_gate' && !flags.cartographer_quest_started && window.runScene) {
+      window.runScene('cartographer_missing');
+    }
+    // Merchant Road — Blood investigation
+    if (id === 'merchant_road' && !flags.merchant_road_quest_started && window.runScene) {
+      window.runScene('merchant_road_investigation');
+    }
+    // Fortress Harren — Knight Who Kneels
+    if (id === 'fortress_harren' && !flags.arrived_fortress && window.runScene) {
+      window.runScene('fortress_harren_arrival');
+    }
+    // Monastery — if chapter1_finale not set and Varek quest active, trigger dungeon first
+    if (id === 'monastery_aldric' && !flags.entered_monastery_dungeon && !flags.chapter1_finale && window.runScene) {
+      if (flags.knows_varek_location || flags.chapter1_finale) {
+        window.runScene('monastery_arrival');
+      } else {
+        window.runScene('monastery_dungeon_entry');
+      }
+    }
+    // Monastery — if knows Varek is here, go to finale
+    if (id === 'monastery_aldric' && flags.knows_varek_location && !flags.chapter1_complete && window.runScene) {
+      setTimeout(() => window.runScene('monastery_arrival'), 1500);
+    }
+  }, 2000);
 }
 
 // ─── BOSS DEFINITIONS ────────────────────────
