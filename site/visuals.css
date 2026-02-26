@@ -451,3 +451,106 @@
   justify-content: center;
   margin-top: 8px;
 }
+
+/* ─── CONV PANEL PLAYER PORTRAIT ────────────── */
+.cp-player-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 8px;
+  transition: outline 0.3s ease;
+}
+
+.cp-player-portrait-box {
+  width: 56px;
+  height: 72px;
+  border: 1px solid rgba(201,168,76,0.35);
+  background: rgba(0,0,0,0.6);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.cp-player-portrait-box.cp-player-icon {
+  font-size: 28px;
+  color: var(--gold, #c9a84c);
+}
+
+.cp-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100px;
+}
+
+.cp-player-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  color: var(--gold, #c9a84c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-player-class {
+  font-size: 0.65rem;
+  color: rgba(201,168,76,0.6);
+  font-style: italic;
+}
+
+/* ─── COMBAT PORTRAITS ──────────────────────── */
+.ce-portrait {
+  width: 64px;
+  height: 80px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid rgba(201,168,76,0.3);
+  background: #0a0a0a;
+}
+.ce-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.ce-portrait-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+/* Turn order thumbnail */
+.to-thumb {
+  width: 22px;
+  height: 28px;
+  object-fit: cover;
+  object-position: center top;
+  vertical-align: middle;
+  border-radius: 1px;
+  margin-right: 3px;
+}
+.to-thumb-icon {
+  margin-right: 3px;
+}
+
+/* Active turn portrait in header */
+.cp-whose-turn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.active-turn-portrait {
+  width: 36px;
+  height: 46px;
+  object-fit: cover;
+  object-position: center top;
+  border: 1px solid rgba(201,168,76,0.5);
+}
+.player-portrait { border-color: rgba(100,200,100,0.6); }
+.enemy-portrait  { border-color: rgba(200,60,60,0.6); }
+.active-turn-icon { font-size: 28px; }

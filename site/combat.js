@@ -533,9 +533,14 @@ function updateCombatUI() {
       const enemyStatuses = (combatState.statusEffects[c.id] || []).map(s =>
         `<span class="status-badge enemy-status" title="${s.name}">${s.icon}</span>`
       ).join('');
+      // Portrait: use NPC_PORTRAITS if available, else icon
+      const npcPortraitPath = window.NPC_PORTRAITS?.[c.id]?.path;
+      const portraitHTML = npcPortraitPath
+        ? `<div class="ce-portrait"><img src="${npcPortraitPath}" alt="${c.name}"></div>`
+        : `<div class="ce-portrait ce-portrait-icon">${c.icon}</div>`;
       return `<div class="combat-enemy ${isTarget ? 'targeted' : ''} ${c.boss ? 'boss' : ''}"
         onclick="window.selectTarget('${c.id}')">
-        <span class="ce-icon">${c.icon}</span>
+        ${portraitHTML}
         <div class="ce-info">
           <span class="ce-name">${c.name}${c.boss ? ' 👑' : ''} <span class="ce-lvl">Lv${c.level||1}</span>${enemyStatuses}</span>
           <div class="ce-hp-row">${hpBar}</div>
@@ -567,24 +572,47 @@ function updateCombatUI() {
     `<span class="ap-pip ${i < combatState.apRemaining ? 'full' : 'empty'}"></span>`
   ).join('');
 
-  // Turn order badges
+  // Turn order badges with portrait thumbnails
   const turnOrderHTML = combatState.turnOrder
     .filter(id => combatState.combatants[id]?.hp > 0)
     .map((id, i) => {
       const c = combatState.combatants[id];
       const isCurrent = id === currentId;
+      const thumb = c.isPlayer
+        ? (gameState.character?.portrait
+            ? `<img src="${gameState.character.portrait}" class="to-thumb" alt="${c.name}">`
+            : `<span class="to-thumb-icon">${c.icon}</span>`)
+        : (window.NPC_PORTRAITS?.[c.id]?.path
+            ? `<img src="${window.NPC_PORTRAITS[c.id].path}" class="to-thumb" alt="${c.name}">`
+            : `<span class="to-thumb-icon">${c.icon}</span>`);
       return `<span class="to-badge ${isCurrent ? 'current' : ''} ${c.isPlayer ? 'player' : 'enemy'}">
-        ${c.icon} ${c.name.split(' ')[0]}
+        ${thumb} ${c.name.split(' ')[0]}
       </span>`;
     }).join('<span class="to-arrow">→</span>');
+
+  // Active turn portrait — large display
+  const activeCombatant = combatState.combatants[currentId];
+  const activeTurnPortrait = (() => {
+    if (!activeCombatant) return '';
+    if (activeCombatant.isPlayer) {
+      return gameState.character?.portrait
+        ? `<img src="${gameState.character.portrait}" class="active-turn-portrait player-portrait" alt="${activeCombatant.name}">`
+        : `<span class="active-turn-icon">${activeCombatant.icon}</span>`;
+    }
+    const npcPath = window.NPC_PORTRAITS?.[activeCombatant.id]?.path;
+    return npcPath
+      ? `<img src="${npcPath}" class="active-turn-portrait enemy-portrait" alt="${activeCombatant.name}">`
+      : `<span class="active-turn-icon">${activeCombatant.icon}</span>`;
+  })();
 
   panel.innerHTML = `
     <div class="cp-combat-header">
       <span class="cp-round">Round ${combatState.round}</span>
       <div class="cp-turn-order">${turnOrderHTML}</div>
-      <span class="cp-whose-turn ${isPlayerTurn ? 'your-turn' : 'enemy-turn'}">
-        ${isPlayerTurn ? '⚔ YOUR TURN' : `${current?.icon} ${current?.name}'s turn`}
-      </span>
+      <div class="cp-whose-turn ${isPlayerTurn ? 'your-turn' : 'enemy-turn'}">
+        ${activeTurnPortrait}
+        <span>${isPlayerTurn ? '⚔ YOUR TURN' : `${activeCombatant?.name}'s turn`}</span>
+      </div>
     </div>
 
     ${(combatState.statusEffects['player']?.length > 0) ? `
