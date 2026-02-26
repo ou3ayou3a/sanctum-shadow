@@ -738,6 +738,17 @@ function installNPCHook() {
 
     // Mid-conversation: everything goes to the NPC
     if (window.npcConvState?.active) {
+    const _atk = ["attack","stab","strike","punch","hit","kill","slash","fight","lunge","charge","shoot"];
+    if (_atk.some(w => text.toLowerCase().includes(w))) {
+      const _npc = window.npcConvState.npc;
+      addLog(`⚔ ${gameState.character?.name} attacks ${_npc.name}!`, "combat");
+      if (window.AudioEngine) AudioEngine.sfx?.sword?.();
+      closeConvPanel();
+      const _ef = {"captain_rhael":()=>generateEnemy("captain_rhael",1),"sister_mourne":()=>generateEnemy("sister_mourne",2)};
+      const _en = (_ef[_npc.id] ? _ef[_npc.id]() : generateEnemy("bandit", AREA_LEVELS[window.mapState?.currentLocation]||1));
+      _en.name = _npc.name; _en.icon = _npc.portrait||"👤";
+      input.value = ""; setTimeout(()=>startCombat([_en]),400); return;
+    }
       input.value = '';
       sendNPCMessage(text);
       return;
