@@ -46,6 +46,14 @@ function showScreen(name) {
   }
 }
 
+function startSoloMode() {
+  // Skip lobby/session entirely — go straight to character creation
+  gameState.soloMode = true;
+  gameState.sessionCode = null;
+  if (window.mp) { window.mp.sessionCode = null; window.mp.isHost = false; }
+  showScreen('char-creation');
+}
+
 // ─── SESSION MANAGEMENT ───────────────────
 function generateCode() {
   const words = ['DOOM','FIRE','BONE','DARK','HOLY','VOID','IRON','RUIN','SOUL','FELL','GRIM','VEIL'];

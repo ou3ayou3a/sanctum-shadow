@@ -554,3 +554,72 @@
 .player-portrait { border-color: rgba(100,200,100,0.6); }
 .enemy-portrait  { border-color: rgba(200,60,60,0.6); }
 .active-turn-icon { font-size: 28px; }
+
+/* ─── MODE SELECT SCREEN ────────────────────── */
+.mode-select-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.mode-cards {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.mode-card {
+  width: 280px;
+  background: rgba(10,8,6,0.85);
+  border: 1px solid rgba(201,168,76,0.25);
+  padding: 40px 28px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s, transform 0.2s, box-shadow 0.3s;
+  position: relative;
+}
+
+.mode-card:hover {
+  border-color: rgba(201,168,76,0.7);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+
+.mode-card-icon {
+  font-size: 52px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.mode-card h3 {
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  color: var(--gold, #c9a84c);
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+}
+
+.mode-card p {
+  font-size: 0.8rem;
+  color: rgba(201,168,76,0.6);
+  line-height: 1.7;
+  margin-bottom: 24px;
+  font-style: italic;
+}
+
+.mode-btn {
+  width: 100%;
+  pointer-events: none; /* card handles click */
+}
+
+.solo-card { border-color: rgba(201,168,76,0.2); }
+.solo-card:hover { border-color: rgba(201,168,76,0.8); }
+.multi-card { border-color: rgba(150,100,200,0.2); }
+.multi-card:hover { border-color: rgba(150,100,200,0.7); box-shadow: 0 12px 40px rgba(100,0,200,0.2); }

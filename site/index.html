@@ -6,7 +6,7 @@
 <title>SANCTUM & SHADOW — The Chronicle</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="visuals.css?v=61">
+<link rel="stylesheet" href="visuals.css?v=62">
 <script>
 // Early stub — replaced by real function when multiplayer.js loads
 window.mpBroadcastStoryEvent = function(eventType, payload) {
@@ -26,11 +26,36 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
       <div class="subtitle-bottom">— A Sacred & Profane Adventure —</div>
       <div class="splash-quote">"Between Heaven's grace and Hell's hunger, your soul is the battlefield."</div>
       <div class="splash-buttons">
-        <button class="btn-primary" onclick="showScreen('lobby')">⚔ Enter the Chronicle</button>
+        <button class="btn-primary" onclick="showScreen('mode-select')">⚔ Enter the Chronicle</button>
         <button class="btn-secondary" id="load-game-btn" onclick="openLoadScreen()" style="display:none">📖 Load Chronicle</button>
         <button class="btn-secondary" onclick="showScreen('rules')">📜 The Sacred Laws</button>
       </div>
       <div class="version-tag">Chapter I: The Shattered Covenant</div>
+    </div>
+  </div>
+
+  <!-- MODE SELECT -->
+  <div id="mode-select-screen" class="screen">
+    <div class="splash-bg"></div>
+    <div class="screen-inner mode-select-inner">
+      <div class="subtitle-top" style="margin-bottom:8px">☩ CHOOSE YOUR PATH ☩</div>
+      <h2 class="screen-title" style="margin-bottom:4px">How do you enter the Chronicle?</h2>
+      <p class="screen-subtitle" style="margin-bottom:40px">Forge your legend alone or with companions</p>
+      <div class="mode-cards">
+        <div class="mode-card solo-card" onclick="startSoloMode()">
+          <div class="mode-card-icon">🕯</div>
+          <h3>Solo Chronicle</h3>
+          <p>A lone soul against the darkness.<br>No session code. No waiting.<br>Begin immediately.</p>
+          <button class="btn-primary mode-btn">⚔ Play Alone</button>
+        </div>
+        <div class="mode-card multi-card" onclick="showScreen('lobby')">
+          <div class="mode-card-icon">⚔</div>
+          <h3>Multiplayer Chronicle</h3>
+          <p>Rally your companions.<br>Host or join a session.<br>Face the darkness together.</p>
+          <button class="btn-secondary mode-btn">👑 Play With Others</button>
+        </div>
+      </div>
+      <button class="btn-ghost" onclick="showScreen('splash')" style="margin-top:32px">↩ Return</button>
     </div>
   </div>
 
@@ -421,19 +446,19 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=61"></script>
-<script src="audio.js?v=61"></script>
-<script src="map.js?v=61"></script>
-<script src="game.js?v=61"></script>
-<script src="combat.js?v=61"></script>
-<script src="additions.js?v=61"></script>
-<script src="story.js?v=61"></script>
-<script src="dialogue.js?v=61"></script>
-<script src="romance.js?v=61"></script>
-<script src="senses.js?v=61"></script>
-<script src="multiplayer.js?v=61"></script>
-<script src="saves.js?v=61"></script>
-<script src="visuals.js?v=61"></script>
+<script src="data.js?v=62"></script>
+<script src="audio.js?v=62"></script>
+<script src="map.js?v=62"></script>
+<script src="game.js?v=62"></script>
+<script src="combat.js?v=62"></script>
+<script src="additions.js?v=62"></script>
+<script src="story.js?v=62"></script>
+<script src="dialogue.js?v=62"></script>
+<script src="romance.js?v=62"></script>
+<script src="senses.js?v=62"></script>
+<script src="multiplayer.js?v=62"></script>
+<script src="saves.js?v=62"></script>
+<script src="visuals.js?v=62"></script>
 <script>
 // Show Load Chronicle button on splash if saves exist
 document.addEventListener('DOMContentLoaded', () => {
