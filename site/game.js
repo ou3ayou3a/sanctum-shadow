@@ -51,6 +51,8 @@ function startSoloMode() {
   gameState.soloMode = true;
   gameState.sessionCode = null;
   if (window.mp) { window.mp.sessionCode = null; window.mp.isHost = false; }
+  buildRaceGrid();
+  buildClassGrid();
   showScreen('char-creation');
 }
 
