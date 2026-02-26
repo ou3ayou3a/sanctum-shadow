@@ -517,8 +517,15 @@ function isMyTurnMP() {
 }
 
 function getTarget() {
-  if (!combatState?.combatants) return null;
-  return Object.values(combatState.combatants).find(c => c.isSelected);
+  const combatants = combatState?.combatants;
+  if (!combatants) return null;
+  // Use selectedTarget (set by selectTarget() in combat.js)
+  if (combatState.selectedTarget) {
+    const t = combatants[combatState.selectedTarget];
+    if (t && t.hp > 0) return t;
+  }
+  // Fall back to first living enemy
+  return Object.values(combatants).find(c => !c.isPlayer && c.hp > 0) || null;
 }
 
 function syncMyHP(cs) {
@@ -532,6 +539,11 @@ function syncMyHP(cs) {
 function startCombatFromServer(cs) {
   Object.assign(combatState, cs);
   combatState.active = true;
+  // Auto-select first living enemy so Attack works immediately
+  if (!combatState.selectedTarget) {
+    const firstEnemy = Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
+    if (firstEnemy) combatState.selectedTarget = firstEnemy.id;
+  }
   if (typeof renderCombatUI === 'function') renderCombatUI();
 }
 
