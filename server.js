@@ -83,7 +83,7 @@ app.post('/api/portrait', (req, res) => {
 
   const geminiOptions = {
     hostname: 'generativelanguage.googleapis.com',
-    path: `/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    path: `/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
