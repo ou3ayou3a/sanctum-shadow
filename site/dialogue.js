@@ -158,10 +158,15 @@ async function sendNPCMessage(playerText, isOpener = false) {
 
   if (!isOpener) {
     addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
+    // Update local conv panel to show this player's portrait
+    if (typeof updateConvPlayerPortrait === 'function') {
+      updateConvPlayerPortrait(char?.name || 'You', char);
+    }
     if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
       window.mpBroadcastStoryEvent('conv_player_action', {
         playerName: char?.name || 'Unknown',
         text: playerText,
+        character: { portrait: char?.portrait || null, class: char?.class, race: char?.race },
       });
     }
   }
@@ -225,7 +230,9 @@ CRITICAL RULES:
 9. If the player addresses another NPC (like "I say to Rhael..."), respond AS that NPC if they are in the scene, or note that NPC isn't present.
 10. If the player is in a party, the NPC is aware of the whole group, not just the speaker.
 11. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line.
-12. NEVER break character. NEVER acknowledge being an AI.`;
+12. NEVER break character. NEVER acknowledge being an AI.
+13. NEVER ask the player about their stats, modifiers, or dice rolls. The game system handles all rolls automatically. If a freeform action requires a check, use [ROLL:STAT:DC] in your response text and the system resolves it — you just narrate the outcome as if you already know whether they succeeded or failed based on context.
+14. When a player takes a freeform dramatic action (draws weapon, intimidates, seduces, sneaks), embed [ROLL:STAT:DC] directly in your narrative. Example: "*She watches you draw the blade.* [ROLL:STR:12] *The guard steps forward.*" — NEVER ask them to confirm their modifier.`;
 
   const userMsg = isOpener ? `[The player ${playerText}]` : playerText;
   const messages = isOpener
@@ -246,10 +253,33 @@ CRITICAL RULES:
 
   // Check for scene break directive
   const sceneBreakMatch = response.match(/\[SCENE_BREAK:([^\]]+)\]/);
-  const cleanResponse = response.replace(/\[SCENE_BREAK:[^\]]+\]/g, '').trim();
+  let cleanResponse = response.replace(/\[SCENE_BREAK:[^\]]+\]/g, '').trim();
 
-  history.push({ role: 'user', content: userMsg });
-  history.push({ role: 'assistant', content: cleanResponse });
+  // ── Auto-resolve any [ROLL:STAT:DC] embedded in narrative text ──
+  const inlineRollMatch = cleanResponse.match(/\[ROLL:(\w+):(\d+)\]/i);
+  if (inlineRollMatch) {
+    const stat = inlineRollMatch[1].toLowerCase();
+    const dc = parseInt(inlineRollMatch[2]);
+    const statVal = gameState.character?.stats?.[stat] || 10;
+    const mod = Math.floor((statVal - 10) / 2);
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const total = roll + mod;
+    const success = total >= dc || roll === 20;
+    const crit = roll === 20;
+    const fumble = roll === 1;
+    // Strip the tag from display
+    cleanResponse = cleanResponse.replace(/\[ROLL:\w+:\d+\]/gi, '').trim();
+    // Log the roll result
+    addLog(`🎲 ${inlineRollMatch[1].toUpperCase()} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice?.();
+    // Append result context so the next response knows outcome
+    const resultContext = ` [The roll ${success ? 'SUCCEEDED' : 'FAILED'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
+    history.push({ role: 'user', content: userMsg });
+    history.push({ role: 'assistant', content: cleanResponse + resultContext });
+  } else {
+    history.push({ role: 'user', content: userMsg });
+    history.push({ role: 'assistant', content: cleanResponse });
+  }
 
   const { speech, options } = parseNPCResponse(cleanResponse);
 
@@ -542,6 +572,13 @@ function renderConvPanel(npc) {
           <span class="cp-faction">${factionLabel(npc.faction)}</span>
         </div>
         <span class="cp-disp" id="cp-disp">${dispositionIcon(npc.disposition)}</span>
+        <div class="cp-player-side" id="cp-player-side">
+          ${getPlayerPortraitHTML(gameState.character)}
+          <div class="cp-player-info">
+            <span class="cp-player-name" id="cp-player-name">${gameState.character?.name || 'You'}</span>
+            <span class="cp-player-class">${getClassLabel(gameState.character)}</span>
+          </div>
+        </div>
         <button class="cp-close" onclick="closeConvPanel()">✕ End</button>
       </div>
       <div class="cp-transcript" id="cp-transcript"></div>
@@ -569,6 +606,48 @@ function renderConvPanel(npc) {
     document.body.appendChild(panel);
   }
   requestAnimationFrame(() => panel.style.opacity = '1');
+}
+
+// ── Player portrait helpers ──
+function getPlayerPortraitHTML(char) {
+  if (!char) return `<div class="cp-player-portrait-box"><span style="font-size:32px">👤</span></div>`;
+  if (char.portrait) {
+    return `<div class="cp-player-portrait-box"><img src="${char.portrait}" alt="${char.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;"></div>`;
+  }
+  // Fallback: class icon
+  const classIcons = { paladin:'✝', shadow_blade:'🗡', void_herald:'🌑', blood_cleric:'🩸', iron_warden:'🛡', whisper_sage:'📜' };
+  const icon = classIcons[char.class] || '⚔';
+  return `<div class="cp-player-portrait-box cp-player-icon">${icon}</div>`;
+}
+
+function getClassLabel(char) {
+  if (!char) return '';
+  const cls = typeof CLASSES !== 'undefined' ? CLASSES?.find(c => c.id === char.class) : null;
+  const race = typeof RACES !== 'undefined' ? RACES?.find(r => r.id === char.race) : null;
+  return `${race?.name || ''} ${cls?.name || ''}`.trim();
+}
+
+// Called when another player sends a message to the NPC — swap portrait to them
+function updateConvPlayerPortrait(playerName, playerChar) {
+  const side = document.getElementById('cp-player-side');
+  const nameEl = document.getElementById('cp-player-name');
+  if (!side || !nameEl) return;
+
+  const portraitBox = side.querySelector('.cp-player-portrait-box');
+  if (portraitBox) {
+    if (playerChar?.portrait) {
+      portraitBox.innerHTML = `<img src="${playerChar.portrait}" alt="${playerName}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;">`;
+      portraitBox.classList.remove('cp-player-icon');
+    } else {
+      const classIcons = { paladin:'✝', shadow_blade:'🗡', void_herald:'🌑', blood_cleric:'🩸', iron_warden:'🛡', whisper_sage:'📜' };
+      portraitBox.innerHTML = classIcons[playerChar?.class] || '⚔';
+      portraitBox.classList.add('cp-player-icon');
+    }
+  }
+  nameEl.textContent = playerName;
+  // Flash to signal speaker change
+  side.style.outline = '1px solid var(--gold)';
+  setTimeout(() => { if (side) side.style.outline = ''; }, 800);
 }
 
 function displayNPCLine(npc, speech, options) {
