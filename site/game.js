@@ -256,6 +256,12 @@ function nextStep(num) {
   const step = document.getElementById('step-' + num);
   if (step) step.classList.add('active');
   gameState.currentStep = num;
+
+  // When arriving at step 6, silently pre-generate a portrait in background
+  if (num === 6 && !gameState.pendingPortrait && !gameState._portraitGenerating) {
+    gameState._portraitGenerating = true;
+    _autoGeneratePortrait().finally(() => { gameState._portraitGenerating = false; });
+  }
 }
 
 function updateBackstoryHints() {
@@ -390,8 +396,9 @@ async function generateCharacterPortrait() {
   } catch (err) {
     loading.style.display = 'none';
     stepNav.style.display = 'flex';
-    toast('Portrait generation failed — you can skip or try again', 'error');
+    toast('Portrait generation failed — auto-generating from your class...', 'error');
     console.error('Portrait error:', err);
+    _autoGeneratePortrait();
   }
 }
 
@@ -413,16 +420,41 @@ function regeneratePortrait() {
 }
 
 function acceptPortrait() {
-  // Portrait accepted — move to finalize
   document.getElementById('portrait-step-nav').style.display = 'none';
   document.getElementById('portrait-accept-nav').style.display = 'flex';
 }
 
 function skipPortrait() {
-  gameState.pendingPortrait = null;
-  // Show finalize button directly
+  // Auto-generate silently in background based on class/race/origin
+  // Show finalize immediately, portrait will be ready by the time game starts
   document.getElementById('portrait-step-nav').style.display = 'none';
   document.getElementById('portrait-accept-nav').style.display = 'flex';
+  toast('Generating your portrait in the background...', 'info');
+  _autoGeneratePortrait();
+}
+
+async function _autoGeneratePortrait() {
+  try {
+    const prompt = buildPortraitPrompt(''); // empty = auto from race/class/origin
+    const res = await fetch('/api/portrait', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    let imgUrl = null;
+    if (data.task_id === 'done' && data.image_url) {
+      imgUrl = data.image_url;
+    } else if (data.task_id) {
+      imgUrl = await pollPortraitResult(data.task_id);
+    }
+    if (imgUrl) {
+      gameState.pendingPortrait = imgUrl;
+      toast('Portrait ready!', 'success');
+    }
+  } catch (e) {
+    console.warn('Auto portrait generation failed silently:', e);
+  }
 }
 
 function finalizeCharacter() {
