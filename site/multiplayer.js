@@ -416,13 +416,19 @@ if (window._mpEventQueue?.length) {
 
 // ─── PATCH addLog ─────────────────────────────
 const _mpOrigAddLog = window.addLog;
+// Types that should broadcast to all players
+const MP_BROADCAST_TYPES = new Set(['action','narrator','combat','holy','dice','system']);
+// Noise that's only relevant locally (turn indicators, AP updates, etc.)
+const MP_LOCAL_ONLY = new Set(['local']);
 window.addLog = function(text, type = 'system', playerName = null) {
   if (_mpOrigAddLog) _mpOrigAddLog(text, type, playerName);
   if (window.mp.sessionCode && window.mp.socket && !window.mp._receiving) {
-    window.mp.socket.emit('game_log', {
-      code: window.mp.sessionCode,
-      entry: { text, type, playerName }
-    });
+    if (MP_BROADCAST_TYPES.has(type) && !MP_LOCAL_ONLY.has(type)) {
+      window.mp.socket.emit('game_log', {
+        code: window.mp.sessionCode,
+        entry: { text, type, playerName }
+      });
+    }
   }
 };
 window.addLog._orig = _mpOrigAddLog;

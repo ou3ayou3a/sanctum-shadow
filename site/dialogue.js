@@ -126,6 +126,10 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   window.npcConvState.history = [];
   window.npcConvState.turnCount = 0;
 
+  // Log the approach once — this is the single source of truth
+  const charName = gameState.character?.name || 'Unknown';
+  addLog(`${charName}: "${playerOpener || `approaches ${npc.name}`}"`, 'action', charName);
+
   // Broadcast FIRST so friends see panel open before response arrives
   if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('conv_open', {
@@ -688,7 +692,16 @@ Rules:
 }
 
 // ─── submitAction HOOK ────────────────────────
+// Guard so this wraps exactly once, no matter how many times it's called
+let _npcHookInstalled = false;
 function installNPCHook() {
+  if (_npcHookInstalled) return;
+  if (!window.submitAction) {
+    setTimeout(installNPCHook, 200);
+    return;
+  }
+  _npcHookInstalled = true;
+
   const _prev = window.submitAction;
   window.submitAction = async function () {
     const input = document.getElementById('action-input');
@@ -709,12 +722,9 @@ function installNPCHook() {
       return;
     }
 
-    // Clear input immediately so player sees response
-    input.value = '';
-    addLog(`${gameState.character?.name}: "${text}"`, 'action', gameState.character?.name);
-
-    // Ask Claude what the player intends
+    // Ask Claude what the player intends (clears input AFTER classification to avoid double-fire)
     const intent = await classifyPlayerIntent(text);
+    input.value = '';
 
     if (intent.intent === 'talk' && intent.npc_id) {
       startNPCConversation(intent.npc_id, text);
@@ -726,27 +736,24 @@ function installNPCHook() {
       return;
     }
 
-    // Default: pass to normal action handler
-    if (_prev) {
-      // Restore text temporarily for _prev to read, then clear
-      input.value = text;
-      _prev();
-    }
+    // Default: pass to normal action handler (game.js submitAction)
+    // Restore text so game.js can read and log it
+    input.value = text;
+    _prev();
   };
 }
 
-// Reinstall after initGameScreen (which may also patch submitAction)
+// Install once after initGameScreen (story/combat systems are ready by then)
 const _origInitNPC = window.initGameScreen;
 window.initGameScreen = function () {
   if (_origInitNPC) _origInitNPC();
-  setTimeout(installNPCHook, 500);
+  // Reset flag so hook re-wraps the fresh submitAction after screen re-init
+  _npcHookInstalled = false;
+  setTimeout(installNPCHook, 600);
 };
 
-// Also reinstall on DOM ready and after a delay to beat any other patches
+// Initial install at page load
 document.addEventListener('DOMContentLoaded', () => setTimeout(installNPCHook, 1000));
-setTimeout(installNPCHook, 2000);
-setTimeout(installNPCHook, 4000);
-installNPCHook();
 
 // ─── CSS ─────────────────────────────────────
 const convCSS = `
