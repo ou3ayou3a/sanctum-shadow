@@ -314,7 +314,7 @@ function rollStats(isReroll = false) {
         });
       }
 
-      document.getElementById('finalize-btn').style.display = 'inline-block';
+      document.getElementById('to-step-6-btn').style.display = 'inline-block';
       if (!isReroll && !gameState.rerollUsed) {
         // Show reroll button, keep roll button disabled
         document.getElementById('reroll-btn').style.display = 'inline-block';
@@ -324,6 +324,100 @@ function rollStats(isReroll = false) {
       toast('Fate has spoken!');
     }
   }, 80);
+}
+
+// ─── PORTRAIT GENERATION ─────────────────────
+function buildPortraitPrompt(description) {
+  const race  = RACES.find(r => r.id === gameState.selectedRace);
+  const cls   = CLASSES.find(c => c.id === gameState.selectedClass);
+  const origin = document.getElementById('char-origin')?.value || '';
+  const originLabels = {
+    fallen_noble:'fallen noble with a haunted dignity', orphan_war:'war orphan hardened by loss',
+    cursed_bloodline:'bearer of a dark cursed bloodline', divine_chosen:'divinely chosen with a holy mark',
+    exile:'exiled wanderer with a hunted look', monster_hunter:'seasoned monster hunter, scarred and alert',
+    corrupted_saint:'corrupted saint, once holy now tainted', blood_debt:'indebted soul carrying a heavy burden'
+  };
+  const originDesc = originLabels[origin] || 'mysterious traveler';
+  const base = description?.trim()
+    ? description.trim()
+    : `${race?.name || 'human'} ${cls?.name || 'warrior'}, ${originDesc}`;
+
+  return `Dark fantasy RPG character portrait, ${base}, painterly oil painting style, dramatic rim lighting, dark background, Divinity Original Sin 2 art style, highly detailed face, professional game art, no text, no watermark, 3:4 portrait`;
+}
+
+async function generateCharacterPortrait() {
+  const previewArea = document.getElementById('portrait-preview-area');
+  const loading = document.getElementById('portrait-loading');
+  const result = document.getElementById('portrait-result');
+  const stepNav = document.getElementById('portrait-step-nav');
+  const acceptNav = document.getElementById('portrait-accept-nav');
+
+  const description = document.getElementById('char-appearance')?.value || '';
+  const prompt = buildPortraitPrompt(description);
+
+  previewArea.style.display = 'block';
+  loading.style.display = 'flex';
+  result.style.display = 'none';
+  stepNav.style.display = 'none';
+
+  try {
+    // Step 1: Submit generation job
+    const genRes = await fetch('/api/portrait', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, aspect_ratio: '3:4', size: '1K', format: 'jpg' })
+    });
+    const genData = await genRes.json();
+
+    if (!genData.task_id) throw new Error(genData.message || 'Generation failed');
+
+    // Step 2: Poll for result
+    const imgUrl = await pollPortraitResult(genData.task_id);
+    gameState.pendingPortrait = imgUrl;
+
+    const img = document.getElementById('portrait-img');
+    img.src = imgUrl;
+    img.onload = () => {
+      loading.style.display = 'none';
+      result.style.display = 'block';
+      acceptNav.style.display = 'flex';
+    };
+  } catch (err) {
+    loading.style.display = 'none';
+    stepNav.style.display = 'flex';
+    toast('Portrait generation failed — you can skip or try again', 'error');
+    console.error('Portrait error:', err);
+  }
+}
+
+async function pollPortraitResult(taskId, attempts = 0) {
+  if (attempts > 30) throw new Error('Timed out waiting for portrait');
+  await new Promise(r => setTimeout(r, 2000));
+  const res = await fetch('/api/portrait/status/' + taskId);
+  const data = await res.json();
+  if (data.status === 'completed' && data.image_url) return data.image_url;
+  if (data.status === 'failed') throw new Error('Generation failed');
+  return pollPortraitResult(taskId, attempts + 1);
+}
+
+function regeneratePortrait() {
+  document.getElementById('portrait-result').style.display = 'none';
+  document.getElementById('portrait-accept-nav').style.display = 'none';
+  document.getElementById('portrait-step-nav').style.display = 'flex';
+  gameState.pendingPortrait = null;
+}
+
+function acceptPortrait() {
+  // Portrait accepted — move to finalize
+  document.getElementById('portrait-step-nav').style.display = 'none';
+  document.getElementById('portrait-accept-nav').style.display = 'flex';
+}
+
+function skipPortrait() {
+  gameState.pendingPortrait = null;
+  // Show finalize button directly
+  document.getElementById('portrait-step-nav').style.display = 'none';
+  document.getElementById('portrait-accept-nav').style.display = 'flex';
 }
 
 function finalizeCharacter() {
@@ -343,6 +437,8 @@ function finalizeCharacter() {
     tree: gameState.selectedTree,
     origin,
     secret,
+    appearance: document.getElementById('char-appearance')?.value?.trim() || '',
+    portrait: gameState.pendingPortrait || null,
     stats: { ...gameState.rolledStats },
     level: 1,
     xp: 0,

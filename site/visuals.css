@@ -397,3 +397,57 @@
   max-width: 100%;
   max-height: 100%;
 }
+
+/* ─── CHARACTER CREATION PORTRAIT ──────────── */
+.portrait-gen-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  color: var(--gold, #c9a84c);
+}
+
+.portrait-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(201,168,76,0.2);
+  border-top-color: #c9a84c;
+  border-radius: 50%;
+  animation: portraitSpin 1s linear infinite;
+}
+
+@keyframes portraitSpin {
+  to { transform: rotate(360deg); }
+}
+
+.portrait-gen-text {
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  animation: portraitPulse 2s ease-in-out infinite;
+}
+
+@keyframes portraitPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.portrait-preview-img {
+  display: block;
+  width: 200px;
+  height: 267px;
+  object-fit: cover;
+  object-position: center top;
+  border: 2px solid rgba(201,168,76,0.4);
+  margin: 0 auto 16px;
+  filter: saturate(0.9) contrast(1.05);
+}
+
+.portrait-preview-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+}

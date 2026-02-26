@@ -69,7 +69,84 @@ app.post('/api/npc', (req, res) => {
   request.end();
 });
 
-// ─── SESSION STORE ────────────────────────────
+// ─── NANOBANANA PORTRAIT PROXY ───────────────
+app.post('/api/portrait', (req, res) => {
+  const apiKey = process.env.NANOBANANA_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
+
+  const body = JSON.stringify({
+    prompt: req.body.prompt || '',
+    aspect_ratio: req.body.aspect_ratio || '3:4',
+    size: req.body.size || '1K',
+    format: req.body.format || 'jpg',
+  });
+
+  const options = {
+    hostname: 'nanobnana.com',
+    path: '/api/v2/generate',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Length': Buffer.byteLength(body),
+    },
+  };
+
+  const request = https.request(options, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        // Return task_id to client
+        res.json({ task_id: parsed.data?.task_id, message: parsed.message });
+      } catch (e) {
+        res.status(500).json({ error: 'Invalid response from portrait API' });
+      }
+    });
+  });
+  request.on('error', err => res.status(500).json({ error: err.message }));
+  request.write(body);
+  request.end();
+});
+
+app.get('/api/portrait/status/:taskId', (req, res) => {
+  const apiKey = process.env.NANOBANANA_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
+
+  const options = {
+    hostname: 'nanobnana.com',
+    path: `/api/v2/status?task_id=${req.params.taskId}`,
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+  };
+
+  const request = https.request(options, (response) => {
+    let data = '';
+    response.on('data', chunk => data += chunk);
+    response.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        const taskData = parsed.data || {};
+        // Normalize response for client
+        if (taskData.status === 'completed' || taskData.state === 'completed') {
+          const imgUrl = taskData.image_url || taskData.output_url || taskData.result?.url || taskData.images?.[0];
+          res.json({ status: 'completed', image_url: imgUrl });
+        } else if (taskData.status === 'failed' || taskData.state === 'failed') {
+          res.json({ status: 'failed' });
+        } else {
+          res.json({ status: 'pending' });
+        }
+      } catch (e) {
+        res.status(500).json({ error: 'Invalid status response' });
+      }
+    });
+  });
+  request.on('error', err => res.status(500).json({ error: err.message }));
+  request.end();
+});
+
+
 // sessions[code] = { code, name, host, players:{id:{name,character,hp,ready}}, combatState, log:[], chatLog:[] }
 const fs = require('fs');
 const SESSIONS_FILE = path.join(__dirname, 'sessions.json');

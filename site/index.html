@@ -6,7 +6,7 @@
 <title>SANCTUM & SHADOW — The Chronicle</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="visuals.css?v=53">
+<link rel="stylesheet" href="visuals.css?v=54">
 <script>
 // Early stub — replaced by real function when multiplayer.js loads
 window.mpBroadcastStoryEvent = function(eventType, payload) {
@@ -156,7 +156,44 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
           </div>
           <div class="step-nav">
             <button class="btn-ghost" onclick="nextStep(4)">← Back</button>
-            <button class="btn-primary" id="finalize-btn" onclick="finalizeCharacter()" style="display:none">⚔ Seal My Fate</button>
+            <button class="btn-primary" id="to-step-6-btn" onclick="nextStep(6)" style="display:none">Continue →</button>
+          </div>
+        </div>
+
+        <!-- STEP 6: PORTRAIT GENERATION -->
+        <div class="creation-step" id="step-6">
+          <h3>Step 6: Your Face in the Dark</h3>
+          <p class="step-hint">Describe your appearance — or leave it blank and fate will choose for you.</p>
+          <div class="form-group">
+            <label>Appearance (optional)</label>
+            <textarea id="char-appearance" class="form-input" rows="3"
+              placeholder="e.g. Tall with silver braided hair, pale green eyes, a scar across the left cheek, wearing a worn leather coat..."></textarea>
+          </div>
+
+          <!-- Portrait preview area -->
+          <div id="portrait-preview-area" style="display:none">
+            <div id="portrait-loading" class="portrait-gen-loading" style="display:none">
+              <div class="portrait-spinner"></div>
+              <div class="portrait-gen-text">Painting your soul...</div>
+            </div>
+            <div id="portrait-result" style="display:none">
+              <img id="portrait-img" src="" alt="Your character" class="portrait-preview-img">
+              <div class="portrait-preview-actions">
+                <button class="btn-ghost" onclick="regeneratePortrait()">🔄 Regenerate</button>
+                <button class="btn-primary" onclick="acceptPortrait()">✓ Use This Portrait</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-nav" id="portrait-step-nav">
+            <button class="btn-ghost" onclick="nextStep(5)">← Back</button>
+            <button class="btn-primary" onclick="generateCharacterPortrait()">🎨 Generate Portrait</button>
+            <button class="btn-ghost" onclick="skipPortrait()">Skip →</button>
+          </div>
+
+          <div class="step-nav" id="portrait-accept-nav" style="display:none">
+            <button class="btn-ghost" onclick="nextStep(5)">← Back</button>
+            <button class="btn-primary" id="finalize-btn" onclick="finalizeCharacter()">⚔ Seal My Fate</button>
           </div>
         </div>
       </div>
@@ -384,19 +421,19 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=53"></script>
-<script src="audio.js?v=53"></script>
-<script src="map.js?v=53"></script>
-<script src="game.js?v=53"></script>
-<script src="combat.js?v=53"></script>
-<script src="additions.js?v=53"></script>
-<script src="story.js?v=53"></script>
-<script src="dialogue.js?v=53"></script>
-<script src="romance.js?v=53"></script>
-<script src="senses.js?v=53"></script>
-<script src="multiplayer.js?v=53"></script>
-<script src="saves.js?v=53"></script>
-<script src="visuals.js?v=53"></script>
+<script src="data.js?v=54"></script>
+<script src="audio.js?v=54"></script>
+<script src="map.js?v=54"></script>
+<script src="game.js?v=54"></script>
+<script src="combat.js?v=54"></script>
+<script src="additions.js?v=54"></script>
+<script src="story.js?v=54"></script>
+<script src="dialogue.js?v=54"></script>
+<script src="romance.js?v=54"></script>
+<script src="senses.js?v=54"></script>
+<script src="multiplayer.js?v=54"></script>
+<script src="saves.js?v=54"></script>
+<script src="visuals.js?v=54"></script>
 <script>
 // Show Load Chronicle button on splash if saves exist
 document.addEventListener('DOMContentLoaded', () => {
