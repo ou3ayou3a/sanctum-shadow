@@ -183,6 +183,35 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
 
   renderConvPanel(npc);
   await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
+
+  // After panel renders, redirect ACT box focus to conv-input
+  setTimeout(() => {
+    const actionInput = document.getElementById('action-input');
+    const convInput = document.getElementById('conv-input');
+    if (actionInput && convInput) {
+      actionInput.addEventListener('focus', _redirectFocusToConv, { once: false });
+      actionInput.placeholder = '↑ Conversation active — type here or in the panel above';
+      convInput.focus();
+    }
+  }, 400);
+}
+
+function _redirectFocusToConv(e) {
+  // If a conversation is still active, redirect focus to conv-input
+  if (!window.npcConvState?.active) {
+    // Conversation ended — restore normal placeholder
+    const actionInput = document.getElementById('action-input');
+    if (actionInput) {
+      actionInput.removeEventListener('focus', _redirectFocusToConv);
+      actionInput.placeholder = 'What do you do? Type anything freely — the dice decide the outcome...';
+    }
+    return;
+  }
+  const convInput = document.getElementById('conv-input');
+  if (convInput) {
+    e.preventDefault();
+    convInput.focus();
+  }
 }
 
 function _getCombatAftermathOpener(npc) {
@@ -223,7 +252,13 @@ async function sendNPCMessage(playerText, isOpener = false) {
     .join(', ') || 'none';
 
   if (!isOpener) {
-    addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
+    // Strip the [PlayerName ...] framing wrapper before displaying — it's for Claude, not the player
+    const displayText = playerText.replace(/^\[([^\]]+)\]$/, (_, inner) => {
+      // "[Khiax demands answers]" → "demands answers" (name already in the label)
+      const withoutName = inner.replace(new RegExp('^' + (char?.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').trim();
+      return withoutName || inner;
+    });
+    addLog(`${char?.name}: "${displayText}"`, 'action', char?.name);
     // Update local conv panel to show this player's portrait
     if (typeof updateConvPlayerPortrait === 'function') {
       updateConvPlayerPortrait(char?.name || 'You', char);
@@ -823,6 +858,14 @@ function _updateWorldFromConversation(npc, speech, fullResponse) {
   // Track that player has spoken with this NPC
   flags['talked_to_' + npcId] = true;
 
+  // Write to story history so generateAIScene knows progression
+  if (window.sceneState.history) {
+    const historyEntry = `talked_to_${npcId}`;
+    if (!window.sceneState.history.includes(historyEntry)) {
+      window.sceneState.history.push(historyEntry);
+    }
+  }
+
   // Update reputation based on conversation content
   if (window.updateRepFromConversation) {
     window.updateRepFromConversation(npcId, speech, flags);
@@ -865,11 +908,25 @@ function closeConvPanel() {
   window.npcConvState.npc = null;
   window.npcConvState.history = [];
 
+  // Restore ACT box to normal
+  const actionInput = document.getElementById('action-input');
+  if (actionInput) {
+    actionInput.removeEventListener('focus', _redirectFocusToConv);
+    actionInput.placeholder = 'What do you do? Type anything freely — the dice decide the outcome...';
+  }
+
   // Restore the scene panel if one was hidden
   const scenePanel = document.getElementById('scene-panel');
   if (scenePanel) {
     scenePanel.style.display = '';
     setTimeout(() => scenePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 350);
+  }
+
+  // Fire any scene that was queued while conv was open
+  if (window._pendingScene) {
+    const pending = window._pendingScene;
+    window._pendingScene = null;
+    setTimeout(() => { if (window.showScene) window.showScene(pending); }, 500);
   }
 
   // Broadcast close to all party members
@@ -1003,9 +1060,15 @@ function installNPCHook() {
         return;
       }
 
-      // All other text — wrap with player identity so Claude never confuses who is speaking
-      const framed = `[${char?.name || 'The player'} ${text}]`;
-      sendNPCMessage(framed);
+      // All other text — route through conv-input for unified behavior
+      const convInput = document.getElementById('conv-input');
+      if (convInput) {
+        convInput.value = text;
+        submitConvInput();
+      } else {
+        const framed = `[${char?.name || 'The player'} ${text}]`;
+        sendNPCMessage(framed);
+      }
       return;
     }
 

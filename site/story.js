@@ -19,6 +19,17 @@ function getNPCState(npc) { return window.sceneState.npcStates[npc] || 'neutral'
 
 // ─── SCENE PANEL UI ───────────────────────────
 function showScene(sceneData) {
+  // Never interrupt an active conversation or combat with a scene
+  if (window.npcConvState?.active) {
+    // Queue it — fire after conversation ends
+    window._pendingScene = sceneData;
+    return;
+  }
+  if (window.combatState?.active) {
+    window._pendingScene = sceneData;
+    return;
+  }
+
   const old = document.getElementById('scene-panel');
   if (old) old.remove();
 
@@ -345,36 +356,55 @@ function runScene(sceneId) {
 
 // ─── AI SCENE GENERATOR ──────────────────────
 async function generateAIScene(context) {
+  // Never generate a scene while a conversation or combat is active
+  if (window.npcConvState?.active || window.combatState?.active) return;
+
   const char = gameState.character;
   const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
   const cls = CLASSES.find(c => c.id === char?.class);
   const race = RACES.find(r => r.id === char?.race);
-  const flags = Object.keys(window.sceneState.flags).join(', ') || 'none';
-  const history = window.sceneState.history.slice(-5).join(' → ') || 'just arrived';
+  const flags = window.sceneState.flags || {};
+  const flagList = Object.entries(flags)
+    .filter(([k]) => !k.startsWith('npc_dead_') && !k.startsWith('killed_'))
+    .map(([k, v]) => `${k}=${v}`).join(', ') || 'none';
+  const deadNPCs = Object.keys(flags).filter(k => k.startsWith('npc_dead_')).map(k => k.replace('npc_dead_', '')).join(', ') || 'none';
+  const history = window.sceneState.history.slice(-8).join(' → ') || 'just arrived';
 
-  const prompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Generate a scene response.
+  // Build a rich story state so the AI knows exactly where the player is in the narrative
+  const storyState = `
+STORY PROGRESSION:
+- Talked to Rhael: ${flags.talked_to_captain_rhael ? 'YES' : 'no'}
+- Talked to Scribe: ${flags.talked_to_trembling_scribe ? 'YES' : 'no'}
+- Has the document: ${flags.has_document ? 'YES' : 'no'}
+- Knows Varek's name: ${flags.knows_elder_name ? 'YES' : 'no'}
+- Knows Varek's location: ${flags.knows_varek_location ? 'YES' : 'no'}
+- Allied with Mourne: ${flags.allied_sister_mourne ? 'YES' : 'no'}
+- Dead NPCs: ${deadNPCs}
+- All flags: ${flagList}
+- Recent path: ${history}
+
+DO NOT re-show an introduction to a character the player has already met. DO NOT suggest talking to a dead NPC. Build on what has already happened — the player is mid-story, not at the start.`.trim();
+
+  const prompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG.
 
 Player: ${char?.name}, ${race?.name} ${cls?.name}, Level ${char?.level}
-Location: ${loc?.name} — ${loc?.subtitle}
-Story flags: ${flags}
-Recent path: ${history}
+Location: ${loc?.name} — ${loc?.subtitle || ''}
 Current situation: ${context}
 
-Respond with a JSON object (no markdown, just raw JSON):
+${storyState}
+
+Generate the NEXT scene that logically follows from the current story progression. Respond with raw JSON only (no markdown):
 {
-  "narration": "2-3 sentence atmospheric description of what the player sees/experiences right now. Be specific and vivid.",
-  "sub": "1 sentence hint of what seems most important to investigate",
+  "narration": "2-3 sentence atmospheric description of what happens next, consistent with story so far",
+  "sub": "1 sentence of what seems most pressing",
   "location": "${loc?.name}",
   "locationIcon": "${loc?.icon || '🏰'}",
   "options": [
-    {"icon": "💬", "label": "Talk to [specific NPC name]", "type": "talk", "next": "scene_id"},
-    {"icon": "⚔", "label": "Attack [specific target]", "type": "combat", "roll": {"stat": "STR", "dc": 12}, "next": "scene_id"},
-    {"icon": "🔍", "label": "Investigate [specific thing]", "type": "explore", "next": "scene_id"},
-    {"icon": "🏃", "label": "Leave / Move to [location]", "type": "move", "next": "scene_id"}
+    {"icon": "💬", "label": "Specific action 1", "type": "talk", "next": "scene_id"},
+    {"icon": "🔍", "label": "Specific action 2", "type": "explore", "next": "scene_id"},
+    {"icon": "🏃", "label": "Move to somewhere specific", "type": "move", "next": "scene_id"}
   ]
-}
-
-Make options SPECIFIC to the current context. Reference actual NPC names (Captain Rhael, The Trembling Scribe, Sister Mourne). Make the investigation option reveal something plot-relevant. Always give a move option.`;
+}`;
 
   try {
     const response = await fetch("/api/npc", {
@@ -401,8 +431,8 @@ Make options SPECIFIC to the current context. Reference actual NPC names (Captai
 
     showScene(parsed);
   } catch(e) {
-    // Fallback scene
-    runScene('vaelthar_main');
+    // Fallback: log a neutral DM line instead of resetting to arrival scene
+    addLog(`*The situation develops. You take stock of what you know and decide what matters most.*`, 'narrator');
   }
 }
 
