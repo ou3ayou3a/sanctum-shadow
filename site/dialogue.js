@@ -362,16 +362,6 @@ async function submitConvInput() {
   const input = document.getElementById('conv-input');
   const text = (input?.value || '').trim();
   if (!text || !window.npcConvState.active) return;
-  const attackWords = ["attack","stab","strike","punch","hit","kill","slash","fight","lunge","charge","shoot"];
-  if (attackWords.some(w => text.toLowerCase().includes(w))) {
-    const npc = window.npcConvState.npc;
-    addLog(`⚔ ${gameState.character?.name} attacks ${npc.name}!`, "combat");
-    closeConvPanel();
-    const ef = {"captain_rhael":()=>generateEnemy("captain_rhael",1),"sister_mourne":()=>generateEnemy("sister_mourne",2)};
-    const enemy = (ef[npc.id] ? ef[npc.id]() : generateEnemy("bandit", AREA_LEVELS[window.mapState?.currentLocation]||1));
-    enemy.name = npc.name; enemy.icon = npc.portrait||"👤";
-    setTimeout(()=>startCombat([enemy]),400); return;
-  }
   input.value = '';
 
   const char = gameState.character;
@@ -677,9 +667,30 @@ function dispositionIcon(d) {
 
 // ─── INTENT CLASSIFIER — Claude interprets what the player wants ──────────
 async function classifyPlayerIntent(text) {
+  const lower = text.toLowerCase();
+
+  // ── Fast local check first — no API needed ──
+
+  // 1. Combat words
+  const combatWords = ['attack','stab','strike','punch','kill','slash','fight','shoot','lunge','charge'];
+  if (combatWords.some(w => lower.includes(w))) {
+    return { intent: 'combat', target: lower };
+  }
+
+  // 2. NPC name anywhere in the text → open that conversation
+  // "rhael come here", "talk to mourne", "ask the captain" — all caught
+  const npcMatch = Object.values(NPC_REGISTRY || {}).find(n => {
+    const firstName = n.name.toLowerCase().split(' ')[0]; // "captain" from "Captain Rhael"
+    const lastName  = n.name.toLowerCase().split(' ').pop(); // "rhael"
+    return lower.includes(firstName) || lower.includes(lastName) ||
+           (n.aliases || []).some(a => lower.includes(a.toLowerCase()));
+  });
+  if (npcMatch) return { intent: 'talk', npc_id: npcMatch.id };
+
+  // 3. Ambiguous — call API only as last resort
   const char = gameState.character;
   const loc = WORLD_LOCATIONS?.[mapState?.currentLocation || 'vaelthar_city'];
-  const knownNPCs = Object.values(NPC_REGISTRY).map(n => `${n.name} (id: ${n.id})`).join(', ');
+  const knownNPCs = Object.values(NPC_REGISTRY || {}).map(n => `${n.name} (id: ${n.id})`).join(', ');
 
   const prompt = `You are the action classifier for a dark fantasy RPG called Sanctum & Shadow.
 The player typed: "${text}"
@@ -736,21 +747,32 @@ function installNPCHook() {
     if (!text) return;
     if (window.AudioEngine) AudioEngine.sfx?.page();
 
-    // Mid-conversation: everything goes to the NPC
+    // ── Mid-conversation intercept ──
     if (window.npcConvState?.active) {
-    const _atk = ["attack","stab","strike","punch","hit","kill","slash","fight","lunge","charge","shoot"];
-    if (_atk.some(w => text.toLowerCase().includes(w))) {
-      const _npc = window.npcConvState.npc;
-      addLog(`⚔ ${gameState.character?.name} attacks ${_npc.name}!`, "combat");
-      if (window.AudioEngine) AudioEngine.sfx?.sword?.();
-      closeConvPanel();
-      const _ef = {"captain_rhael":()=>generateEnemy("captain_rhael",1),"sister_mourne":()=>generateEnemy("sister_mourne",2)};
-      const _en = (_ef[_npc.id] ? _ef[_npc.id]() : generateEnemy("bandit", AREA_LEVELS[window.mapState?.currentLocation]||1));
-      _en.name = _npc.name; _en.icon = _npc.portrait||"👤";
-      input.value = ""; setTimeout(()=>startCombat([_en]),400); return;
-    }
       input.value = '';
+      // Attack words → close conv and start combat immediately
+      const _atkW = ['attack','stab','strike','punch','hit','kill','slash','fight','lunge','charge','shoot','draw sword'];
+      if (_atkW.some(w => text.toLowerCase().includes(w))) {
+        const _npc = window.npcConvState.npc;
+        addLog(`⚔ ${gameState.character?.name} attacks ${_npc.name}!`, 'combat');
+        if (window.AudioEngine) AudioEngine.sfx?.sword?.();
+        closeConvPanel();
+        const _ef = { captain_rhael:()=>generateEnemy('captain_rhael',1), sister_mourne:()=>generateEnemy('sister_mourne',2), bresker:()=>generateEnemy('city_guard',2) };
+        const _en = (_ef[_npc.id] ? _ef[_npc.id]() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation]||1));
+        _en.name = _npc.name; _en.icon = _npc.portrait||'👤';
+        setTimeout(()=>startCombat([_en]), 400);
+        return;
+      }
       sendNPCMessage(text);
+      return;
+    }
+
+    // ── Fast local talk detection (before slow AI classify) ──
+    const _talkMatch = text.match(/(?:talk to|speak to|ask|say to|approach|greet|address|go to)\s+([a-z\s]+?)(?:\s*,|\s*$|\s*"|\.)/i);
+    if (_talkMatch) {
+      const _npcName = _talkMatch[1].trim();
+      input.value = '';
+      startNPCConversation(_npcName, text);
       return;
     }
 
