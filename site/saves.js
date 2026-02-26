@@ -81,6 +81,7 @@ function buildSaveSlot(slotName, type) {
     sceneHistory: window.sceneState?.history || [],
     mapState: { currentLocation: window.mapState?.currentLocation || 'vaelthar_city' },
     worldClock: window.worldClock || { hour: 8, day: 1 },
+    reputation: window.reputation || {},
     sessionCode: window.mp?.sessionCode || null,
     romanceState: window.romanceState || null,
     drunkState: window.drunkState ? { cups: window.drunkState.cups } : null,
@@ -195,6 +196,11 @@ function loadSaveSlot(slotId) {
   // Restore world clock
   if (slot.worldClock) {
     window.worldClock = slot.worldClock;
+  }
+
+  // Restore reputation
+  if (slot.reputation) {
+    window.reputation = slot.reputation;
   }
 
   // Restore romance state

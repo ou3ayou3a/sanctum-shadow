@@ -238,6 +238,8 @@ CURRENT CONTEXT:
 WORLD STATE (treat this as absolute truth):
 ${deadNPCContext}
 
+${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
+
 CRITICAL RULES:
 1. Stay in character. You ARE ${npc.name}.
 2. Write dialogue naturally. Use *asterisks* for physical actions only.
@@ -594,6 +596,10 @@ function renderConvPanel(npc) {
           <span class="cp-name">${npc.name}</span>
           <span class="cp-title">${npc.title}</span>
           <span class="cp-faction">${factionLabel(npc.faction)}</span>
+          ${window.getRepTier && npc.faction && window.reputation?.hasOwnProperty(npc.faction)
+            ? `<span class="cp-rep-badge" style="color:${window.getRepTier(npc.faction).color}">${window.getRepTier(npc.faction).icon} ${window.getRepTier(npc.faction).label} (${window.getRepScore(npc.faction) > 0 ? '+' : ''}${window.getRepScore(npc.faction)})</span>`
+            : ''
+          }
         </div>
         <span class="cp-disp" id="cp-disp">${dispositionIcon(npc.disposition)}</span>
         <div class="cp-player-side" id="cp-player-side">
@@ -745,6 +751,11 @@ function _updateWorldFromConversation(npc, speech, fullResponse) {
 
   // Track that player has spoken with this NPC
   flags['talked_to_' + npcId] = true;
+
+  // Update reputation based on conversation content
+  if (window.updateRepFromConversation) {
+    window.updateRepFromConversation(npcId, speech, flags);
+  }
 
   // Detect NPC revealing key information
   if (lower.includes('varek') && (lower.includes('monastery') || lower.includes('old quarter') || lower.includes('whereabouts') || lower.includes('hiding'))) {
