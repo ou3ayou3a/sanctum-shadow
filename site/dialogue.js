@@ -324,33 +324,21 @@ async function pickNPCOption(index) {
   const isGrapple = ['tie', 'grab', 'grapple', 'restrain', 'shove', 'tackle'].some(w => lower.includes(w));
 
   if (isAttack) {
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const strMod = Math.floor(((char?.stats?.str || 10) - 10) / 2);
-    const total = roll + strMod;
-    const success = total >= 12 || roll === 20;
-    addLog(`🎲 Attack DC12: [${roll}] + ${strMod} = ${total} — ${success ? '✅ Hit!' : '❌ Miss!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-    if (success) {
-      const npc = window.npcConvState.npc;
-      addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
-      closeConvPanel();
-      // Build enemy from NPC data or generate from combat templates
-      const enemyTemplateMap = {
-        'captain_rhael': () => generateEnemy('captain_rhael', 1),
-        'vaelthar_guard': () => generateEnemy('city_guard', 1),
-        'trembling_scribe': () => ({ ...generateEnemy('bandit', 1), name:'The Trembling Scribe', icon:'📜', hp:15, flee:true }),
-        'sister_mourne': () => generateEnemy('sister_mourne', 2),
-        'bresker': () => generateEnemy('city_guard', 2),
-      };
-      const enemyFn = enemyTemplateMap[npc.id];
-      const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
-      enemy.name = npc.name;
-      enemy.icon = npc.portrait || '👤';
-      startCombat([enemy]);
-      return;
-    }
-    await sendNPCMessage(`${option.text} [FAILED — rolled ${total} vs DC12, the attack misses]`);
+    addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
+    if (window.AudioEngine) AudioEngine.sfx?.sword?.();
+    closeConvPanel();
+    const enemyTemplateMap = {
+      'captain_rhael': () => generateEnemy('captain_rhael', 1),
+      'vaelthar_guard': () => generateEnemy('city_guard', 1),
+      'trembling_scribe': () => ({ ...generateEnemy('bandit', 1), name:'The Trembling Scribe', icon:'📜', hp:15, flee:true }),
+      'sister_mourne': () => generateEnemy('sister_mourne', 2),
+      'bresker': () => generateEnemy('city_guard', 2),
+    };
+    const enemyFn = enemyTemplateMap[npc.id];
+    const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
+    enemy.name = npc.name;
+    enemy.icon = npc.portrait || '👤';
+    setTimeout(() => startCombat([enemy]), 400);
     return;
   }
 
@@ -377,7 +365,36 @@ async function submitConvInput() {
   input.value = '';
 
   const char = gameState.character;
+  const npc = window.npcConvState.npc;
   const lower = text.toLowerCase();
+
+  // ── Attack detection — close conv, show flavor, launch combat ──
+  const attackWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'kill', 'slash', 'draw sword', 'draw my sword', 'fight', 'lunge', 'charge', 'shoot'];
+  if (attackWords.some(w => lower.includes(w))) {
+    // Log the attack intent
+    addLog(`⚔ ${char?.name} attacks ${npc.name}!`, 'combat');
+    if (window.AudioEngine) AudioEngine.sfx?.sword?.();
+
+    // Close conversation
+    closeConvPanel();
+
+    // Build enemy from NPC
+    const enemyTemplateMap = {
+      'captain_rhael':   () => generateEnemy('captain_rhael', 1),
+      'vaelthar_guard':  () => generateEnemy('city_guard', 1),
+      'sister_mourne':   () => generateEnemy('sister_mourne', 2),
+      'bresker':         () => generateEnemy('city_guard', 2),
+      'trembling_scribe':() => ({ ...generateEnemy('bandit', 1), name: 'The Trembling Scribe', icon: '📜', hp: 15 }),
+    };
+    const enemyFn = enemyTemplateMap[npc.id];
+    const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
+    enemy.name = npc.name;
+    enemy.icon = npc.portrait || '👤';
+
+    // Brief dramatic pause then combat
+    setTimeout(() => startCombat([enemy]), 400);
+    return;
+  }
 
   // Detect if this action needs a roll (not pure speech)
   const needsCHA = ['flirt', 'seduce', 'charm', 'persuade', 'convince', 'bribe', 'threaten', 'intimidate', 'bluff', 'lie', 'deceive', 'stand down', 'back off', 'surrender'].some(w => lower.includes(w));
