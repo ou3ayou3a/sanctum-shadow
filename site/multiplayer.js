@@ -136,7 +136,7 @@ function initMultiplayer() {
   });
 
   // ── Error ──
-  socket.on('join_error', ({ msg }) => {
+  socket.on('join_error', ({ msg }) => { if (gameState.activeScreen === 'game' && gameState.character) { toast('⚠ ' + msg + ' — continuing solo.', 'error'); window.mp.sessionCode = null; gameState.sessionCode = null; return; }
     // If already in-game, don't boot to lobby — just show a warning toast
     if (gameState.activeScreen === 'game' && gameState.character) {
       toast('⚠ ' + msg + ' — continuing solo.', 'error');
