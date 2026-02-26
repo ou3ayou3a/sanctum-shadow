@@ -381,8 +381,9 @@ CRITICAL RULES:
 
   displayNPCLine(npc, speech, options);
 
-  const cleanSpeech = speech.replace(/\*[^*]+\*/g, '').trim();
-  addLog(`${npc.name}: "${cleanSpeech.substring(0, 120)}${cleanSpeech.length > 120 ? '...' : ''}"`, 'narrator');
+  // Log a short attribution line only — full text is in the conv panel above
+  const firstSentence = cleanSpeech.split(/[.!?]/)[0].trim();
+  addLog(`${npc.name}: "${firstSentence}${firstSentence.length < cleanSpeech.length ? '...' : ''}"`, 'narrator');
   if (window.showDMStrip) showDMStrip(`${npc.name}: "${cleanSpeech.substring(0, 100)}..."`, false);
 
   // If scene break detected, close popup and launch scene after player reads response
@@ -584,7 +585,8 @@ Write NPC dialogue, then OPTIONS: with 3-4 player choices. Some options can have
 
   const { speech, options } = parseNPCResponse(text);
   displayNPCLine(genericNPC, speech, options);
-  addLog(`${npcName}: "${speech.replace(/\*[^*]+\*/g, '').trim().substring(0, 100)}"`, 'narrator');
+  const firstSentence = speech.replace(/\*[^*]+\*/g, '').trim().split(/[.!?]/)[0].trim();
+  addLog(`${npcName}: "${firstSentence}..."`, 'narrator');
 }
 
 // ─── PARSE RESPONSE ───────────────────────────

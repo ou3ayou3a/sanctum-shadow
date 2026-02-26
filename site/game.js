@@ -1075,8 +1075,8 @@ async function resolveAction(text, roll, actionType, dc, total, success) {
   // For free actions just narrate via Claude
   if (actionType === 'free') {
     const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
-    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 1-2 sentences. Be atmospheric, specific to ${loc?.name}. No dice mention.`;
-    const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 100);
+    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention.`;
+    const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 200);
     if (narration) addLog(narration, 'narrator');
     return;
   }
@@ -1088,7 +1088,7 @@ async function resolveAction(text, roll, actionType, dc, total, success) {
   const race = RACES?.find(r => r.id === char?.race);
   const flags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
 
-  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 sentences. Be specific to the setting. Never mention dice or rolls. Stay in narrative voice.`;
+  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 complete sentences. Be specific to the setting. Never mention dice or rolls. Always finish your sentences. Stay in narrative voice.`;
 
   const userMsg = `Player: ${char?.name}, ${race?.name} ${cls?.name}
 Location: ${loc?.name}
@@ -1101,7 +1101,7 @@ ${isFumble ? 'CRITICAL FAILURE — narrate something going badly and immediately
 ${success && !isCrit ? 'SUCCESS — it works but with a complication or cost.' : ''}
 ${!success && !isFumble ? 'FAILURE — it fails and there is a real negative consequence. NPC reacts badly, opportunity lost, or situation worsens.' : ''}`;
 
-  const narration = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 150);
+  const narration = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 250);
 
   if (narration) {
     addLog(narration, success ? 'narrator' : 'combat');

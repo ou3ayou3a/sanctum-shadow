@@ -86,7 +86,7 @@ function showScene(sceneData) {
 
   const sceneStartedAt = Date.now();
   typewriteScene(sceneData.narration, sceneData.sub, window._sceneStartAt || 0);
-  addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
+  // Scene text is shown in the scene panel via typewriter — no truncated echo needed
 
   // Only broadcast shared scenes — personal quests stay local
   if (!isPersonal && (window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
