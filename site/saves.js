@@ -114,9 +114,8 @@ function saveGame(slotName, type, silent = false) {
 
 function autosave() {
   if (gameState.activeScreen !== 'game' || !gameState.character) return;
-  saveGame(null, null, true); // silent autosave
-  addLog(`💾 Autosaved — ${new Date().toLocaleTimeString()}`, 'system');
-  showAutosaveFlash();
+  saveGame(null, null, true); // silent autosave — no log, no scroll
+  showAutosaveFlash();        // just the corner flash
 }
 
 function showAutosaveFlash() {
@@ -499,5 +498,6 @@ window.renderSaveLoadScreen = renderSaveLoadScreen;
 window.saveNewSlot = saveNewSlot;
 window.overwriteSave = overwriteSave;
 window.autosave = autosave;
+window.autoSave = autosave; // alias used by other modules
 
 console.log('💾 Save system loaded — autosave every 15 minutes');

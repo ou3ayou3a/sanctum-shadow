@@ -838,9 +838,14 @@ function addLog(text, type = 'system', playerName = null) {
   // Always append at the very end of the log (after any scene panel)
   log.appendChild(entry);
 
-  // Force scroll to bottom
+  // Only auto-scroll if the player isn't actively typing
   requestAnimationFrame(() => {
-    log.scrollTop = log.scrollHeight;
+    const input = document.getElementById('action-input');
+    const convInput = document.getElementById('conv-input');
+    const userIsTyping = (document.activeElement === input) || (document.activeElement === convInput);
+    if (!userIsTyping) {
+      log.scrollTop = log.scrollHeight;
+    }
   });
 
   gameState.log.push({ text, type, playerName, time: Date.now() });

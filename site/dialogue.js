@@ -121,17 +121,55 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
     return;
   }
 
+  // ── World-state gates ──────────────────────────────────
+  const flags = window.sceneState?.flags || {};
+
+  // Block dead NPCs entirely
+  const deadKey = 'npc_dead_' + npc.id;
+  if (flags[deadKey]) {
+    const killer = flags['killed_' + npc.id];
+    addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+    addLog(`${npc.portrait} ${npc.name} is dead${killer ? ` — killed by ${killer}` : ''}. There is no one to talk to.`, 'narrator');
+    return;
+  }
+
+  // Block if combat is actively happening
+  if (window.combatState?.active) {
+    addLog(`You are in combat. Finish the fight first.`, 'system');
+    return;
+  }
+
+  // If you fought this NPC and they survived — they remember it
+  const foughtKey = 'fought_' + npc.id;
+  if (flags[foughtKey] && !flags['reconciled_' + npc.id]) {
+    // Override the opener to acknowledge the fight happened
+    const aftermathLine = _getCombatAftermathOpener(npc);
+    addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+    addLog(`⚠ You fought ${npc.name}. This conversation will reflect that.`, 'system');
+    // Inject combat context into window for prompt use
+    window._npcCombatContext = `CRITICAL: The player previously attacked you in combat. You remember this. You are on guard, possibly hostile, and will not pretend it didn't happen. Reference it directly. Your options should reflect the broken trust.`;
+    playerOpener = playerOpener || aftermathLine;
+  } else {
+    window._npcCombatContext = null;
+  }
+
   window.npcConvState.active = true;
   window.npcConvState.npc = npc;
   window.npcConvState.history = [];
   window.npcConvState.turnCount = 0;
+
+  // Close any other open panels first — one thing at a time
+  document.getElementById('shop-panel')?.remove();
+  document.getElementById('camp-panel')?.remove();
+  document.getElementById('rep-panel')?.remove();
+  document.getElementById('travel-encounter-panel')?.remove();
 
   // Log the approach once — this is the single source of truth
   const charName = gameState.character?.name || 'Unknown';
   addLog(`${charName}: "${playerOpener || `approaches ${npc.name}`}"`, 'action', charName);
 
   // Broadcast FIRST so friends see panel open before response arrives
-  if (( window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
+  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('conv_open', {
       npcId: npc.id,
       npcName: npc.name,
@@ -145,6 +183,16 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
 
   renderConvPanel(npc);
   await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
+}
+
+function _getCombatAftermathOpener(npc) {
+  const openers = {
+    captain_rhael: 'After what just happened between us — I want to talk.',
+    sister_mourne: 'I know what I did. I want to explain myself.',
+    trembling_scribe: 'I\'m sorry. I panicked. Can we talk properly?',
+    bresker: 'That got out of hand. Are you alright?',
+  };
+  return openers[npc.id] || `I want to talk — about what just happened.`;
 }
 
 // ─── SEND MESSAGE ─────────────────────────────
@@ -237,6 +285,7 @@ CURRENT CONTEXT:
 
 WORLD STATE (treat this as absolute truth):
 ${deadNPCContext}
+${window._npcCombatContext ? `\nCOMBAT HISTORY: ${window._npcCombatContext}` : ''}
 
 ${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
 

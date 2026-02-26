@@ -487,11 +487,27 @@ function startCombat(enemies) {
   combatState.apRemaining = MAX_AP;
 
   if (window.AudioEngine) AudioEngine.transition('combat', 800);
+
+  // Close all other panels — combat is exclusive
+  document.getElementById('conv-panel')?.remove();
+  document.getElementById('shop-panel')?.remove();
+  document.getElementById('camp-panel')?.remove();
+  document.getElementById('rep-panel')?.remove();
+  document.getElementById('travel-encounter-panel')?.remove();
+  document.getElementById('scene-panel')?.remove();
+  if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
+
   addLog('━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
   addLog('⚔ COMBAT BEGINS — Roll for Initiative!', 'combat');
   combatState.turnOrder.forEach(id => {
     const c = combatState.combatants[id];
     addLog(`  ${c.icon} ${c.name}: Initiative ${c.initiative}`, 'system');
+    // Record that combat started with this enemy
+    if (!c.isPlayer) {
+      if (!window.sceneState) window.sceneState = { flags: {} };
+      window.sceneState.flags['fought_' + c.id] = true;
+      window.sceneState.flags['combat_with_' + c.id + '_started'] = true;
+    }
   });
 
   renderCombatUI();
@@ -1292,6 +1308,7 @@ function endCombat(victory) {
       const deadKey = 'npc_dead_' + (c.id || c.name.toLowerCase().replace(/\s+/g,'_'));
       window.sceneState.flags[deadKey] = true;
       window.sceneState.flags['killed_' + deadKey.replace('npc_dead_','')] = gameState.character?.name || 'player';
+      window.sceneState.flags['fought_' + (c.id || c.name.toLowerCase().replace(/\s+/g,'_'))] = true;
     });
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
