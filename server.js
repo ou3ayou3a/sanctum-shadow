@@ -69,21 +69,21 @@ app.post('/api/npc', (req, res) => {
   request.end();
 });
 
-// ─── NANOBANANA PORTRAIT PROXY ───────────────
+// ─── PORTRAIT PROXY (Google Gemini imagen) ───
 app.post('/api/portrait', (req, res) => {
   const apiKey = process.env.NANOBANANA_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
 
+  const prompt = req.body.prompt || 'dark fantasy RPG character portrait';
+
   const body = JSON.stringify({
-    prompt: req.body.prompt || '',
-    aspect_ratio: req.body.aspect_ratio || '3:4',
-    size: req.body.size || '1K',
-    format: req.body.format || 'jpg',
+    instances: [{ prompt }],
+    parameters: { sampleCount: 1, aspectRatio: '3:4', safetySetting: 'block_few' }
   });
 
   const options = {
-    hostname: 'nanobnana.com',
-    path: '/api/v2/generate',
+    hostname: 'us-central1-aiplatform.googleapis.com',
+    path: '/v1/projects/261358781827/locations/us-central1/publishers/google/models/imagegeneration@006:predict',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,58 +92,60 @@ app.post('/api/portrait', (req, res) => {
     },
   };
 
-  const request = https.request(options, (response) => {
+  // Try Gemini imagen3 via generativelanguage API (works with AIzaSy keys)
+  const geminiBody = JSON.stringify({
+    contents: [{
+      parts: [{ text: prompt }]
+    }],
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      responseMimeType: 'image/jpeg',
+    }
+  });
+
+  const geminiOptions = {
+    hostname: 'generativelanguage.googleapis.com',
+    path: `/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${apiKey}`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(geminiBody),
+    },
+  };
+
+  const request = https.request(geminiOptions, (response) => {
     let data = '';
     response.on('data', chunk => data += chunk);
     response.on('end', () => {
       try {
         const parsed = JSON.parse(data);
-        // Return task_id to client
-        res.json({ task_id: parsed.data?.task_id, message: parsed.message });
+        // Gemini returns base64 image inline
+        const part = parsed.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (part?.inlineData?.data) {
+          const b64 = part.inlineData.data;
+          const mimeType = part.inlineData.mimeType || 'image/jpeg';
+          const dataUrl = `data:${mimeType};base64,${b64}`;
+          // Return as a fake task_id that encodes the result directly
+          res.json({ task_id: 'done', image_url: dataUrl });
+        } else {
+          console.error('Gemini portrait response:', JSON.stringify(parsed).substring(0, 300));
+          res.status(500).json({ error: 'No image in response', detail: JSON.stringify(parsed).substring(0, 200) });
+        }
       } catch (e) {
-        res.status(500).json({ error: 'Invalid response from portrait API' });
+        res.status(500).json({ error: 'Parse error: ' + e.message });
       }
     });
   });
   request.on('error', err => res.status(500).json({ error: err.message }));
-  request.write(body);
+  request.write(geminiBody);
   request.end();
 });
 
+// Status endpoint — if task_id is 'done', image_url was already returned inline
 app.get('/api/portrait/status/:taskId', (req, res) => {
-  const apiKey = process.env.NANOBANANA_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
-
-  const options = {
-    hostname: 'nanobnana.com',
-    path: `/api/v2/status?task_id=${req.params.taskId}`,
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${apiKey}` },
-  };
-
-  const request = https.request(options, (response) => {
-    let data = '';
-    response.on('data', chunk => data += chunk);
-    response.on('end', () => {
-      try {
-        const parsed = JSON.parse(data);
-        const taskData = parsed.data || {};
-        // Normalize response for client
-        if (taskData.status === 'completed' || taskData.state === 'completed') {
-          const imgUrl = taskData.image_url || taskData.output_url || taskData.result?.url || taskData.images?.[0];
-          res.json({ status: 'completed', image_url: imgUrl });
-        } else if (taskData.status === 'failed' || taskData.state === 'failed') {
-          res.json({ status: 'failed' });
-        } else {
-          res.json({ status: 'pending' });
-        }
-      } catch (e) {
-        res.status(500).json({ error: 'Invalid status response' });
-      }
-    });
-  });
-  request.on('error', err => res.status(500).json({ error: err.message }));
-  request.end();
+  // With Gemini synchronous generation, result comes back immediately
+  // This endpoint is only called if task_id !== 'done'
+  res.json({ status: 'failed' });
 });
 
 

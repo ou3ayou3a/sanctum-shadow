@@ -371,8 +371,13 @@ async function generateCharacterPortrait() {
 
     if (!genData.task_id) throw new Error(genData.message || 'Generation failed');
 
-    // Step 2: Poll for result
-    const imgUrl = await pollPortraitResult(genData.task_id);
+    // Gemini returns synchronously — image_url comes with the task_id
+    let imgUrl;
+    if (genData.task_id === 'done' && genData.image_url) {
+      imgUrl = genData.image_url;
+    } else {
+      imgUrl = await pollPortraitResult(genData.task_id);
+    }
     gameState.pendingPortrait = imgUrl;
 
     const img = document.getElementById('portrait-img');
