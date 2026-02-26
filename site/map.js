@@ -1124,6 +1124,9 @@ function openWorldMap() {
   overlay.classList.remove('hidden');
   buildWorldMap();
 
+  // Log where NPCs are right now
+  if (window.logNPCLocations) setTimeout(window.logNPCLocations, 200);
+
   // Add CSS pulse animation dynamically
   const style = document.getElementById('map-pulse-style') || document.createElement('style');
   style.id = 'map-pulse-style';

@@ -240,6 +240,8 @@ ${deadNPCContext}
 
 ${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
 
+${window.getNPCScheduleContext ? window.getNPCScheduleContext(npc.id) : ''}
+
 CRITICAL RULES:
 1. Stay in character. You ARE ${npc.name}.
 2. Write dialogue naturally. Use *asterisks* for physical actions only.
