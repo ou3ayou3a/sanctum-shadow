@@ -210,8 +210,9 @@ CURRENT CONTEXT:
 
 CRITICAL RULES:
 1. Stay in character. You ARE ${npc.name}.
-2. Write dialogue naturally. Use *asterisks* for physical actions.
-3. After dialogue, write OPTIONS: then 3-4 choices starting with •
+2. Write dialogue naturally. Use *asterisks* for physical actions only.
+3. NEVER use markdown headers (# Title), bold (**text**), or horizontal rules (---). Plain text only.
+4. After dialogue, write OPTIONS: then 3-4 choices starting with •
 4. Options that need a skill check: add [ROLL:STAT:DC] e.g. [ROLL:CHA:13]
 5. OPTIONS THAT CHANGE STORY MUST REQUIRE A ROLL. Persuasion, intimidation, romance, convincing someone — always need [ROLL:CHA:DC]. Physical feats always need [ROLL:STR:DC] or [ROLL:DEX:DC].
 6. Pure speech options (ask a question, say something) do NOT need rolls.
@@ -442,7 +443,14 @@ Write NPC dialogue, then OPTIONS: with 3-4 player choices. Some options can have
 
 // ─── PARSE RESPONSE ───────────────────────────
 function parseNPCResponse(raw) {
-  const parts = raw.split(/OPTIONS:/i);
+  // Strip markdown headers, bold markers, and any "# Title" lines the AI adds
+  const cleaned = raw
+    .replace(/^#+\s+.*$/gm, '')        // remove # Heading lines
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // remove **bold**
+    .replace(/^---+$/gm, '')            // remove --- dividers
+    .trim();
+
+  const parts = cleaned.split(/OPTIONS:/i);
   const speech = parts[0].trim();
   const optionsRaw = parts[1] || '';
 
@@ -636,14 +644,56 @@ function dispositionIcon(d) {
   return { neutral:'😐', friendly:'🟢', hostile:'🔴', afraid:'😨', suspicious:'🟡', defeated:'⚫', calculating:'🔵' }[d] || '😐';
 }
 
+// ─── INTENT CLASSIFIER — Claude interprets what the player wants ──────────
+async function classifyPlayerIntent(text) {
+  const char = gameState.character;
+  const loc = WORLD_LOCATIONS?.[mapState?.currentLocation || 'vaelthar_city'];
+  const knownNPCs = Object.values(NPC_REGISTRY).map(n => `${n.name} (id: ${n.id})`).join(', ');
+
+  const prompt = `You are the action classifier for a dark fantasy RPG called Sanctum & Shadow.
+The player typed: "${text}"
+Current location: ${loc?.name || 'Vaelthar'}
+Known NPCs in the world: ${knownNPCs}
+Player character: ${char?.name}, ${char?.class}
+
+Classify this action into EXACTLY ONE of these intents and respond with raw JSON only, no markdown:
+{ "intent": "talk", "npc_id": "<id from known NPCs>" }
+{ "intent": "combat", "target": "<enemy name>" }
+{ "intent": "action" }
+
+Rules:
+- "talk" = player wants to speak to, address, call over, interact with, or direct something at a specific NPC. Extract the NPC id from the known list.
+- "combat" = player wants to attack, fight, or use a combat ability against something.
+- "action" = everything else (explore, move, use item, investigate, etc.)
+- If the player mentions an NPC name anywhere in their text (even casually), and it's in the known list, classify as "talk" with that NPC.
+- Match NPC names flexibly: "rhael", "the captain", "that guard captain", "scribe", "the trembling man" etc.`;
+
+  try {
+    const res = await fetch('/api/npc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 60,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.content?.[0]?.text?.trim() || '{}';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch {
+    return { intent: 'action' };
+  }
+}
+
 // ─── submitAction HOOK ────────────────────────
 function installNPCHook() {
   const _prev = window.submitAction;
-  window.submitAction = function () {
+  window.submitAction = async function () {
     const input = document.getElementById('action-input');
     const text = (input?.value || '').trim();
     if (!text) return;
-    const lower = text.toLowerCase();
     if (window.AudioEngine) AudioEngine.sfx?.page();
 
     // Mid-conversation: everything goes to the NPC
@@ -659,29 +709,29 @@ function installNPCHook() {
       return;
     }
 
-    // Talk patterns
-    const talkRe = [
-      /^(?:talk|speak|chat)(?:\s+(?:to|with))?\s+(?:the\s+)?(.+)/i,
-      /^approach\s+(?:the\s+)?(.+)/i,
-      /^(?:ask|question|interrogate)\s+(?:the\s+)?(.+?)(?:\s+about.*)?$/i,
-      /^greet\s+(?:the\s+)?(.+)/i,
-      /^(?:go\s+(?:to\s+)?)?(?:find|see)\s+(?:the\s+)?(.+?)(?:\s+and.*)?$/i,
-    ];
+    // Clear input immediately so player sees response
+    input.value = '';
+    addLog(`${gameState.character?.name}: "${text}"`, 'action', gameState.character?.name);
 
-    for (const re of talkRe) {
-      const m = text.match(re);
-      if (m) {
-        const name = m[1].trim();
-        if (name.length > 1) {
-          input.value = '';
-          addLog(`${gameState.character?.name}: "${text}"`, 'action', gameState.character?.name);
-          startNPCConversation(name, text);
-          return;
-        }
-      }
+    // Ask Claude what the player intends
+    const intent = await classifyPlayerIntent(text);
+
+    if (intent.intent === 'talk' && intent.npc_id) {
+      startNPCConversation(intent.npc_id, text);
+      return;
     }
 
-    if (_prev) _prev();
+    if (intent.intent === 'combat') {
+      if (typeof checkAutoAttack === 'function') checkAutoAttack(text);
+      return;
+    }
+
+    // Default: pass to normal action handler
+    if (_prev) {
+      // Restore text temporarily for _prev to read, then clear
+      input.value = text;
+      _prev();
+    }
   };
 }
 
