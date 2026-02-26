@@ -775,14 +775,13 @@ function checkCombatEnd() {
 function endCombat(victory) {
   combatState.active = false;
 
-  // Identify who was just defeated (for story triggers)
-  const defeatedIds = Object.values(combatState.combatants)
-    .filter(c => !c.isPlayer)
-    .map(c => c.id);
+  // Identify who was just defeated (for story triggers and loot)
+  const defeatedEnemies = Object.values(combatState.combatants).filter(c => !c.isPlayer);
+  const defeatedIds = defeatedEnemies.map(c => c.id);
 
   if (victory) {
     let totalXP = 0;
-    Object.values(combatState.combatants).filter(c => !c.isPlayer).forEach(c => {
+    defeatedEnemies.forEach(c => {
       totalXP += c.xp || 50;
       grantHolyPoints(2);
     });
@@ -790,6 +789,12 @@ function endCombat(victory) {
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
     grantXP(totalXP);
     if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
+
+    // Generate and show loot
+    const loot = generateLoot(defeatedEnemies);
+    if (loot.length > 0) {
+      setTimeout(() => showLootPanel(loot, defeatedEnemies), 800);
+    }
 
     // Story triggers after boss defeats
     setTimeout(() => {
@@ -818,6 +823,189 @@ function endCombat(victory) {
     if (window.updateCharacterPanel) updateCharacterPanel();
   }, 2000);
 }
+
+// ─── LOOT TABLES ──────────────────────────────
+const LOOT_TABLES = {
+  // Common — low-tier enemies (bandits, skeletons, wolves, cultists)
+  common: [
+    { name: 'Gold Coins (5)',     icon: '🪙', type: 'gold',    value: 5,  weight: 40 },
+    { name: 'Gold Coins (12)',    icon: '🪙', type: 'gold',    value: 12, weight: 25 },
+    { name: 'Healing Salve',      icon: '🧪', type: 'consumable', effect: 'heal_15', weight: 30 },
+    { name: 'Torn Cloth',         icon: '🧵', type: 'junk',    value: 1,  weight: 20 },
+    { name: 'Crude Dagger',       icon: '🗡', type: 'weapon',  atk: 1,    weight: 15 },
+    { name: 'Mouldy Bread',       icon: '🍞', type: 'consumable', effect: 'heal_5', weight: 20 },
+    { name: 'Worn Leather Scrap', icon: '🧱', type: 'junk',    value: 2,  weight: 15 },
+  ],
+  // Uncommon — guards, church agents, strong NPCs
+  uncommon: [
+    { name: 'Gold Coins (25)',    icon: '🪙', type: 'gold',    value: 25, weight: 35 },
+    { name: 'Gold Coins (40)',    icon: '🪙', type: 'gold',    value: 40, weight: 20 },
+    { name: 'Health Potion',      icon: '🧪', type: 'consumable', effect: 'heal_30', weight: 30 },
+    { name: 'Guard\'s Sigil',    icon: '🛡', type: 'key_item', weight: 20 },
+    { name: 'Steel Shortsword',   icon: '⚔', type: 'weapon',  atk: 3,    weight: 15 },
+    { name: 'Chain Coif',         icon: '🪖', type: 'armor',   ac: 1,     weight: 15 },
+    { name: 'Church Document',    icon: '📜', type: 'key_item', weight: 20 },
+    { name: 'MP Tonic',           icon: '💙', type: 'consumable', effect: 'mp_20',  weight: 20 },
+    { name: 'Silver Ring',        icon: '💍', type: 'treasure', value: 30, weight: 15 },
+  ],
+  // Rare — named NPCs (Rhael, Mourne, Harren)
+  rare: [
+    { name: 'Gold Coins (80)',    icon: '🪙', type: 'gold',    value: 80,  weight: 25 },
+    { name: 'Gold Coins (120)',   icon: '🪙', type: 'gold',    value: 120, weight: 15 },
+    { name: 'Superior Health Potion', icon: '🧪', type: 'consumable', effect: 'heal_60', weight: 25 },
+    { name: 'Rhael\'s Badge of Office', icon: '🛡', type: 'key_item', weight: 30 },
+    { name: 'Mourne\'s Prayer Beads',   icon: '📿', type: 'key_item', weight: 30 },
+    { name: 'Enchanted Blade',    icon: '⚔', type: 'weapon',  atk: 5,    weight: 15 },
+    { name: 'Covenant Letter',    icon: '📜', type: 'key_item', weight: 25 },
+    { name: 'Blessed Armor Shard',icon: '🛡', type: 'armor',   ac: 2,     weight: 15 },
+    { name: 'Ancient Gold Coin',  icon: '🏅', type: 'treasure', value: 60, weight: 20 },
+    { name: 'Full Mana Crystal',  icon: '💎', type: 'consumable', effect: 'mp_50', weight: 20 },
+  ],
+  // Legendary — bosses (Varek, Voice Below, Shattered God, Harren Fallen)
+  legendary: [
+    { name: 'Gold Coins (300)',       icon: '🪙', type: 'gold',    value: 300, weight: 20 },
+    { name: 'Varek\'s Signet Ring',   icon: '💍', type: 'key_item', weight: 35 },
+    { name: 'Shard of the Covenant',  icon: '⚡', type: 'key_item', weight: 30 },
+    { name: 'Elixir of Power',        icon: '🧪', type: 'consumable', effect: 'full_heal', weight: 25 },
+    { name: 'Elder\'s Black Staff',   icon: '🔮', type: 'weapon',  atk: 8,     weight: 20 },
+    { name: 'Harren\'s Fallen Plate', icon: '🛡', type: 'armor',   ac: 5,      weight: 20 },
+    { name: 'Voice Fragment',         icon: '🕳', type: 'key_item', weight: 25 },
+    { name: 'Ancient Holy Relic',     icon: '✝', type: 'treasure', value: 200, weight: 15 },
+    { name: 'Tome of Forbidden Rites',icon: '📖', type: 'key_item', weight: 20 },
+    { name: 'Shattered God\'s Eye',   icon: '👁', type: 'key_item', weight: 15 },
+  ],
+};
+
+// Named NPC → specific unique loot override
+const NAMED_LOOT = {
+  captain_rhael:   [{ name: "Rhael's Watch Seal",      icon: '🛡', type: 'key_item' }, { name: "Gold Coins (60)", icon: '🪙', type: 'gold', value: 60 }],
+  sister_mourne:   [{ name: "Mourne's Heresy Notes",   icon: '📜', type: 'key_item' }, { name: "Blessed Candle",  icon: '🕯', type: 'consumable', effect: 'heal_20' }],
+  elder_varek:     [{ name: "Varek's Signet Ring",      icon: '💍', type: 'key_item' }, { name: "Covenant Seal",   icon: '⚡', type: 'key_item' }, { name: "Gold Coins (200)", icon: '🪙', type: 'gold', value: 200 }],
+  the_voice_below: [{ name: "Voice Fragment",           icon: '🕳', type: 'key_item' }, { name: "Void Shard",      icon: '🌑', type: 'key_item' }],
+  shattered_god:   [{ name: "Shattered God's Eye",      icon: '👁', type: 'key_item' }, { name: "Divine Remnant",  icon: '⚡', type: 'key_item' }],
+  harren_fallen:   [{ name: "Harren's Fallen Plate",    icon: '🛡', type: 'armor', ac: 5 }, { name: "Knight's Honor Oath", icon: '📜', type: 'key_item' }],
+};
+
+function getEnemyTier(enemy) {
+  if (enemy.boss) return 'legendary';
+  const xp = enemy.xp || 50;
+  if (xp >= 200) return 'rare';       // Named NPCs: Rhael, Mourne
+  if (xp >= 70)  return 'uncommon';   // Guards, agents, cultists
+  return 'common';                     // Bandits, skeletons, wolves
+}
+
+function weightedPick(table) {
+  const total = table.reduce((s, t) => s + t.weight, 0);
+  let r = Math.random() * total;
+  for (const item of table) {
+    r -= item.weight;
+    if (r <= 0) return item;
+  }
+  return table[0];
+}
+
+function generateLoot(enemies) {
+  const allLoot = [];
+  enemies.forEach(enemy => {
+    const baseId = enemy.id?.replace(/_\d+$/, ''); // strip numeric suffix
+    // Named NPC gets guaranteed unique loot
+    if (NAMED_LOOT[baseId]) {
+      NAMED_LOOT[baseId].forEach(item => allLoot.push({ ...item, from: enemy.name }));
+      return;
+    }
+    const tier = getEnemyTier(enemy);
+    const table = LOOT_TABLES[tier];
+    // Number of items scales with tier
+    const count = { common: 1, uncommon: 2, rare: 3, legendary: 4 }[tier];
+    const picked = new Set();
+    for (let i = 0; i < count; i++) {
+      let item;
+      let attempts = 0;
+      do { item = weightedPick(table); attempts++; }
+      while (picked.has(item.name) && attempts < 10);
+      picked.add(item.name);
+      allLoot.push({ ...item, from: enemy.name });
+    }
+  });
+  return allLoot;
+}
+
+function addToInventory(item) {
+  const char = gameState.character;
+  if (!char) return;
+  // Gold goes to a gold counter, not inventory
+  if (item.type === 'gold') {
+    char.gold = (char.gold || 0) + (item.value || 0);
+    addLog(`🪙 +${item.value} gold (total: ${char.gold})`, 'holy');
+    return;
+  }
+  // Consumables get added as named strings
+  char.inventory = char.inventory || [];
+  char.inventory.push(item.name);
+  if (typeof renderInventory === 'function') renderInventory();
+}
+
+function showLootPanel(loot, enemies) {
+  // Remove old loot panel
+  document.getElementById('loot-panel')?.remove();
+
+  const enemyNames = [...new Set(enemies.map(e => e.name))].join(', ');
+  const itemsHTML = loot.map((item, i) => `
+    <div class="loot-item" id="loot-item-${i}">
+      <span class="loot-icon">${item.icon}</span>
+      <div class="loot-info">
+        <span class="loot-name">${item.name}</span>
+        <span class="loot-from">from ${item.from}</span>
+      </div>
+      <button class="loot-take" onclick="takeLootItem(${i})">TAKE</button>
+    </div>
+  `).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'loot-panel';
+  panel.innerHTML = `
+    <div class="loot-inner">
+      <div class="loot-header">
+        <span class="loot-title">⚔ SPOILS OF BATTLE</span>
+        <span class="loot-subtitle">${enemyNames} defeated</span>
+      </div>
+      <div class="loot-items" id="loot-items">${itemsHTML}</div>
+      <div class="loot-footer">
+        <button class="loot-take-all" onclick="takeAllLoot()">⚔ TAKE ALL</button>
+        <button class="loot-leave" onclick="document.getElementById('loot-panel')?.remove()">Leave</button>
+      </div>
+    </div>
+  `;
+
+  // Store loot for take functions
+  window._currentLoot = loot;
+
+  const gameLog = document.getElementById('game-log');
+  if (gameLog) {
+    gameLog.appendChild(panel);
+    setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  } else {
+    document.body.appendChild(panel);
+  }
+}
+
+window.takeLootItem = function(index) {
+  const loot = window._currentLoot;
+  if (!loot || !loot[index]) return;
+  const item = loot[index];
+  addToInventory(item);
+  addLog(`${item.icon} Picked up: ${item.name}`, 'holy');
+  loot[index] = null; // mark taken
+  const el = document.getElementById(`loot-item-${index}`);
+  if (el) { el.style.opacity = '0.3'; el.querySelector('.loot-take').disabled = true; el.querySelector('.loot-take').textContent = '✓'; }
+};
+
+window.takeAllLoot = function() {
+  const loot = window._currentLoot;
+  if (!loot) return;
+  loot.forEach((item, i) => { if (item) window.takeLootItem(i); });
+  setTimeout(() => document.getElementById('loot-panel')?.remove(), 600);
+};
 
 // ─── AUTO-COMBAT TRIGGER ─────────────────────
 // Intercepts "attack X" typed actions
@@ -972,5 +1160,71 @@ const combatCSS = `
 const cStyle = document.createElement('style');
 cStyle.textContent = combatCSS;
 document.head.appendChild(cStyle);
+
+// ─── LOOT CSS ─────────────────────────────────
+const lootCSS = `
+#loot-panel {
+  width: 100%; margin: 8px 0;
+  animation: sceneFadeIn 0.4s ease;
+}
+.loot-inner {
+  background: linear-gradient(160deg, rgba(12,8,3,0.99) 0%, rgba(6,4,1,1) 100%);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-left: 3px solid var(--gold);
+}
+.loot-header {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 16px 8px;
+  background: rgba(201,168,76,0.06);
+  border-bottom: 1px solid rgba(201,168,76,0.15);
+}
+.loot-title {
+  font-family: 'Cinzel', serif; font-size: 0.78rem;
+  color: var(--gold); letter-spacing: 0.15em;
+}
+.loot-subtitle {
+  font-size: 0.68rem; color: var(--text-dim); font-style: italic;
+}
+.loot-items { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; }
+.loot-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  background: rgba(15,10,4,0.9);
+  border: 1px solid rgba(201,168,76,0.1);
+  transition: opacity 0.3s;
+}
+.loot-icon { font-size: 1.2rem; flex-shrink: 0; }
+.loot-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.loot-name { font-family: 'Cinzel', serif; font-size: 0.72rem; color: var(--text-primary); }
+.loot-from { font-size: 0.62rem; color: var(--text-dim); font-style: italic; }
+.loot-take {
+  background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.35);
+  color: var(--gold); font-family: 'Cinzel', serif; font-size: 0.62rem;
+  padding: 4px 10px; cursor: pointer; letter-spacing: 0.08em;
+  transition: all 0.15s; white-space: nowrap;
+}
+.loot-take:hover { background: rgba(201,168,76,0.25); }
+.loot-take:disabled { opacity: 0.4; cursor: default; }
+.loot-footer {
+  display: flex; gap: 8px; padding: 8px 12px 10px;
+  border-top: 1px solid rgba(201,168,76,0.08);
+}
+.loot-take-all {
+  flex: 1; background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  border: none; color: var(--dark-bg); font-family: 'Cinzel', serif;
+  font-size: 0.72rem; font-weight: 700; padding: 8px; cursor: pointer;
+  letter-spacing: 0.1em; transition: opacity 0.15s;
+}
+.loot-take-all:hover { opacity: 0.85; }
+.loot-leave {
+  background: transparent; border: 1px solid rgba(201,168,76,0.2);
+  color: var(--text-dim); font-family: 'Cinzel', serif; font-size: 0.68rem;
+  padding: 8px 14px; cursor: pointer;
+}
+.loot-leave:hover { border-color: var(--gold); color: var(--gold); }
+`;
+const lStyle = document.createElement('style');
+lStyle.textContent = lootCSS;
+document.head.appendChild(lStyle);
 
 console.log('⚔ Combat system initialized. AP costs: Move=1, Attack=1, Spell=2, Pray=1, Free actions=0');

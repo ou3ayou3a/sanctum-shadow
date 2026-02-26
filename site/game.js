@@ -608,6 +608,9 @@ function renderPlayerCard() {
       ${char.statPoints > 0 ? `<span style="color:#8bc87a;animation:pulse 1s infinite">🎯 ${char.statPoints} pt${char.statPoints>1?'s':''}</span>` : `<span style="color:var(--text-dim);font-size:0.65rem">${char.xp} xp</span>`}
       <span class="hell-pts">⛧ ${char.hellPoints}</span>
     </div>
+    <div class="morality-display" style="margin-top:4px">
+      <span style="color:#c9a84c;font-family:'Cinzel',serif;font-size:0.7rem">🪙 ${char.gold || 0} gold</span>
+    </div>
   `;
 }
 
