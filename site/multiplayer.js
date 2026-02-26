@@ -58,15 +58,27 @@ function initMultiplayer() {
     window.mp.playerId = socket.id;
     console.log('🔗 MP connected:', socket.id);
     const el = document.getElementById('mp-status');
-    if (el) el.innerHTML = '🟢 Server connected — ready to play';
-    if (el) el.style.color = '#4a9a6a';
-    // Rejoin if we had a session
-    if (window.mp.sessionCode && window.mp._playerName) {
-      socket.emit('rejoin_session', {
-        code: window.mp.sessionCode,
-        playerName: window.mp._playerName,
-        character: gameState.character || null,
-      });
+    if (el) { el.innerHTML = '🟢 Server connected — ready to play'; el.style.color = '#4a9a6a'; }
+
+    // Rejoin if we had a session — retry with backoff in case server just restarted from disk
+    const code = window.mp.sessionCode || gameState?.sessionCode;
+    const char = gameState?.character;
+    const name = window.mp._playerName || char?.name;
+    if (code && name) {
+      let attempt = 0;
+      const tryRejoin = () => {
+        attempt++;
+        console.log(`Rejoin attempt ${attempt} for session ${code}`);
+        socket.emit('rejoin_session', { code, playerName: name, character: char || null });
+        // If still no session code after 2s (join_error cleared it), stop retrying
+        if (attempt < 3) {
+          setTimeout(() => {
+            if (!window.mp.sessionCode) return; // gave up
+            tryRejoin();
+          }, 2000 * attempt);
+        }
+      };
+      setTimeout(tryRejoin, 400);
     }
   });
 
@@ -75,24 +87,14 @@ function initMultiplayer() {
     console.warn('MP disconnected');
     const el = document.getElementById('mp-status');
     if (el) { el.innerHTML = '🔴 Disconnected — reconnecting...'; el.style.color = '#c0392b'; }
+    // Never boot to lobby on disconnect — socket.io will auto-reconnect
   });
 
-  socket.on('connect', () => {
-    window.mp.connected = true;
+  socket.on('connect_error', (err) => {
+    console.warn('MP connect error:', err.message);
     const el = document.getElementById('mp-status');
-    if (el) { el.innerHTML = '🟢 Connected'; el.style.color = ''; }
-
-    // Auto-rejoin session if we were in one
-    const code = window.mp.sessionCode || gameState?.sessionCode;
-    const char = gameState?.character;
-    if (code && char) {
-      console.log('Auto-rejoining session', code);
-      socket.emit('rejoin_session', {
-        code,
-        playerName: char.name,
-        character: char
-      });
-    }
+    if (el) { el.innerHTML = '🟡 Reconnecting...'; el.style.color = '#f39c12'; }
+    // Don't kick to lobby — just wait for reconnect
   });
 
   // ── Session created (host) ──
@@ -135,8 +137,17 @@ function initMultiplayer() {
 
   // ── Error ──
   socket.on('join_error', ({ msg }) => {
-    toast(msg, 'error');
-    showScreen('join-session');
+    // If already in-game, don't boot to lobby — just show a warning toast
+    if (gameState.activeScreen === 'game' && gameState.character) {
+      toast('⚠ ' + msg + ' — continuing solo.', 'error');
+      addLog(`⚠ Session error: ${msg} — playing solo.`, 'system');
+      // Clear session code so further actions work solo
+      window.mp.sessionCode = null;
+      gameState.sessionCode = null;
+    } else {
+      toast(msg, 'error');
+      showScreen('join-session');
+    }
   });
 
   // ── Session state updates ──

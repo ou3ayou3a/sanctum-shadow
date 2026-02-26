@@ -69,9 +69,47 @@ app.post('/api/npc', (req, res) => {
   request.end();
 });
 
-// ─── SESSION STORE (in-memory) ───────────────
+// ─── SESSION STORE ────────────────────────────
 // sessions[code] = { code, name, host, players:{id:{name,character,hp,ready}}, combatState, log:[], chatLog:[] }
-const sessions = {};
+const fs = require('fs');
+const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+
+let sessions = {};
+
+function loadSessionsFromDisk() {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const raw = fs.readFileSync(SESSIONS_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      // Only restore sessions created in the last 24 hours
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      Object.entries(data).forEach(([code, s]) => {
+        if (s.createdAt && s.createdAt > cutoff) {
+          // Mark all players as disconnected — they'll rejoin
+          Object.values(s.players).forEach(p => { p.connected = false; });
+          sessions[code] = s;
+        }
+      });
+      console.log(`Restored ${Object.keys(sessions).length} sessions from disk.`);
+    }
+  } catch (e) {
+    console.warn('Could not load sessions from disk:', e.message);
+  }
+}
+
+function saveSessionsToDisk() {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+  } catch (e) {
+    console.warn('Could not save sessions to disk:', e.message);
+  }
+}
+
+// Save every 30 seconds
+setInterval(saveSessionsToDisk, 30000);
+
+// Load on startup
+loadSessionsFromDisk();
 
 function getSession(code) { return sessions[code] || null; }
 
@@ -95,7 +133,8 @@ io.on('connection', (socket) => {
       players: {
         [socket.id]: { id: socket.id, name: playerName, character: null, hp: null, maxHp: null, ready: false, connected: true }
       },
-      combatState: null, log: [], chatLog: [], state: 'waiting'
+      combatState: null, log: [], chatLog: [], state: 'waiting',
+      createdAt: Date.now(),
     };
 
     socket.join(code);
@@ -103,6 +142,7 @@ io.on('connection', (socket) => {
     socket.playerName = playerName;
     socket.emit('session_created', { code, playerId: socket.id });
     broadcastSession(code);
+    saveSessionsToDisk();
     console.log(`Session created: ${code} by ${playerName}`);
   });
 
@@ -385,15 +425,19 @@ io.on('connection', (socket) => {
     if (!s) return;
     if (s.players[socket.id]) {
       s.players[socket.id].connected = false;
-      io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} disconnected.` });
+      io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} disconnected. Waiting for reconnect...` });
       broadcastSession(code);
     }
-    // Clean up empty sessions
-    const connected = Object.values(s.players).filter(p => p.connected);
-    if (connected.length === 0) {
-      delete sessions[code];
-      console.log(`Session ${code} cleaned up.`);
-    }
+    // Give players 5 minutes to reconnect before cleaning up the session
+    setTimeout(() => {
+      const sess = getSession(code);
+      if (!sess) return;
+      const connected = Object.values(sess.players).filter(p => p.connected);
+      if (connected.length === 0) {
+        delete sessions[code];
+        console.log(`Session ${code} cleaned up after grace period.`);
+      }
+    }, 5 * 60 * 1000); // 5 minute grace period
   });
 });
 
