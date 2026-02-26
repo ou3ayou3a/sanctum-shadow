@@ -767,12 +767,30 @@ function installNPCHook() {
       return;
     }
 
-    // ── Fast local talk detection (before slow AI classify) ──
-    const _talkMatch = text.match(/(?:talk to|speak to|ask|say to|approach|greet|address|go to)\s+([a-z\s]+?)(?:\s*,|\s*$|\s*"|\.)/i);
-    if (_talkMatch) {
-      const _npcName = _talkMatch[1].trim();
+    // ── Fast local talk detection — scan for any known NPC name in text ──
+    const _quickNPC = (() => {
+      const l = text.toLowerCase();
+      // Check aliases first
+      const aliasMap = {
+        'rhael':'captain_rhael','captain':'captain_rhael','watch captain':'captain_rhael',
+        'mourne':'sister_mourne','sister':'sister_mourne',
+        'scribe':'trembling_scribe','trembling scribe':'trembling_scribe',
+        'varek':'elder_varek','elder':'elder_varek',
+        'bresker':'bresker','harren':'harren_fallen',
+      };
+      for (const [alias, id] of Object.entries(aliasMap)) {
+        if (l.includes(alias)) return id;
+      }
+      // Check NPC registry names
+      return Object.values(NPC_REGISTRY || {}).find(n => {
+        const last = n.name.toLowerCase().split(' ').pop();
+        return l.includes(last) && last.length > 3;
+      })?.id || null;
+    })();
+
+    if (_quickNPC) {
       input.value = '';
-      startNPCConversation(_npcName, text);
+      startNPCConversation(_quickNPC, text);
       return;
     }
 
