@@ -156,6 +156,24 @@ async function sendNPCMessage(playerText, isOpener = false) {
   const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
   const storyFlags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
 
+  // ── Build rich world state for NPC awareness ──
+  const flags = window.sceneState?.flags || {};
+  const deadNPCs = Object.keys(flags)
+    .filter(k => k.startsWith('npc_dead_'))
+    .map(k => {
+      const id = k.replace('npc_dead_','');
+      const killer = flags['killed_' + id];
+      return killer ? `${id.replace(/_/g,' ')} (killed by ${killer})` : id.replace(/_/g,' ');
+    });
+  const deadNPCContext = deadNPCs.length > 0
+    ? `DEAD NPCs — these characters no longer exist in the world: ${deadNPCs.join(', ')}. NPCs cannot call for help from dead characters. If asked about them, react with appropriate shock, grief, or suspicion.`
+    : `All major NPCs are currently alive.`;
+
+  const knownInfoFlags = Object.entries(flags)
+    .filter(([k]) => !k.startsWith('npc_dead_') && !k.startsWith('killed_'))
+    .map(([k,v]) => `${k}=${v}`)
+    .join(', ') || 'none';
+
   if (!isOpener) {
     addLog(`${char?.name}: "${playerText}"`, 'action', char?.name);
     // Update local conv panel to show this player's portrait
@@ -212,10 +230,13 @@ CURRENT CONTEXT:
 - ${charSkills}
 - ${partyContext}
 - Location: ${loc?.name}
-- Story flags: ${storyFlags}
+- Story flags: ${knownInfoFlags}
 - Disposition: ${npc.disposition}
 - Conversation turn: ${window.npcConvState.turnCount}/8
 - ${knownNPCs}
+
+WORLD STATE (treat this as absolute truth):
+${deadNPCContext}
 
 CRITICAL RULES:
 1. Stay in character. You ARE ${npc.name}.
@@ -282,6 +303,9 @@ CRITICAL RULES:
   }
 
   const { speech, options } = parseNPCResponse(cleanResponse);
+
+  // ── Write conversation outcomes back to world state ──
+  _updateWorldFromConversation(npc, speech, cleanResponse);
 
   // Broadcast immediately with timestamp — receivers sync typewriter to same position
   const broadcastTime = Date.now();
@@ -710,6 +734,46 @@ function showTypingIndicator() {
 function hideTypingIndicator() {
   const el = document.getElementById('cp-typing');
   if (el) el.style.display = 'none';
+}
+
+// ── Write conversation outcomes back to global world state ──
+function _updateWorldFromConversation(npc, speech, fullResponse) {
+  if (!window.sceneState) window.sceneState = { flags: {} };
+  const flags = window.sceneState.flags;
+  const lower = speech.toLowerCase();
+  const npcId = npc.id;
+
+  // Track that player has spoken with this NPC
+  flags['talked_to_' + npcId] = true;
+
+  // Detect NPC revealing key information
+  if (lower.includes('varek') && (lower.includes('monastery') || lower.includes('old quarter') || lower.includes('whereabouts') || lower.includes('hiding'))) {
+    flags['knows_varek_location'] = true;
+  }
+  if (lower.includes('covenant') && (lower.includes('disbanded') || lower.includes('destroyed') || lower.includes('gone') || lower.includes('dead'))) {
+    flags['knows_covenant_fate'] = true;
+  }
+  if (lower.includes('archive') && (lower.includes('document') || lower.includes('scroll') || lower.includes('seal'))) {
+    flags['knows_archive_secret'] = true;
+  }
+
+  // Detect NPC becoming hostile or allied
+  if (lower.includes("won't help") || lower.includes("get out") || lower.includes("guards!") || lower.includes("arrest")) {
+    flags['hostile_' + npcId] = true;
+  }
+  if (lower.includes('trust you') || lower.includes('help you') || lower.includes('ally') || lower.includes('with you')) {
+    flags['allied_' + npcId] = true;
+  }
+
+  // Detect NPC being told someone is dead (so they won't call for that person)
+  const deathMentionMatch = fullResponse.match(/(\w[\w\s]+) is dead/i);
+  if (deathMentionMatch) {
+    const mentionedName = deathMentionMatch[1].trim().toLowerCase().replace(/\s+/g,'_');
+    flags['npc_dead_' + mentionedName] = flags['npc_dead_' + mentionedName] || 'unknown_killer';
+  }
+
+  // Persist flags to save system
+  if (window.autoSave) window.autoSave();
 }
 
 function closeConvPanel() {

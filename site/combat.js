@@ -1286,6 +1286,12 @@ function endCombat(victory) {
     defeatedEnemies.forEach(c => {
       totalXP += c.xp || 50;
       grantHolyPoints(2);
+      // ── Write death to world state so all NPCs know ──
+      if (!window.sceneState) window.sceneState = { flags: {} };
+      if (!window.sceneState.flags) window.sceneState.flags = {};
+      const deadKey = 'npc_dead_' + (c.id || c.name.toLowerCase().replace(/\s+/g,'_'));
+      window.sceneState.flags[deadKey] = true;
+      window.sceneState.flags['killed_' + deadKey.replace('npc_dead_','')] = gameState.character?.name || 'player';
     });
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
