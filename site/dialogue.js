@@ -292,6 +292,7 @@ ${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
 ${window.getNPCScheduleContext ? window.getNPCScheduleContext(npc.id) : ''}
 
 CRITICAL RULES:
+0. IDENTITY — You are ${npc.name}. The player is ${char?.name}. NEVER swap these. Messages in brackets like [${char?.name} does X] describe the player's action — you react to them AS ${npc.name}. Never write dialogue or actions for ${char?.name} — only for yourself.
 1. Stay in character. You ARE ${npc.name}.
 2. Write dialogue naturally. Use *asterisks* for physical actions only.
 3. NEVER use markdown headers (# Title), bold (**text**), or horizontal rules (---). Plain text only.
@@ -308,7 +309,13 @@ CRITICAL RULES:
 13. NEVER ask the player about their stats, modifiers, or dice rolls. The game system handles all rolls automatically. If a freeform action requires a check, use [ROLL:STAT:DC] in your response text and the system resolves it — you just narrate the outcome as if you already know whether they succeeded or failed based on context.
 14. When a player takes a freeform dramatic action (draws weapon, intimidates, seduces, sneaks), embed [ROLL:STAT:DC] directly in your narrative. Example: "*She watches you draw the blade.* [ROLL:STR:12] *The guard steps forward.*" — NEVER ask them to confirm their modifier.`;
 
-  const userMsg = isOpener ? `[The player ${playerText}]` : playerText;
+  const charName = char?.name || 'The player';
+  // Frame the message clearly so Claude always knows who is acting
+  // Openers: "[Khiax approaches the Scribe]"
+  // Follow-ups: already framed as "[Khiax does X]" from submitConvInput/submitAction
+  const userMsg = isOpener
+    ? `[${charName} ${playerText}]`
+    : playerText; // already framed upstream with player name
   const messages = isOpener
     ? [{ role: 'user', content: userMsg }]
     : [...history, { role: 'user', content: userMsg }];
@@ -401,10 +408,13 @@ async function pickNPCOption(index) {
 
   // End conversation
   if (lower.includes('end conversation') || lower.includes('walk away') || lower.includes('leave') || lower.includes('step back')) {
-    addLog(`${char?.name} ends the conversation.`, 'system');
+    addLog(`${char?.name} ends the conversation with ${window.npcConvState.npc?.name}.`, 'system');
     closeConvPanel();
     return;
   }
+
+  // Frame the option as the player's action before sending
+  const framed = `[${char?.name} ${option.text}]`;
 
   // Roll required
   if (option.roll) {
@@ -421,7 +431,7 @@ async function pickNPCOption(index) {
     addLog(`🎲 ${option.roll.stat} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
 
-    const resultMsg = `${option.text} [Roll result: ${success ? 'SUCCESS' : 'FAILURE'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
+    const resultMsg = `${framed} [Roll result: ${success ? 'SUCCESS' : 'FAILURE'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
     await sendNPCMessage(resultMsg);
     return;
   }
@@ -456,12 +466,12 @@ async function pickNPCOption(index) {
     const success = total >= 14 || roll === 20;
     addLog(`🎲 STR (Grapple) DC14: [${roll}] + ${strMod} = ${total} — ${success ? '✅ Grabbed!' : '❌ Failed!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
-    await sendNPCMessage(`${option.text} [${success ? 'SUCCEEDED' : 'FAILED'} — rolled ${total} vs DC14]`);
+    await sendNPCMessage(`${framed} [${success ? 'SUCCEEDED' : 'FAILED'} — rolled ${total} vs DC14]`);
     return;
   }
 
-  // Normal option
-  await sendNPCMessage(option.text);
+  // Normal option — always framed with player identity
+  await sendNPCMessage(framed);
 }
 
 // ─── FREE-FORM INPUT ─────────────────────────
@@ -475,17 +485,20 @@ async function submitConvInput() {
   const npc = window.npcConvState.npc;
   const lower = text.toLowerCase();
 
+  // ── Leave/exit → end conversation, pass to world ──
+  const leaveWords = ['leave', 'walk away', 'exit', 'step away', 'depart', 'walk out', 'turn away'];
+  if (leaveWords.some(w => lower.startsWith(w) || lower.includes(' and leave'))) {
+    addLog(`${char?.name} ends the conversation.`, 'system');
+    closeConvPanel();
+    return;
+  }
+
   // ── Attack detection — close conv, show flavor, launch combat ──
   const attackWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'kill', 'slash', 'draw sword', 'draw my sword', 'fight', 'lunge', 'charge', 'shoot'];
   if (attackWords.some(w => lower.includes(w))) {
-    // Log the attack intent
     addLog(`⚔ ${char?.name} attacks ${npc.name}!`, 'combat');
     if (window.AudioEngine) AudioEngine.sfx?.sword?.();
-
-    // Close conversation
     closeConvPanel();
-
-    // Build enemy from NPC
     const enemyTemplateMap = {
       'captain_rhael':   () => generateEnemy('captain_rhael', 1),
       'vaelthar_guard':  () => generateEnemy('city_guard', 1),
@@ -497,11 +510,16 @@ async function submitConvInput() {
     const enemy = enemyFn ? enemyFn() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation] || 1);
     enemy.name = npc.name;
     enemy.icon = npc.portrait || '👤';
-
-    // Brief dramatic pause then combat
     setTimeout(() => startCombat([enemy]), 400);
     return;
   }
+
+  // ── Wrap with player identity — this is the fix for identity inversion ──
+  // Claude is playing the NPC. Every user message must be clearly attributed
+  // to the player character, not left ambiguous. Without this wrapper, Claude
+  // interprets bare actions (e.g. "leave the archives") as coming from its own
+  // character's perspective and writes the scene inverted.
+  const framed = `[${char?.name || 'The player'} ${text}]`;
 
   // Detect if this action needs a roll (not pure speech)
   const needsCHA = ['flirt', 'seduce', 'charm', 'persuade', 'convince', 'bribe', 'threaten', 'intimidate', 'bluff', 'lie', 'deceive', 'stand down', 'back off', 'surrender'].some(w => lower.includes(w));
@@ -523,12 +541,12 @@ async function submitConvInput() {
     addLog(`🎲 ${statLabel} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
 
-    const resultMsg = `${text} [${success ? 'SUCCESS' : 'FAILURE'} — rolled ${total} vs DC${dc}${crit ? ', critical' : fumble ? ', fumble' : ''}]`;
+    const resultMsg = `${framed} [${success ? 'SUCCESS' : 'FAILURE'} — rolled ${total} vs DC${dc}${crit ? ', critical' : fumble ? ', fumble' : ''}]`;
     await sendNPCMessage(resultMsg);
     return;
   }
 
-  await sendNPCMessage(text);
+  await sendNPCMessage(framed);
 }
 
 // ─── FREEFORM SCENE (unknown NPC) ────────────
@@ -955,11 +973,25 @@ function installNPCHook() {
     // ── Mid-conversation intercept ──
     if (window.npcConvState?.active) {
       input.value = '';
+      const char = gameState.character;
+      const _npc = window.npcConvState.npc;
+      const lower = text.toLowerCase();
+
+      // Leave/exit words → end conversation and pass action to world
+      const _leaveW = ['leave', 'walk away', 'step away', 'go away', 'exit', 'depart', 'turn and leave', 'turn away', 'leave the', 'walk out'];
+      if (_leaveW.some(w => lower.startsWith(w) || lower.includes(' and leave') || lower.includes('walk away'))) {
+        addLog(`${char?.name} ends the conversation and leaves.`, 'system');
+        closeConvPanel();
+        // Pass the action to the world handler as a scene action
+        input.value = text;
+        _prev();
+        return;
+      }
+
       // Attack words → close conv and start combat immediately
       const _atkW = ['attack','stab','strike','punch','hit','kill','slash','fight','lunge','charge','shoot','draw sword'];
-      if (_atkW.some(w => text.toLowerCase().includes(w))) {
-        const _npc = window.npcConvState.npc;
-        addLog(`⚔ ${gameState.character?.name} attacks ${_npc.name}!`, 'combat');
+      if (_atkW.some(w => lower.includes(w))) {
+        addLog(`⚔ ${char?.name} attacks ${_npc.name}!`, 'combat');
         if (window.AudioEngine) AudioEngine.sfx?.sword?.();
         closeConvPanel();
         const _ef = { captain_rhael:()=>generateEnemy('captain_rhael',1), sister_mourne:()=>generateEnemy('sister_mourne',2), bresker:()=>generateEnemy('city_guard',2) };
@@ -968,7 +1000,10 @@ function installNPCHook() {
         setTimeout(()=>startCombat([_en]), 400);
         return;
       }
-      sendNPCMessage(text);
+
+      // All other text — wrap with player identity so Claude never confuses who is speaking
+      const framed = `[${char?.name || 'The player'} ${text}]`;
+      sendNPCMessage(framed);
       return;
     }
 
