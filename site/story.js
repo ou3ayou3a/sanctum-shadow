@@ -2582,6 +2582,12 @@ window.executeSceneOption = function(index) {
 };
 
 function startStoryEngine() {
+  // If loading from a save, skip the opening scene — the save restores state
+  if (window._loadingSave) {
+    window._loadingSave = false;
+    startPersonalQuestHook();
+    return;
+  }
   setTimeout(() => {
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
     runScene('arrival_vaelthar');

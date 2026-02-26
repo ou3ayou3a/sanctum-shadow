@@ -3,7 +3,7 @@
 // ============================================
 
 const SS_SAVES_KEY = 'ss_saves_v1';
-const AUTOSAVE_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const AUTOSAVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 let _autosaveTimer = null;
 let _lastSaveTime = null;
 
@@ -38,7 +38,6 @@ function buildSaveSlot(slotName, type) {
   if (!char) return null;
 
   const existing = getAllSaves();
-  // Find existing slot for this run (same character + type) to track play time
   const prev = existing.find(s => s.id && s.character?.name === char.name && s.type === type);
   const prevPlayTime = prev?.playTime || 0;
   const sessionStart = window._sessionStart || Date.now();
@@ -53,25 +52,30 @@ function buildSaveSlot(slotName, type) {
       class: char.class,
       race: char.race,
       level: char.level || 1,
+      xp: char.xp || 0,
       hp: char.hp,
       maxHp: char.maxHp,
       mp: char.mp,
       maxMp: char.maxMp,
       holyPoints: char.holyPoints || 0,
       hellPoints: char.hellPoints || 0,
+      gold: char.gold || 0,
+      statPoints: char.statPoints || 0,
       stats: char.stats || {},
+      skills: char.skills || {},
       inventory: char.inventory || [],
       spells: char.spells || [],
       personalQuests: char.personalQuests || [],
       backstory: char.backstory || '',
       origin: char.origin || '',
       revealChoice: char.revealChoice || '',
+      tree: char.tree || '',
     },
     gameState: {
       chapter: gameState.chapter || 1,
       activeQuests: gameState.activeQuests || [],
       completedQuests: gameState.completedQuests || [],
-      log: (gameState.log || []).slice(-60), // last 60 lines
+      log: (gameState.log || []).slice(-80),
     },
     sceneFlags: window.sceneState?.flags || {},
     sceneHistory: window.sceneState?.history || [],
@@ -152,8 +156,19 @@ function loadSaveSlot(slotId) {
   const slot = slots.find(s => s.id === slotId);
   if (!slot) { toast('Save not found.', 'error'); return; }
 
-  // Restore character
-  gameState.character = { ...slot.character };
+  // Signal story engine to skip opening scene
+  window._loadingSave = true;
+
+  // Restore full character with all progression
+  gameState.character = {
+    ...slot.character,
+    // Ensure all fields exist with fallbacks
+    xp: slot.character.xp || 0,
+    gold: slot.character.gold || 0,
+    statPoints: slot.character.statPoints || 0,
+    skills: slot.character.skills || {},
+    spells: slot.character.spells || [],
+  };
 
   // Restore game state
   gameState.chapter = slot.gameState.chapter || 1;
@@ -161,10 +176,14 @@ function loadSaveSlot(slotId) {
   gameState.completedQuests = slot.gameState.completedQuests || [];
   gameState.log = slot.gameState.log || [];
 
-  // Restore scene flags
+  // Restore scene flags — this is what determines story progress
   if (window.sceneState) {
     window.sceneState.flags = slot.sceneFlags || {};
     window.sceneState.history = slot.sceneHistory || [];
+  } else {
+    // sceneState not yet initialized — will be set when story.js loads
+    window._pendingSceneFlags = slot.sceneFlags || {};
+    window._pendingSceneHistory = slot.sceneHistory || [];
   }
 
   // Restore map position
@@ -177,7 +196,6 @@ function loadSaveSlot(slotId) {
     window.romanceState = slot.romanceState;
   }
 
-  // Track session start for play time tracking
   window._sessionStart = Date.now();
 
   // Launch game screen
@@ -185,22 +203,54 @@ function loadSaveSlot(slotId) {
   initGameScreen();
   showScreen('game');
 
-  // Replay last few log lines
-  if (slot.gameState.log?.length) {
-    setTimeout(() => {
+  setTimeout(() => {
+    // Apply any pending scene state if sceneState wasn't ready before
+    if (window._pendingSceneFlags && window.sceneState) {
+      window.sceneState.flags = window._pendingSceneFlags;
+      window.sceneState.history = window._pendingSceneHistory || [];
+      delete window._pendingSceneFlags;
+      delete window._pendingSceneHistory;
+    }
+
+    // Restore map visuals
+    const locData = WORLD_LOCATIONS?.[slot.mapState?.currentLocation];
+    if (locData && window.mapState) {
+      window.mapState.currentLocation = locData.id;
+      if (window.renderMap) window.renderMap();
+      if (window.updateLocationDisplay) window.updateLocationDisplay(locData);
+      if (window.AudioEngine) AudioEngine.transition(locData.music || 'city_dread', 1000);
+    }
+
+    // Replay saved log to game-log element so players see their history
+    const gameLog = document.getElementById('game-log');
+    if (gameLog && slot.gameState.log?.length) {
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-      addLog(`💾 Chronicle resumed: ${slot.name}`, 'system');
-      addLog(`📍 ${slot.location} — Chapter ${slot.chapter}`, 'system');
-      // Restore map to correct location without travel animation
-      const locData = WORLD_LOCATIONS?.[slot.mapState?.currentLocation];
-      if (locData && window.mapState) {
-        window.mapState.currentLocation = locData.id;
-        if (window.renderMap) window.renderMap();
-        if (window.updateLocationDisplay) window.updateLocationDisplay(locData);
-        if (window.AudioEngine) AudioEngine.transition(locData.music || 'city_dread', 1000);
+      addLog(`💾 Chronicle resumed — ${slot.name}`, 'system');
+      addLog(`📍 ${slot.location} — Chapter ${slot.chapter} — Lv.${slot.character.level}`, 'system');
+
+      // Replay last 20 log lines as history
+      const replayLines = (slot.gameState.log || []).slice(-20);
+      if (replayLines.length > 0) {
+        addLog('── Recent history ─────────────────────', 'system');
+        replayLines.forEach(entry => {
+          if (typeof entry === 'string') {
+            addLog(entry, 'narrator');
+          } else if (entry?.text) {
+            addLog(entry.text, entry.type || 'narrator');
+          }
+        });
+        addLog('── End of history — story continues ───', 'system');
       }
-    }, 800);
-  }
+    }
+
+    // Update all UI panels with restored data
+    if (window.renderPlayerCard) renderPlayerCard();
+    if (window.renderInventory) renderInventory();
+    if (window.renderQuestList) renderQuestList();
+    if (window.renderStatsMini) renderStatsMini();
+    if (window.updateXPBar) updateXPBar();
+
+  }, 800);
 
   startAutosave();
   toast(`✅ Loaded: ${slot.name}`);
@@ -400,6 +450,31 @@ window.showScreen = function(name) {
   if (name !== 'game') stopAutosave();
   else startAutosave();
 };
+
+// Trigger save after scene option chosen
+const _origExecForSave = window.executeSceneOption;
+window.executeSceneOption = function(index) {
+  if (_origExecForSave) _origExecForSave(index);
+  setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 500);
+};
+
+// Trigger save after combat victory (endCombat is in combat.js — hook via window)
+const _origEndCombatForSave = window.endCombat;
+if (_origEndCombatForSave) {
+  window.endCombat = function(victory) {
+    _origEndCombatForSave(victory);
+    if (victory) setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 3000);
+  };
+}
+
+// Trigger save after NPC conversation closes
+const _origCloseConvForSave = window.closeConvPanel;
+if (_origCloseConvForSave) {
+  window.closeConvPanel = function() {
+    _origCloseConvForSave();
+    setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 300);
+  };
+}
 
 // Expose globally
 window.saveGame = saveGame;

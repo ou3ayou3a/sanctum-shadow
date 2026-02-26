@@ -40,88 +40,28 @@ const TRACK_NAMES = {
   fortress_somber: 'Fortress Harren — The Kneeling Knight', wastes_eerie: 'Ashen Fields — Blue Fire',
 };
 
-// ─── SAVE / LOAD SYSTEM ──────────────────────
-const SAVE_KEY = 'ss_save_v1';
-
-function saveGame(silent = false) {
-  if (!gameState.character) return;
-  const save = {
-    character: gameState.character,
-    activeQuests: gameState.activeQuests,
-    completedQuests: gameState.completedQuests,
-    chapter: gameState.chapter,
-    questIndex: gameState.questIndex,
-    log: gameState.log?.slice(-40) || [], // save last 40 log entries
-    currentLocation: mapState?.currentLocation || 'vaelthar_city',
-    storyHistory: window.storyHistory || [],
-    savedAt: new Date().toISOString(),
-  };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-  if (!silent) {
-    toast('⚔ Chronicle saved.', 'holy');
-    addLog('📜 Chronicle saved to memory.', 'system');
-  }
-}
-
-function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return false;
-  try {
-    const save = JSON.parse(raw);
-    if (!save.character) return false;
-
-    // Restore gameState
-    gameState.character = save.character;
-    gameState.activeQuests = save.activeQuests || [];
-    gameState.completedQuests = save.completedQuests || [];
-    gameState.chapter = save.chapter || 1;
-    gameState.questIndex = save.questIndex || 1;
-    gameState.log = save.log || [];
-    window.storyHistory = save.storyHistory || [];
-
-    // Restore map location
-    if (save.currentLocation && window.mapState) {
-      mapState.currentLocation = save.currentLocation;
-      if (WORLD_LOCATIONS[save.currentLocation]) {
-        WORLD_LOCATIONS[save.currentLocation].discovered = true;
-        WORLD_LOCATIONS[save.currentLocation].current = true;
-      }
-    }
-
-    return true;
-  } catch(e) {
-    console.warn('Failed to load save:', e);
-    return false;
-  }
-}
-
-function deleteSave() {
-  localStorage.removeItem(SAVE_KEY);
-  toast('Save deleted.', 'error');
-}
+// ─── SAVE SYSTEM — handled by saves.js ───────
+// These stubs exist only for backwards compatibility.
+// The real save system is in saves.js which loads after this file.
+const SAVE_KEY = 'ss_save_v1'; // legacy key — no longer used for primary saves
 
 function hasSave() {
+  // Check new saves system
+  try {
+    const raw = localStorage.getItem('ss_saves_v1');
+    if (raw) { const d = JSON.parse(raw); return Array.isArray(d.slots) && d.slots.length > 0; }
+  } catch {}
   return !!localStorage.getItem(SAVE_KEY);
 }
 
 function getSaveInfo() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return null;
   try {
-    const s = JSON.parse(raw);
-    return s;
-  } catch(e) { return null; }
-}
-
-// Autosave every 60 seconds while in game
-let autosaveInterval = null;
-function startAutosave() {
-  if (autosaveInterval) clearInterval(autosaveInterval);
-  autosaveInterval = setInterval(() => {
-    if (gameState.character && gameState.activeScreen === 'game') {
-      saveGame(true); // silent autosave
-    }
-  }, 60000);
+    const raw = localStorage.getItem('ss_saves_v1');
+    if (raw) { const d = JSON.parse(raw); if (d.slots?.[0]) return d.slots[0]; }
+    const legacy = localStorage.getItem(SAVE_KEY);
+    if (legacy) return JSON.parse(legacy);
+  } catch {}
+  return null;
 }
 
 // ─── STORY HISTORY (context for AI) ──────────
@@ -186,7 +126,7 @@ Write 2-4 sentences of vivid DM narration describing EXACTLY what happens as a r
     addLog('📖 ' + narration, 'narrator');
     showDMStrip(narration, true);
     addToStoryHistory(actionText, succeeded ? 'succeeded' : 'failed', roll);
-    saveGame(true); // autosave after each action
+    if (window.saveGame) window.saveGame(null, null, true); // autosave after each action
 
   } catch(e) {
     const fallback = getFallbackNarration(actionText, roll, succeeded);
