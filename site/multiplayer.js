@@ -260,7 +260,11 @@ function initMultiplayer() {
         }
         lineEl.innerHTML = '';
 
-        const text = payload.text || '';
+        const text = (payload.text && typeof payload.text === 'string') ? payload.text : '';
+        if (!text) {
+          lineEl.textContent = '*The NPC considers their response...*';
+          return;
+        }
         const speed = payload.typewriterSpeed || 14;
         // Calculate how many chars the sender has already typed based on elapsed time
         const elapsed = payload.startedAt ? (Date.now() - payload.startedAt) : 0;
@@ -279,9 +283,9 @@ function initMultiplayer() {
             lineEl.innerHTML = text.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
             // Show read-only options
             const optEl = document.getElementById('cp-options');
-            if (optEl && payload.options?.length) {
+            if (optEl && Array.isArray(payload.options) && payload.options.length) {
               optEl.innerHTML = payload.options.map(o =>
-                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${o.text}</button>`
+                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${o?.text || o?.label || ''}</button>`
               ).join('');
             }
           }

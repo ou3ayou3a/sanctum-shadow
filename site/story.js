@@ -28,30 +28,40 @@ function showScene(sceneData) {
 
   const isMP = !!(window.mp?.sessionCode);
   const playerCount = isMP ? Object.keys(window.mp?.session?.players || {}).length : 1;
+  const isPersonal = !!(sceneData.personal); // Personal quests: no voting, solo execution
 
   const optionsHTML = (sceneData.options || []).map((opt, i) => `
-    <button class="scene-option ${opt.type || ''}" id="scene-opt-${i}" onclick="castVote(${i})">
+    <button class="scene-option ${opt.type || ''}" id="scene-opt-${i}" onclick="${isPersonal ? `executeSceneOption(${i})` : `castVote(${i})`}">
       <span class="so-icon">${opt.icon || '▸'}</span>
       <span class="so-text">${opt.label}</span>
       ${opt.roll ? `<span class="so-roll">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
-      <span class="so-votes" id="votes-${i}" style="display:none"></span>
+      ${!isPersonal ? `<span class="so-votes" id="votes-${i}" style="display:none"></span>` : ''}
     </button>
   `).join('');
+
+  // "Not now" button for personal quests
+  const notNowHTML = isPersonal ? `
+    <button class="scene-option move" onclick="dismissPersonalQuest()" style="margin-top:6px;opacity:0.7">
+      <span class="so-icon">⏸</span>
+      <span class="so-text">Not now — return to the group</span>
+    </button>` : '';
 
   panel.innerHTML = `
     <div class="sp-inner">
       <div class="sp-location-bar">
         <span class="sp-loc-icon">${sceneData.locationIcon || '🏰'}</span>
         <span class="sp-loc-name">${sceneData.location || 'Vaelthar'}</span>
-        ${sceneData.threat ? `<span class="sp-threat">${sceneData.threat}</span>` : ''}
-        ${isMP ? `<span class="sp-vote-status" id="vote-status">⏳ 0/${playerCount} voted</span>` : ''}
+        ${isPersonal ? `<span class="sp-threat" style="color:var(--gold)">🔖 PERSONAL QUEST</span>` : sceneData.threat ? `<span class="sp-threat">${sceneData.threat}</span>` : ''}
+        ${isMP && !isPersonal ? `<span class="sp-vote-status" id="vote-status">⏳ 0/${playerCount} voted</span>` : ''}
       </div>
       <div class="sp-narration" id="sp-narration"></div>
-      <div class="sp-options" id="sp-options">${optionsHTML}</div>
+      <div class="sp-options" id="sp-options">${optionsHTML}${notNowHTML}</div>
       <div class="sp-free-action">
-        <span class="sp-free-hint">${isMP
-          ? '🗳 All players vote — majority wins, ties broken by dice'
-          : 'Or type any action freely below ↓'
+        <span class="sp-free-hint">${isPersonal
+          ? '🔖 This is your personal story — only you decide'
+          : isMP
+            ? '🗳 All players vote — majority wins, ties broken by dice'
+            : 'Or type any action freely below ↓'
         }</span>
       </div>
     </div>
@@ -61,7 +71,6 @@ function showScene(sceneData) {
   const gameLog = document.getElementById('game-log');
   if (gameLog) {
     gameLog.appendChild(panel);
-    // Scroll so panel top is visible, with a moment for render
     setTimeout(() => {
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
@@ -73,14 +82,14 @@ function showScene(sceneData) {
   window.sceneState._currentScene = sceneData;
   window.sceneState._votes = {};
   window.sceneState._myVote = null;
-  window.sceneState._playerCount = playerCount;
+  window.sceneState._playerCount = isPersonal ? 1 : playerCount; // personal = no group vote
 
   const sceneStartedAt = Date.now();
   typewriteScene(sceneData.narration, sceneData.sub, window._sceneStartAt || 0);
   addLog(`📖 ${sceneData.location || 'Scene'}: ${sceneData.narration?.substring(0, 80)}...`, 'narrator');
 
-  // Broadcast scene to all other players in MP
-  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
+  // Only broadcast shared scenes — personal quests stay local
+  if (!isPersonal && (window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     const safeScene = {
       location: sceneData.location,
       locationIcon: sceneData.locationIcon,
@@ -316,6 +325,7 @@ function chooseSceneOption(index) {
 // ─── SCENE RUNNER ────────────────────────────
 function runScene(sceneId) {
   const scene = SCENES[sceneId];
+  const isPersonalScene = sceneId.startsWith('pq_');
   if (!scene) {
     // AI-generate the scene
     generateAIScene(sceneId);
@@ -323,9 +333,13 @@ function runScene(sceneId) {
   }
   if (typeof scene === 'function') {
     const built = scene();
-    if (built) showScene(built);
+    if (built) {
+      if (isPersonalScene) built.personal = true;
+      showScene(built);
+    }
   } else {
-    showScene(scene);
+    const sceneObj = isPersonalScene ? { ...scene, personal: true } : scene;
+    showScene(sceneObj);
   }
 }
 
@@ -2503,6 +2517,12 @@ function startPersonalQuestHook() {
   const sceneId = sceneMap[char.origin];
   if (!sceneId) return;
   if (getFlag(sceneId + '_seen')) return;
+  if (getFlag(sceneId + '_dismissed_forever')) return;
+
+  window.sceneState._pendingPersonalScene = sceneId;
+  window.sceneState._personalSceneIds = new Set(Object.values(sceneMap).concat(
+    Object.values(sceneMap).map(id => id.replace('_hook', '_payoff'))
+  ));
 
   setTimeout(() => {
     if (document.getElementById('scene-panel')) {
@@ -2513,6 +2533,24 @@ function startPersonalQuestHook() {
       runScene(sceneId);
     }
   }, 90000);
+}
+
+// Dismiss personal quest temporarily — re-triggers after 5 minutes
+function dismissPersonalQuest() {
+  const panel = document.getElementById('scene-panel');
+  if (panel) panel.remove();
+  addLog('🔖 You push the memory aside for now. It will surface again.', 'system');
+
+  // Re-trigger after 5 minutes if still unseen
+  const sceneId = window.sceneState._pendingPersonalScene;
+  if (sceneId) {
+    setTimeout(() => {
+      if (!getFlag(sceneId + '_seen') && !document.getElementById('scene-panel')) {
+        addLog('🔖 The memory returns — you cannot ignore it forever.', 'hell');
+        runScene(sceneId);
+      }
+    }, 5 * 60 * 1000);
+  }
 }
 
 // Mark personal quests as completed when payoff flags are set
@@ -2666,3 +2704,4 @@ document.head.appendChild(sceneStyle);
 
 console.log('🎭 Story engine loaded. Scenes will guide the player through Vaelthar.');
 window.receiveVote = receiveVote;
+window.dismissPersonalQuest = dismissPersonalQuest;

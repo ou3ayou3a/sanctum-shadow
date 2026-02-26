@@ -179,16 +179,36 @@ async function sendNPCMessage(playerText, isOpener = false) {
 
   showTypingIndicator();
 
+  // Build party context for NPC awareness
+  const partyPlayers = window.mp?.session?.players ? Object.values(window.mp.session.players) : [];
+  const isMP = partyPlayers.length > 1;
+  const partyContext = isMP
+    ? `The player is part of a party of ${partyPlayers.length} adventurers (a group, not alone). Address the group as "you and your companions" when relevant.`
+    : `The player is alone.`;
+
+  // Build character abilities context to prevent AI treating skill names as characters
+  const charAbilities = cls?.abilities?.map(a => a.name || a).join(', ') || 'none';
+  const charBackground = char?.backstory || char?.origin || 'unknown background';
+  const charSkills = `Class: ${cls?.name}. Race: ${race?.name}. Backstory: ${charBackground}. Known abilities: ${charAbilities}. These are CHARACTER TRAITS, not people.`;
+
+  // Build current scene NPC list to prevent phantom character creation
+  const sceneNPCs = (window.sceneState?._currentScene?.options || [])
+    .map(o => o.label).join(', ');
+  const knownNPCs = `NPCs currently in scene: Captain Rhael, The Trembling Scribe, ${sceneNPCs}. Do NOT invent new named characters from player input.`;
+
   const systemPrompt = `${npc.personality}
 
 CURRENT CONTEXT:
 - Speaking with ${char?.name}, a ${race?.name} ${cls?.name} (Level ${char?.level})
+- ${charSkills}
+- ${partyContext}
 - Location: ${loc?.name}
 - Story flags: ${storyFlags}
 - Disposition: ${npc.disposition}
 - Conversation turn: ${window.npcConvState.turnCount}/8
+- ${knownNPCs}
 
-RULES:
+CRITICAL RULES:
 1. Stay in character. You ARE ${npc.name}.
 2. Write dialogue naturally. Use *asterisks* for physical actions.
 3. After dialogue, write OPTIONS: then 3-4 choices starting with •
@@ -196,8 +216,11 @@ RULES:
 5. OPTIONS THAT CHANGE STORY MUST REQUIRE A ROLL. Persuasion, intimidation, romance, convincing someone — always need [ROLL:CHA:DC]. Physical feats always need [ROLL:STR:DC] or [ROLL:DEX:DC].
 6. Pure speech options (ask a question, say something) do NOT need rolls.
 7. Include an option to end conversation.
-8. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line. Use scene names: vaelthar_main, rhael_reveals_covenant, mourne_confrontation, monastery_arrival, arrested_scene.
-9. NEVER break character. NEVER acknowledge being an AI.`;
+8. NEVER treat player skill names, training styles, or class abilities as character names. If a player says "I use my Mignano training" — Mignano is a skill/technique, not a person.
+9. If the player addresses another NPC (like "I say to Rhael..."), respond AS that NPC if they are in the scene, or note that NPC isn't present.
+10. If the player is in a party, the NPC is aware of the whole group, not just the speaker.
+11. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line.
+12. NEVER break character. NEVER acknowledge being an AI.`;
 
   const userMsg = isOpener ? `[The player ${playerText}]` : playerText;
   const messages = isOpener
