@@ -69,43 +69,21 @@ app.post('/api/npc', (req, res) => {
   request.end();
 });
 
-// ─── PORTRAIT PROXY (Google Gemini imagen) ───
+// ─── PORTRAIT PROXY (Google Gemini image generation) ───
 app.post('/api/portrait', (req, res) => {
   const apiKey = process.env.NANOBANANA_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
 
   const prompt = req.body.prompt || 'dark fantasy RPG character portrait';
 
-  const body = JSON.stringify({
-    instances: [{ prompt }],
-    parameters: { sampleCount: 1, aspectRatio: '3:4', safetySetting: 'block_few' }
-  });
-
-  const options = {
-    hostname: 'us-central1-aiplatform.googleapis.com',
-    path: '/v1/projects/261358781827/locations/us-central1/publishers/google/models/imagegeneration@006:predict',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Length': Buffer.byteLength(body),
-    },
-  };
-
-  // Try Gemini imagen3 via generativelanguage API (works with AIzaSy keys)
   const geminiBody = JSON.stringify({
-    contents: [{
-      parts: [{ text: prompt }]
-    }],
-    generationConfig: {
-      responseModalities: ['IMAGE'],
-      responseMimeType: 'image/jpeg',
-    }
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
   });
 
   const geminiOptions = {
     hostname: 'generativelanguage.googleapis.com',
-    path: `/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${apiKey}`,
+    path: `/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -119,17 +97,15 @@ app.post('/api/portrait', (req, res) => {
     response.on('end', () => {
       try {
         const parsed = JSON.parse(data);
-        // Gemini returns base64 image inline
-        const part = parsed.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-        if (part?.inlineData?.data) {
-          const b64 = part.inlineData.data;
-          const mimeType = part.inlineData.mimeType || 'image/jpeg';
-          const dataUrl = `data:${mimeType};base64,${b64}`;
-          // Return as a fake task_id that encodes the result directly
+        const parts = parsed.candidates?.[0]?.content?.parts || [];
+        const imgPart = parts.find(p => p.inlineData);
+        if (imgPart?.inlineData?.data) {
+          const mimeType = imgPart.inlineData.mimeType || 'image/jpeg';
+          const dataUrl = `data:${mimeType};base64,${imgPart.inlineData.data}`;
           res.json({ task_id: 'done', image_url: dataUrl });
         } else {
-          console.error('Gemini portrait response:', JSON.stringify(parsed).substring(0, 300));
-          res.status(500).json({ error: 'No image in response', detail: JSON.stringify(parsed).substring(0, 200) });
+          console.error('Gemini portrait no image. Response:', JSON.stringify(parsed).substring(0, 400));
+          res.status(500).json({ error: 'No image in response', detail: JSON.stringify(parsed).substring(0, 300) });
         }
       } catch (e) {
         res.status(500).json({ error: 'Parse error: ' + e.message });
@@ -141,10 +117,7 @@ app.post('/api/portrait', (req, res) => {
   request.end();
 });
 
-// Status endpoint — if task_id is 'done', image_url was already returned inline
 app.get('/api/portrait/status/:taskId', (req, res) => {
-  // With Gemini synchronous generation, result comes back immediately
-  // This endpoint is only called if task_id !== 'done'
   res.json({ status: 'failed' });
 });
 
