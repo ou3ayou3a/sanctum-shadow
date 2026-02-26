@@ -362,6 +362,16 @@ async function submitConvInput() {
   const input = document.getElementById('conv-input');
   const text = (input?.value || '').trim();
   if (!text || !window.npcConvState.active) return;
+  const attackWords = ["attack","stab","strike","punch","hit","kill","slash","fight","lunge","charge","shoot"];
+  if (attackWords.some(w => text.toLowerCase().includes(w))) {
+    const npc = window.npcConvState.npc;
+    addLog(`⚔ ${gameState.character?.name} attacks ${npc.name}!`, "combat");
+    closeConvPanel();
+    const ef = {"captain_rhael":()=>generateEnemy("captain_rhael",1),"sister_mourne":()=>generateEnemy("sister_mourne",2)};
+    const enemy = (ef[npc.id] ? ef[npc.id]() : generateEnemy("bandit", AREA_LEVELS[window.mapState?.currentLocation]||1));
+    enemy.name = npc.name; enemy.icon = npc.portrait||"👤";
+    setTimeout(()=>startCombat([enemy]),400); return;
+  }
   input.value = '';
 
   const char = gameState.character;
