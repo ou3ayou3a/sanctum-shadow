@@ -6,7 +6,7 @@
 <title>SANCTUM & SHADOW — The Chronicle</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="visuals.css?v=64">
+<link rel="stylesheet" href="visuals.css?v=65">
 <script>
 // Early stub — replaced by real function when multiplayer.js loads
 window.mpBroadcastStoryEvent = function(eventType, payload) {
@@ -300,6 +300,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
             <button class="qa-btn attack" onclick="showAttackMenu()">🗡 Attack</button>
             <button class="qa-btn spell" onclick="showSpellMenu()">✨ Spells</button>
             <button class="qa-btn quest" onclick="showQuestLog()">📜 Quests</button>
+            <button class="qa-btn" style="border-color:rgba(201,168,76,0.5);color:#c9a84c;font-weight:600" onclick="openShop()">🛒 Shop</button>
             <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
             <button class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
             <button class="qa-btn" style="border-color:rgba(130,100,200,0.4);color:#a07ad4" onclick="openLoadScreen()">📂 Runs</button>
@@ -446,19 +447,20 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=64"></script>
-<script src="audio.js?v=64"></script>
-<script src="map.js?v=64"></script>
-<script src="game.js?v=64"></script>
-<script src="combat.js?v=64"></script>
-<script src="additions.js?v=64"></script>
-<script src="story.js?v=64"></script>
-<script src="dialogue.js?v=64"></script>
-<script src="romance.js?v=64"></script>
-<script src="senses.js?v=64"></script>
-<script src="multiplayer.js?v=64"></script>
-<script src="saves.js?v=64"></script>
-<script src="visuals.js?v=64"></script>
+<script src="data.js?v=65"></script>
+<script src="audio.js?v=65"></script>
+<script src="map.js?v=65"></script>
+<script src="game.js?v=65"></script>
+<script src="combat.js?v=65"></script>
+<script src="additions.js?v=65"></script>
+<script src="story.js?v=65"></script>
+<script src="dialogue.js?v=65"></script>
+<script src="romance.js?v=65"></script>
+<script src="senses.js?v=65"></script>
+<script src="multiplayer.js?v=65"></script>
+<script src="saves.js?v=65"></script>
+<script src="visuals.js?v=65"></script>
+<script src="shop.js?v=65"></script>
 <script>
 // Show Load Chronicle button on splash if saves exist
 document.addEventListener('DOMContentLoaded', () => {
