@@ -518,7 +518,7 @@ function renderConvPanel(npc) {
   panel.innerHTML = `
     <div class="cp-inner">
       <div class="cp-header">
-        <span class="cp-portrait">${npc.portrait}</span>
+        ${window.getPortraitHTML ? window.getPortraitHTML(npc.id, npc.name) : `<span class="cp-portrait">${npc.portrait}</span>`}
         <div class="cp-info">
           <span class="cp-name">${npc.name}</span>
           <span class="cp-title">${npc.title}</span>
