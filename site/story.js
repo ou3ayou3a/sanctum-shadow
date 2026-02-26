@@ -2326,19 +2326,19 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Church of the Eternal Flame — Vaelthar',
       locationIcon: '🕯',
-      narration: `You step into the church for reasons you can't fully explain — the light was wrong, or the door was open, or something pulled. Inside, past the rows of candles, you see it. On the back wall behind the main altar, carved into stone that predates the current building by centuries: a phrase in old script. You can read it, somehow, despite not knowing the language. It says: "The Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Below it, crudely scratched in fresher marks: your description. Physical. Exact.`,
-      sub: `Someone carved your description into a church wall centuries ago. Before you were born.`,
+      narration: `You step into the church for reasons you can't fully explain — something pulled. Inside, past the rows of Eternal Flame candles, you see it. On the back wall behind the main altar, carved into stone that predates the current building by centuries: a phrase in old script. You can read it, somehow. It says: "In the name of Jesus Christ — the Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Below it, crudely scratched in fresher marks: your description. Physical. Exact. The name at the top is older than the Eternal Flame itself — the Church built this place on top of something they couldn't destroy.`,
+      sub: `Someone carved your description into a pre-Church wall centuries ago. The name above it is the name the Church buried.`,
       options: [
         { icon: '🔍', label: 'Study the carving — when was it made?', type: 'explore',
           roll: { stat: 'INT', dc: 12 },
-          onSuccess: () => { setFlag('pq_divine_carving_dated'); addLog('📜 CLUE: Stone analysis — the carving is 400 years old at minimum. Someone prophesied you centuries before your birth.', 'holy'); runScene('pq_divine_chosen_payoff'); },
+          onSuccess: () => { setFlag('pq_divine_carving_dated'); addLog('📜 CLUE: The stone predates the Eternal Flame by at least four centuries. This was carved before the Church existed. Someone who followed the older faith prophesied you.', 'holy'); runScene('pq_divine_chosen_payoff'); },
           onFail: () => runScene('pq_divine_chosen_payoff') },
-        { icon: '🙏', label: 'Pray — ask for clarity. You were told you\'d be guided.', type: 'explore',
+        { icon: '🙏', label: 'Pray in the name of Jesus Christ — ask for clarity', type: 'explore',
           roll: { stat: 'WIS', dc: 13 },
-          onSuccess: () => { setFlag('pq_divine_prayer_answered'); grantHolyPoints(8); addLog('📜 The certainty comes: not words, just direction. Something is wrong in this city, and you are specifically needed to fix it. +8 Holy Points.', 'holy'); runScene('pq_divine_chosen_payoff'); },
-          onFail: () => { addLog('Silence. As usual.', 'system'); runScene('pq_divine_chosen_payoff'); } },
-        { icon: '⏭', label: 'Leave. You don\'t want to know what "no choice" means yet.', type: 'move',
-          action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — a carving in the old church describes you exactly. Dated centuries ago.`, 'hell'); } },
+          onSuccess: () => { setFlag('pq_divine_prayer_answered'); grantHolyPoints(10); addLog('☩ The certainty comes — not words, just direction. Something is deeply wrong in this city and you are specifically here to address it. The name you prayed in is the oldest name in these walls. +10 Holy Points.', 'holy'); runScene('pq_divine_chosen_payoff'); },
+          onFail: () => { addLog('The silence after your prayer is not empty. It is not indifference. It is the silence of being heard.', 'system'); runScene('pq_divine_chosen_payoff'); } },
+        { icon: '⏭', label: 'Leave. You\'ll sit with this.', type: 'move',
+          action: () => { addLog(`📜 PERSONAL QUEST: A pre-Church carving bearing the name of Jesus Christ describes ${char.name} exactly. Dated centuries ago. The Church built on top of this.`, 'hell'); } },
       ]
     };
   },
@@ -2349,13 +2349,13 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Church Archive — Lower Level',
       locationIcon: '🕯',
-      narration: `A priest finds you still staring at the wall. He's old enough to have heard of the carving before. "We call it the Anticipatory Saint," he says. "Every generation, someone matches the description. They always arrive near a breaking point." He leads you to a locked cabinet. Inside: a scroll listing every previous Chosen, what they did, and what it cost them. The list is long. None of them survived past the age you are now. The last entry has no name. Just a date. Six months from today.`,
-      sub: `Every Chosen has died young. The scroll ends six months from now. Your name isn't on it yet.`,
+      narration: `A priest finds you at the wall. Old enough to know. He speaks quietly. "We call it the Anticipatory Saint. Every generation, someone matches the description. They always arrive near a breaking point." He leads you to a locked cabinet in the lower archive. Inside: a scroll written in the older script — a record of every previous Chosen, what they did, and what it cost them. The list is long. At the top of each entry, the same invocation: "In the name of Jesus Christ." The Church plastered over this room with Eternal Flame iconography but couldn't bring itself to destroy the scroll. The last entry has no name. Just a date. Six months from today.`,
+      sub: `The older faith named you across centuries. Every Chosen served the same God the Church buried. The scroll ends six months from now.`,
       options: [
-        { icon: '📜', label: 'Take the scroll — you need to read every entry', type: 'explore',
-          action: () => { addLog('📜 ITEM GAINED: The Anticipatory Saint Scroll — records of every Chosen, their deeds, their deaths.', 'holy'); gameState.character?.inventory?.push('The Anticipatory Saint Scroll'); grantHolyPoints(5); addLog('📜 PERSONAL QUEST: You have six months by the scroll\'s reckoning. What happens then is unclear.', 'holy'); } },
-        { icon: '💬', label: '"Why do they all die? What kills them?"', type: 'talk',
-          action: () => { addLog('The priest: "The task. Whatever they were chosen for. It always costs more than a person has. That\'s why it takes a Chosen — ordinary people don\'t have enough to spend."', 'narrator'); grantHolyPoints(3); } },
+        { icon: '📜', label: 'Take the scroll', type: 'explore',
+          action: () => { addLog('📜 ITEM GAINED: The Anticipatory Saint Scroll — records of every Chosen, their works, their deaths. Each entry begins: "In the name of Jesus Christ."', 'holy'); gameState.character?.inventory?.push('The Anticipatory Saint Scroll'); grantHolyPoints(5); addLog('☩ PERSONAL QUEST: Six months by the scroll\'s reckoning. You know whose name you carry. That is not nothing.', 'holy'); } },
+        { icon: '💬', label: '"Why do they all die?"', type: 'talk',
+          action: () => { addLog('The priest: "The task costs more than a person has. That\'s why it takes a Chosen — ordinary people don\'t have enough to spend. But none of them — not one in four centuries — regretted it. The scroll records that too."', 'narrator'); grantHolyPoints(3); } },
       ]
     };
   },

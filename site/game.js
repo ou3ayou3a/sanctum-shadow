@@ -1075,6 +1075,32 @@ async function resolveAction(text, roll, actionType, dc, total, success) {
   // For free actions just narrate via Claude
   if (actionType === 'free') {
     const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
+
+    // Jesus Christ invocation — handled with full divine weight
+    if (typeof isJesusInvocation === 'function' && isJesusInvocation(text)) {
+      addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+      addLog(`☩ ${char?.name} invokes the name of Jesus Christ.`, 'holy');
+      const inCombat = window.combatState?.active;
+      const divSys = `You are the DM of "Sanctum & Shadow". ${TRUE_DIVINE_WORLD_LORE || ''}
+
+Narrate what happens when ${char?.name} (${cls?.name}) invokes the name of Jesus Christ aloud in ${loc?.name}. Write 3-4 complete sentences. This is not a spell. This is not a game mechanic. This is the name of the one true God being spoken in a world that has almost forgotten Him. The response should be: real, physical, quiet rather than theatrical. Something in the space changes. Something in the people nearby changes — even if no words are said. Write it as a moment that will not be forgotten. ${inCombat ? 'This is mid-combat. The fighting pauses for one held breath. Every person present feels something shift. Then it resumes — but something has changed in the room.' : ''} ${char?.class === 'paladin' ? `${char.name} is a Paladin who has built their entire life on this name. That weight is in the invocation.` : ''}`;
+      const narration = await callClaude(divSys, [{ role: 'user', content: `Player invokes: "${text}"` }], 300);
+      addLog(narration || `The name hangs in the air. For a moment — just a moment — everything in earshot goes still. Not from shock. From something no one has words for.`, 'holy');
+      grantHolyPoints(3);
+      if (inCombat && window.combatState?.combatants?.player) {
+        const p = window.combatState.combatants.player;
+        const heal = Math.max(5, Math.floor((p.maxHp || 100) * 0.1));
+        if (p.hp < (p.maxHp || 100)) {
+          p.hp = Math.min(p.maxHp || 100, p.hp + heal);
+          if (gameState.character) gameState.character.hp = p.hp;
+          addLog(`☩ ${heal} HP restored. Not from a system. From Him.`, 'holy');
+          if (typeof updateCombatUI === 'function') updateCombatUI();
+          if (typeof renderPlayerCard === 'function') renderPlayerCard();
+        }
+      }
+      return;
+    }
+
     const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention.`;
     const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 200);
     if (narration) addLog(narration, 'narrator');
@@ -1166,20 +1192,20 @@ function pray(type) {
       toast('Need 10 Holy Points to pray', 'error');
       return;
     }
-    addLog(`✝ ${char.name} kneels and prays to the Lord of Hosts...`, 'holy');
+    addLog(`☩ ${char.name} kneels and prays in the name of Jesus Christ...`, 'holy');
+    addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     setTimeout(() => {
       const roll = Math.floor(Math.random() * 20) + 1;
       addLog(`🎲 Faith roll: [${roll}]`, 'dice');
       if (roll >= 10) {
-        addLog(`Your prayer is heard. Divine grace flows through you. Gain +15 HP and the next attack deals holy damage.`, 'holy');
+        addLog(`☩ The name carries weight in this world that nothing has erased. Something real and physical shifts in the room — a stillness that others present notice. Divine grace flows through you. +15 HP restored. Your next strike carries holy power.`, 'holy');
         char.hp = Math.min(char.maxHp, char.hp + 15);
         char.holyPoints -= 5;
         renderPlayerCard();
-        // Flash effect
         document.body.style.boxShadow = 'inset 0 0 100px rgba(232,200,74,0.2)';
-        setTimeout(() => document.body.style.boxShadow = '', 1000);
+        setTimeout(() => document.body.style.boxShadow = '', 1200);
       } else {
-        addLog(`Your prayer goes unanswered. Perhaps your faith wavers, or your sins are too fresh.`, 'system');
+        addLog(`The prayer is genuine. The silence after it is not empty — it is the silence of being heard. Something will come from this. Not yet.`, 'system');
       }
     }, 800);
   } else {
