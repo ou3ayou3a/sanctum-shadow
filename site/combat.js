@@ -37,7 +37,101 @@ const combatState = {
   log: [],
   selectedSpell: null,
   selectedTarget: null,
+  // Status effects: { [combatantId]: [{ id, name, icon, turnsLeft, ...data }] }
+  statusEffects: {},
 };
+
+// ─── STATUS EFFECT ENGINE ─────────────────────
+function addStatus(targetId, effect) {
+  if (!combatState.statusEffects[targetId]) combatState.statusEffects[targetId] = [];
+  // Remove existing stack of same type
+  combatState.statusEffects[targetId] = combatState.statusEffects[targetId].filter(e => e.id !== effect.id);
+  combatState.statusEffects[targetId].push({ ...effect });
+  addLog(`${effect.icon} ${combatState.combatants[targetId]?.name} is now ${effect.name}!`, 'system');
+}
+
+function hasStatus(targetId, statusId) {
+  return (combatState.statusEffects[targetId] || []).some(e => e.id === statusId);
+}
+
+function getStatusData(targetId, statusId) {
+  return (combatState.statusEffects[targetId] || []).find(e => e.id === statusId);
+}
+
+function removeStatus(targetId, statusId) {
+  if (!combatState.statusEffects[targetId]) return;
+  const e = combatState.statusEffects[targetId].find(s => s.id === statusId);
+  if (e) addLog(`${e.icon} ${combatState.combatants[targetId]?.name}: ${e.name} expired.`, 'system');
+  combatState.statusEffects[targetId] = combatState.statusEffects[targetId].filter(e => e.id !== statusId);
+}
+
+// Called at start of each combatant's turn — tick down durations
+function tickStatuses(combatantId) {
+  const statuses = combatState.statusEffects[combatantId] || [];
+  const toRemove = [];
+  statuses.forEach(s => {
+    s.turnsLeft--;
+    if (s.turnsLeft <= 0) toRemove.push(s.id);
+  });
+  toRemove.forEach(id => removeStatus(combatantId, id));
+}
+
+// Get total attack bonus modifier from statuses
+function getAtkMod(combatantId) {
+  let mod = 0;
+  (combatState.statusEffects[combatantId] || []).forEach(s => { if (s.atkMod) mod += s.atkMod; });
+  // smoke_bomb affects this combatant
+  if (hasStatus(combatantId, 'smoke_bomb_debuff')) mod -= 4;
+  return mod;
+}
+
+// Get damage multiplier from statuses
+function getDmgMult(combatantId) {
+  let mult = 1;
+  (combatState.statusEffects[combatantId] || []).forEach(s => { if (s.dmgMult) mult *= s.dmgMult; });
+  return mult;
+}
+
+// Check if combatant is rooted (can't move/act)
+function isRooted(combatantId) { return hasStatus(combatantId, 'vine_trap'); }
+
+// Check if combatant is silenced (can't cast spells)
+function isSilenced(combatantId) { return hasStatus(combatantId, 'garrote_silence'); }
+
+// Get damage shield amount
+function getDmgShield(combatantId) {
+  const s = getStatusData(combatantId, 'divine_shield');
+  return s ? (s.shieldHp || 0) : 0;
+}
+
+// Apply damage through shield first
+function applyDamage(targetId, rawDmg) {
+  const target = combatState.combatants[targetId];
+  if (!target) return rawDmg;
+
+  // Mirror Image: each image absorbs one hit
+  if (hasStatus(targetId, 'mirror_image')) {
+    const s = getStatusData(targetId, 'mirror_image');
+    s.charges--;
+    addLog(`👁 Mirror Image absorbs the hit! (${s.charges} images left)`, 'system');
+    if (s.charges <= 0) removeStatus(targetId, 'mirror_image');
+    return 0; // no damage
+  }
+
+  // Divine Shield: absorbs up to shieldHp
+  const shield = getDmgShield(targetId);
+  if (shield > 0) {
+    const s = getStatusData(targetId, 'divine_shield');
+    const absorbed = Math.min(shield, rawDmg);
+    s.shieldHp -= absorbed;
+    const remaining = rawDmg - absorbed;
+    addLog(`🔆 Divine Shield absorbs ${absorbed} damage! (${s.shieldHp} left)`, 'holy');
+    if (s.shieldHp <= 0) removeStatus(targetId, 'divine_shield');
+    return remaining;
+  }
+
+  return rawDmg;
+}
 
 // ─── SPELL DATABASE (per class, levels 1-10) ─
 const CLASS_SPELLS = {
@@ -349,6 +443,7 @@ function startCombat(enemies) {
   combatState.combatants = {};
   combatState.turnOrder = [];
   combatState.selectedSpell = null;
+  combatState.statusEffects = {}; // clear all statuses
 
   const wisMod = Math.floor(((char.stats?.wis || 10) - 10) / 2);
   const strMod = Math.floor(((char.stats?.str || 10) - 10) / 2);
@@ -435,11 +530,14 @@ function updateCombatUI() {
         ? `<span class="ce-hp-hidden">??? HP</span>`
         : `<div class="ce-hp-bar-wrap"><div class="ce-hp-bar" style="width:${hpPct}%;background:${hpColor}"></div></div><span class="ce-hp-num">${c.hp}/${c.maxHp}</span>`;
       const isTarget = combatState.selectedTarget === c.id;
+      const enemyStatuses = (combatState.statusEffects[c.id] || []).map(s =>
+        `<span class="status-badge enemy-status" title="${s.name}">${s.icon}</span>`
+      ).join('');
       return `<div class="combat-enemy ${isTarget ? 'targeted' : ''} ${c.boss ? 'boss' : ''}"
         onclick="window.selectTarget('${c.id}')">
         <span class="ce-icon">${c.icon}</span>
         <div class="ce-info">
-          <span class="ce-name">${c.name}${c.boss ? ' 👑' : ''} <span class="ce-lvl">Lv${c.level||1}</span></span>
+          <span class="ce-name">${c.name}${c.boss ? ' 👑' : ''} <span class="ce-lvl">Lv${c.level||1}</span>${enemyStatuses}</span>
           <div class="ce-hp-row">${hpBar}</div>
         </div>
         ${isTarget ? '<span class="ce-target-arrow">◀ TARGET</span>' : ''}
@@ -488,6 +586,13 @@ function updateCombatUI() {
         ${isPlayerTurn ? '⚔ YOUR TURN' : `${current?.icon} ${current?.name}'s turn`}
       </span>
     </div>
+
+    ${(combatState.statusEffects['player']?.length > 0) ? `
+    <div class="cp-status-bar">
+      ${(combatState.statusEffects['player'] || []).map(s =>
+        `<span class="status-badge" title="${s.name} (${s.turnsLeft} turns)">${s.icon} ${s.name} <small>${s.turnsLeft}t</small></span>`
+      ).join('')}
+    </div>` : ''}
 
     <div class="cp-enemies">${enemyHTML}</div>
 
@@ -563,13 +668,30 @@ function combatAttack() {
   if (!target) { addLog('Select a target first!', 'system'); return; }
   const player = combatState.combatants['player'];
   const roll = Math.floor(Math.random()*20)+1;
-  const atkBonus = player.atk || 0;
+  const atkBonus = (player.atk || 0) + getAtkMod('player');
+  const targetAC = target.ac - (hasStatus(target.id, 'smoke_bomb_debuff') ? 0 : 0); // smoke hits attacker not AC
   const hit = roll + atkBonus >= target.ac || roll === 20;
 
   if (hit) {
-    const dmg = Math.floor(Math.random()*8)+1 + (player.atk||0);
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${dmg} damage!`, 'combat');
+    let baseDmg = Math.floor(Math.random()*8)+1 + (player.atk||0);
+
+    // Hunter's Mark bonus
+    const mark = getStatusData('player', 'hunters_mark');
+    if (mark && mark.targetId === target.id) {
+      const bonus = rollDice('2d6', 0);
+      baseDmg += bonus;
+      addLog(`🎯 Hunter's Mark triggers! +${bonus} bonus damage!`, 'holy');
+    }
+
+    // Avatar of War: +100% damage
+    if (hasStatus('player', 'avatar_war')) baseDmg = Math.floor(baseDmg * 2);
+
+    // Last Stand: +50% damage when below 20 HP
+    if (hasStatus('player', 'last_stand') && player.hp < 20) baseDmg = Math.floor(baseDmg * 1.5);
+
+    const finalDmg = applyDamage(target.id, baseDmg);
+    target.hp = Math.max(0, target.hp - finalDmg);
+    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage!`, 'combat');
     if (gameState.character) { gameState.character.hp = player.hp; }
   } else {
     addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] MISS (AC ${target.ac})`, 'system');
@@ -586,41 +708,243 @@ function castSelectedSpell() {
   if (combatState.apRemaining < spell.ap) { addLog('Not enough AP!', 'system'); return; }
 
   const player = combatState.combatants['player'];
-  if (player.mp < spell.mp) { addLog('Not enough MP!', 'system'); return; }
+  if (player.mp < spell.mp) { addLog(`Not enough MP! (need ${spell.mp})`, 'system'); return; }
 
-  // Holy point check
-  if (spell.holy_cost && gameState.character.holyPoints < spell.holy_cost) {
+  if (spell.holy_cost && (gameState.character?.holyPoints || 0) < spell.holy_cost) {
     addLog(`Need ${spell.holy_cost} Holy Points for ${spell.name}!`, 'system'); return;
   }
+
+  const target = getTarget();
+  const statKey = ['holy','heal','revive'].includes(spell.type) ? 'wis'
+    : spell.type === 'arcane' ? 'int'
+    : ['physical','fire','lightning'].includes(spell.type) ? 'str'
+    : 'wis';
+  const statMod = player.statMods?.[statKey] || 0;
 
   player.mp -= spell.mp;
   combatState.apRemaining -= spell.ap;
   if (gameState.character) gameState.character.mp = player.mp;
+  if (spell.holy_cost) grantHolyPoints(-spell.holy_cost);
 
-  const statKey = spell.type === 'holy' || spell.type === 'heal' ? 'wis' : spell.type === 'arcane' ? 'int' : spell.type === 'physical' ? 'str' : 'wis';
-  const statMod = player.statMods?.[statKey] || 0;
+  // ── CLERIC ──────────────────────────────────
+  if (spell.id === 'cure_wounds') {
+    const amt = rollDice(spell.heal, statMod);
+    player.hp = Math.min(player.maxHp, player.hp + amt);
+    if (gameState.character) gameState.character.hp = player.hp;
+    addLog(`💚 Cure Wounds: healed for ${amt} HP!`, 'holy');
+  }
+  else if (spell.id === 'spirit_weapon') {
+    addStatus('player', { id:'spirit_weapon', name:'Spirit Weapon', icon:'👻', turnsLeft:3, bonusAtk: rollDice('2d8', statMod) });
+    addLog(`👻 Spiritual Weapon summoned! It will strike with you for 3 turns.`, 'holy');
+    // Spirit weapon attacks immediately
+    if (target) {
+      const dmg = applyDamage(target.id, rollDice('2d8', statMod));
+      target.hp = Math.max(0, target.hp - dmg);
+      addLog(`👻 Spiritual Weapon strikes ${target.name} for ${dmg}!`, 'holy');
+    }
+  }
+  else if (spell.id === 'mass_heal') {
+    const amt = rollDice(spell.heal, statMod);
+    player.hp = Math.min(player.maxHp, player.hp + amt);
+    if (gameState.character) gameState.character.hp = player.hp;
+    addLog(`💫 Mass Heal: all allies restored ${amt} HP!`, 'holy');
+  }
+  else if (spell.id === 'divine_strike') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`⚡ Divine Strike → ${target.name}: ${dmg} holy damage!`, 'holy');
+  }
+  else if (spell.id === 'revivify') {
+    // Solo: heal self; MP already paid
+    player.hp = Math.min(player.maxHp, player.hp + 1);
+    if (gameState.character) gameState.character.hp = player.hp;
+    addLog(`❤ Revivify: fighting through! Restored to 1 HP above current.`, 'holy');
+  }
 
-  if (spell.type === 'heal' || spell.type === 'revive') {
-    const healAmt = spell.type === 'revive' ? 1 : rollDice(spell.heal, statMod);
+  // ── PALADIN ─────────────────────────────────
+  else if (spell.id === 'holy_smite') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    const healAmt = rollDice('1d4', 0);
     player.hp = Math.min(player.maxHp, player.hp + healAmt);
     if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`${spell.icon} ${spell.name}: Healed for ${healAmt} HP!`, 'holy');
-  } else if (spell.damage) {
-    const target = getTarget();
-    if (!target && !spell.aoe) { addLog('Select a target first!', 'system'); return; }
-    const dmg = rollDice(spell.damage, statMod);
-    if (spell.aoe) {
-      Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0).forEach(c => {
-        c.hp = Math.max(0, c.hp - dmg);
-        addLog(`${spell.icon} ${spell.name} hits ${c.name} for ${dmg}!`, 'combat');
-      });
-    } else {
+    addLog(`✝ Holy Smite → ${target.name}: ${dmg} radiant damage! Self-healed ${healAmt}.`, 'holy');
+  }
+  else if (spell.id === 'lay_on_hands') {
+    const amt = rollDice(spell.heal, statMod);
+    player.hp = Math.min(player.maxHp, player.hp + amt);
+    if (gameState.character) gameState.character.hp = player.hp;
+    addLog(`🙏 Lay on Hands: restored ${amt} HP!`, 'holy');
+  }
+  else if (spell.id === 'divine_shield') {
+    addStatus('player', { id:'divine_shield', name:'Divine Shield', icon:'🔆', turnsLeft:4, shieldHp:30 });
+    addLog(`🔆 Divine Shield active! Absorbs up to 30 damage.`, 'holy');
+  }
+  else if (spell.id === 'judgment') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`⚖ Judgment → ${target.name}: ${dmg} devastating holy damage!`, 'holy');
+  }
+  else if (spell.id === 'wrath_divine') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`☀ Wrath of God → ${target.name}: ${dmg} divine annihilation!`, 'holy');
+  }
+
+  // ── MAGE ────────────────────────────────────
+  else if (spell.id === 'magic_missile') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    // Auto-hit — no AC check
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`✨ Magic Missile → ${target.name}: ${dmg} auto-hit arcane damage!`, 'combat');
+  }
+  else if (spell.id === 'fireball') {
+    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
+    const dmg = rollDice(spell.damage, 0);
+    enemies.forEach(c => {
+      const d = applyDamage(c.id, dmg);
+      c.hp = Math.max(0, c.hp - d);
+      addLog(`🔥 Fireball → ${c.name}: ${d} fire damage!`, 'combat');
+    });
+  }
+  else if (spell.id === 'mirror_image') {
+    addStatus('player', { id:'mirror_image', name:'Mirror Image', icon:'👁', turnsLeft:5, charges:3 });
+    addLog(`👁 Mirror Image: 3 illusory duplicates surround you! Next 3 hits absorbed.`, 'holy');
+  }
+  else if (spell.id === 'chain_lightning') {
+    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
+    enemies.forEach((c, i) => {
+      const dmg = applyDamage(c.id, rollDice(spell.damage, 0));
+      c.hp = Math.max(0, c.hp - dmg);
+      addLog(`⚡ Chain Lightning → ${c.name}: ${dmg} lightning damage!`, 'combat');
+    });
+  }
+  else if (spell.id === 'disintegrate') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    // CON save DC 15 — fail = disintegrated (set to 1 HP threshold to simulate)
+    const conSave = Math.floor(Math.random()*20)+1 + Math.floor(((target.level||1)*0.5));
+    if (conSave < 15) {
+      const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
       target.hp = Math.max(0, target.hp - dmg);
-      addLog(`${spell.icon} ${spell.name} → ${target.name}: ${dmg} damage! [${spell.type}]`, 'combat');
+      if (target.hp <= 0) addLog(`💀 Disintegrate → ${target.name}: DISINTEGRATED! [CON save failed: ${conSave}]`, 'combat');
+      else addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage! [CON save failed: ${conSave}]`, 'combat');
+    } else {
+      const dmg = applyDamage(target.id, Math.floor(rollDice(spell.damage, statMod) / 2));
+      target.hp = Math.max(0, target.hp - dmg);
+      addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage (CON save partial: ${conSave})`, 'combat');
     }
-    if (spell.holy_cost) grantHolyPoints(-spell.holy_cost);
-  } else if (spell.type === 'buff') {
-    addLog(`${spell.icon} ${spell.name} activated! ${spell.desc}`, 'holy');
+  }
+
+  // ── WARRIOR ─────────────────────────────────
+  else if (spell.id === 'war_cry') {
+    addStatus('player', { id:'war_cry', name:'War Cry', icon:'😤', turnsLeft:3, atkMod:2 });
+    addLog(`😤 War Cry! +2 ATK bonus for 3 turns!`, 'holy');
+  }
+  else if (spell.id === 'whirlwind') {
+    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
+    enemies.forEach(c => {
+      const dmg = applyDamage(c.id, rollDice(spell.damage, statMod));
+      c.hp = Math.max(0, c.hp - dmg);
+      addLog(`🌀 Whirlwind → ${c.name}: ${dmg} damage!`, 'combat');
+    });
+  }
+  else if (spell.id === 'last_stand') {
+    addStatus('player', { id:'last_stand', name:'Last Stand', icon:'🛡', turnsLeft:4 });
+    addLog(`🛡 Last Stand active! Below 20 HP: +50% damage for 4 turns.`, 'holy');
+  }
+  else if (spell.id === 'execute') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    if (target.hp > target.maxHp * 0.25) {
+      addLog(`⚔ Execute: ${target.name} must be below 25% HP! (${target.hp}/${target.maxHp})`, 'system');
+      player.mp += spell.mp; combatState.apRemaining += spell.ap; return;
+    }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`⚔ EXECUTE → ${target.name}: ${dmg} massive damage! [target was at ${Math.floor(target.hp/target.maxHp*100)}% HP]`, 'combat');
+  }
+  else if (spell.id === 'avatar_war') {
+    addStatus('player', { id:'avatar_war', name:'Avatar of War', icon:'🔥', turnsLeft:3, dmgMult:2 });
+    addLog(`🔥 Avatar of War! +100% damage for 3 turns. Nothing can stop you.`, 'holy');
+  }
+
+  // ── ROGUE ────────────────────────────────────
+  else if (spell.id === 'sneak_attack') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addLog(`🗡 Sneak Attack → ${target.name}: ${dmg} damage from the shadows!`, 'combat');
+  }
+  else if (spell.id === 'smoke_bomb') {
+    // Apply -4 ATK debuff to all enemies
+    Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0).forEach(c => {
+      addStatus(c.id, { id:'smoke_bomb_debuff', name:'Blinded (Smoke)', icon:'💨', turnsLeft:2, atkMod:-4 });
+    });
+    addLog(`💨 Smoke Bomb! All enemies suffer -4 ATK for 2 turns!`, 'holy');
+  }
+  else if (spell.id === 'shadow_step') {
+    // Grant +4 AC and first attack next turn auto-hits
+    addStatus('player', { id:'shadow_step', name:'Shadow Step', icon:'🌑', turnsLeft:1, acBonus:4, nextHitAutoHit:true });
+    player.ac = (player.ac || 12) + 4;
+    addLog(`🌑 Shadow Step! Vanished into shadows. +4 AC, next attack auto-hits!`, 'holy');
+  }
+  else if (spell.id === 'garrote') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+    target.hp = Math.max(0, target.hp - dmg);
+    addStatus(target.id, { id:'garrote_silence', name:'Silenced', icon:'🔇', turnsLeft:3 });
+    addLog(`🩸 Garrote → ${target.name}: ${dmg} damage + SILENCED for 3 turns (no spells)!`, 'combat');
+  }
+  else if (spell.id === 'phantom_kill') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    if (target.hp <= target.maxHp * 0.3) {
+      // Instant kill
+      const oldHp = target.hp;
+      target.hp = 0;
+      addLog(`👤 PHANTOM KILL → ${target.name}: INSTANT KILL from darkness! [was at ${Math.floor(oldHp/target.maxHp*100)}% HP]`, 'combat');
+    } else {
+      const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
+      target.hp = Math.max(0, target.hp - dmg);
+      addLog(`👤 Phantom Kill → ${target.name}: ${dmg} damage. (Instant kill requires <30% HP)`, 'combat');
+    }
+  }
+
+  // ── RANGER ───────────────────────────────────
+  else if (spell.id === 'hunters_mark') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    addStatus('player', { id:'hunters_mark', name:"Hunter's Mark", icon:'🎯', turnsLeft:6, targetId: target.id });
+    addLog(`🎯 Hunter's Mark on ${target.name}! All attacks vs them deal +2d6 bonus damage.`, 'holy');
+  }
+  else if (spell.id === 'multi_shot') {
+    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0).slice(0, 3);
+    if (enemies.length === 0) { addLog('No targets!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    enemies.forEach(c => {
+      const dmg = applyDamage(c.id, rollDice('2d8', statMod));
+      c.hp = Math.max(0, c.hp - dmg);
+      addLog(`🏹 Multi-Shot → ${c.name}: ${dmg} damage!`, 'combat');
+    });
+  }
+  else if (spell.id === 'vine_trap') {
+    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
+    addStatus(target.id, { id:'vine_trap', name:'Rooted', icon:'🌿', turnsLeft:2 });
+    addLog(`🌿 Vine Trap → ${target.name}: ROOTED for 2 turns! Cannot act.`, 'holy');
+  }
+  else if (spell.id === 'volley') {
+    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
+    const dmg = rollDice(spell.damage, 0);
+    enemies.forEach(c => {
+      const d = applyDamage(c.id, dmg);
+      c.hp = Math.max(0, c.hp - d);
+      addLog(`☄ Volley → ${c.name}: ${d} arrow damage!`, 'combat');
+    });
+  }
+  else if (spell.id === 'apex_predator') {
+    addStatus('player', { id:'apex_predator', name:'Spirit Beast', icon:'🐺', turnsLeft:5 });
+    addLog(`🐺 Apex Predator! A spirit beast answers your call — it attacks alongside you for 5 turns!`, 'holy');
   }
 
   combatState.selectedSpell = null;
@@ -669,6 +993,20 @@ function combatItem() {
 }
 
 function endPlayerTurn() {
+  // Apply DOT effects at end of player turn
+  const player = combatState.combatants['player'];
+  if (player) {
+    (combatState.statusEffects['player'] || []).forEach(s => {
+      if (s.dmgPerTurn) {
+        const dmg = applyDamage('player', s.dmgPerTurn);
+        player.hp = Math.max(0, player.hp - dmg);
+        if (gameState.character) gameState.character.hp = player.hp;
+        addLog(`${s.icon} ${s.name} deals ${dmg} damage!`, 'combat');
+      }
+    });
+    checkCombatEnd();
+    syncPlayerHP();
+  }
   combatState.apRemaining = 0;
   advanceTurn();
 }
@@ -697,6 +1035,26 @@ function processTurn() {
   const current = combatState.combatants[currentId];
   if (!current || current.hp <= 0) { advanceTurn(); return; }
 
+  // Tick status effects at start of this combatant's turn
+  tickStatuses(currentId);
+
+  // Apex Predator spirit beast attacks with player
+  if (currentId === 'player' && hasStatus('player', 'apex_predator')) {
+    const enemy = Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
+    if (enemy) {
+      const beastDmg = rollDice('2d8', 0);
+      const finalDmg = applyDamage(enemy.id, beastDmg);
+      enemy.hp = Math.max(0, enemy.hp - finalDmg);
+      addLog(`🐺 Spirit Beast attacks ${enemy.name} for ${finalDmg}!`, 'combat');
+      checkCombatEnd();
+    }
+  }
+
+  // Hunter's Mark: track marked target for bonus damage
+  if (currentId === 'player' && hasStatus('player', 'hunters_mark')) {
+    // bonus applied in combatAttack
+  }
+
   updateCombatUI();
 
   if (!current.isPlayer) {
@@ -712,49 +1070,165 @@ function enemyAI(enemyId) {
   const player = combatState.combatants['player'];
   let ap = MAX_AP;
 
-  // Flee check for cowardly NPCs
+  // Rooted: skip turn
+  if (isRooted(enemyId)) {
+    addLog(`🌿 ${enemy.name} is ROOTED — cannot act!`, 'system');
+    updateCombatUI(); checkCombatEnd();
+    setTimeout(advanceTurn, 800); return;
+  }
+
+  // Flee check
   if (enemy.flee && enemy.hp < enemy.maxHp * 0.4) {
     const roll = Math.floor(Math.random()*20)+1;
-    const playerRoll = Math.floor(Math.random()*20)+1;
-    if (roll > playerRoll) {
+    if (roll > Math.floor(Math.random()*20)+1) {
       addLog(`${enemy.icon} ${enemy.name} flees in terror!`, 'system');
       delete combatState.combatants[enemyId];
       combatState.turnOrder = combatState.turnOrder.filter(id => id !== enemyId);
-      checkCombatEnd();
-      updateCombatUI();
-      setTimeout(advanceTurn, 800);
-      return;
+      checkCombatEnd(); updateCombatUI();
+      setTimeout(advanceTurn, 800); return;
     }
   }
 
-  // Try to cast a spell (20% chance if has spells and mp)
-  if (enemy.spells?.length > 0 && enemy.mp > 20 && Math.random() < 0.3 && ap >= 2) {
-    const spell = enemy.spells[Math.floor(Math.random()*enemy.spells.length)];
+  // Try to cast a spell (30% chance if has spells, enough mp, and not silenced)
+  if (enemy.spells?.length > 0 && enemy.mp > 15 && Math.random() < 0.3 && ap >= 2 && !isSilenced(enemyId)) {
+    const spellId = enemy.spells[Math.floor(Math.random()*enemy.spells.length)];
     enemy.mp -= 20;
-    const dmg = Math.floor(Math.random()*10)+5 + Math.floor(enemy.level/2);
-    player.hp = Math.max(0, player.hp - dmg);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`${enemy.icon} ${enemy.name} uses ${spell}! ${dmg} damage!`, 'combat');
     ap -= 2;
+    castEnemySpell(enemy, spellId, player);
   } else {
-    // Basic attack
+    // Basic attack — check smoke_bomb debuff
+    const atkMod = getAtkMod(enemyId);
     const roll = Math.floor(Math.random()*20)+1;
     const playerAC = player.ac || 12;
-    if (roll + (enemy.atk||0) >= playerAC || roll === 20) {
-      const dmg = Math.floor(Math.random()*8)+1 + (enemy.atk||0);
-      player.hp = Math.max(0, player.hp - dmg);
+    if (roll + (enemy.atk||0) + atkMod >= playerAC || roll === 20) {
+      let dmg = Math.floor(Math.random()*8)+1 + (enemy.atk||0);
+      const finalDmg = applyDamage('player', dmg);
+      player.hp = Math.max(0, player.hp - finalDmg);
       if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`${enemy.icon} ${enemy.name} attacks! [${roll}] — ${dmg} damage to ${player.name}!`, 'combat');
+      addLog(`${enemy.icon} ${enemy.name} attacks! [${roll}${atkMod?`${atkMod>=0?'+':''}${atkMod}`:''}] — ${finalDmg} damage to ${player.name}!`, 'combat');
     } else {
       addLog(`${enemy.icon} ${enemy.name} attacks but misses! [${roll}]`, 'system');
     }
     ap--;
   }
 
-  updateCombatUI();
-  checkCombatEnd();
-  syncPlayerHP();
+  updateCombatUI(); checkCombatEnd(); syncPlayerHP();
   setTimeout(advanceTurn, 1200);
+}
+
+// ─── ENEMY SPELL EFFECTS ─────────────────────
+function castEnemySpell(enemy, spellId, player) {
+  const lvl = enemy.level || 1;
+  const icon = enemy.icon;
+
+  switch(spellId) {
+    case 'hellfire_bolt': {
+      const dmg = rollDice(`${lvl}d6`, Math.floor(lvl/2));
+      const finalDmg = applyDamage('player', dmg);
+      player.hp = Math.max(0, player.hp - finalDmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`😈 ${enemy.name} hurls Hellfire Bolt! ${finalDmg} fire damage!`, 'combat'); break;
+    }
+    case 'shadow_step': {
+      // Enemy teleports — gains evasion for 1 turn
+      addStatus(enemy.id, { id:'shadow_step_enemy', name:'Evasive', icon:'🌑', turnsLeft:1 });
+      enemy.ac += 3;
+      addLog(`🌑 ${enemy.name} vanishes into shadow! +3 AC for 1 turn.`, 'system'); break;
+    }
+    case 'savage_bite': {
+      const dmg = rollDice(`${lvl}d8`, Math.floor(lvl/2));
+      const finalDmg = applyDamage('player', dmg);
+      player.hp = Math.max(0, player.hp - finalDmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      // 50% bleed chance
+      if (Math.random() < 0.5) addStatus('player', { id:'bleed', name:'Bleeding', icon:'🩸', turnsLeft:2, dmgPerTurn:3 });
+      addLog(`🐺 ${enemy.name} savagely bites! ${finalDmg} damage${hasStatus('player','bleed')?' + BLEEDING!':''}`, 'combat'); break;
+    }
+    case 'shadow_drain': {
+      const dmg = rollDice(`${lvl}d6`, 0);
+      const finalDmg = applyDamage('player', dmg);
+      player.hp = Math.max(0, player.hp - finalDmg);
+      enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.floor(finalDmg/2));
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`🌑 ${enemy.name} drains your life! ${finalDmg} damage — healed ${Math.floor(finalDmg/2)}!`, 'combat'); break;
+    }
+    case 'war_cry': {
+      addStatus(enemy.id, { id:'war_cry', name:'War Cry', icon:'😤', turnsLeft:3, atkMod:2 });
+      addLog(`😤 ${enemy.name} roars a War Cry! +2 ATK for 3 turns.`, 'system'); break;
+    }
+    case 'execute': {
+      if (player.hp <= player.maxHp * 0.25) {
+        player.hp = Math.max(0, player.hp - rollDice(`${lvl+2}d10`, 0));
+        if (gameState.character) gameState.character.hp = player.hp;
+        addLog(`⚔ ${enemy.name} EXECUTES you while you're weakened!`, 'combat');
+      } else {
+        const dmg = applyDamage('player', rollDice(`${lvl}d8`, 0));
+        player.hp = Math.max(0, player.hp - dmg);
+        if (gameState.character) gameState.character.hp = player.hp;
+        addLog(`⚔ ${enemy.name} uses Execute but you're too strong! ${dmg} damage.`, 'combat');
+      } break;
+    }
+    case 'shadow_curse': {
+      addStatus('player', { id:'shadow_curse', name:'Shadow Cursed', icon:'🕯', turnsLeft:3, atkMod:-2 });
+      addLog(`🕯 ${enemy.name} places a Shadow Curse! Your attacks weakened for 3 turns.`, 'combat'); break;
+    }
+    case 'soul_drain': {
+      const mpDrain = Math.min(player.mp, 20 + lvl * 5);
+      player.mp = Math.max(0, player.mp - mpDrain);
+      enemy.mp = Math.min(enemy.maxMp, enemy.mp + mpDrain);
+      if (gameState.character) gameState.character.mp = player.mp;
+      addLog(`🕯 ${enemy.name} drains ${mpDrain} MP from you!`, 'combat'); break;
+    }
+    case 'hellfire': {
+      const dmg = applyDamage('player', rollDice(`${lvl+1}d8`, Math.floor(lvl/2)));
+      player.hp = Math.max(0, player.hp - dmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`🔥 ${enemy.name} unleashes HELLFIRE! ${dmg} damage!`, 'combat'); break;
+    }
+    case 'divine_wrath': {
+      const dmg = applyDamage('player', rollDice(`${lvl}d10`, Math.floor(lvl/3)));
+      player.hp = Math.max(0, player.hp - dmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`⚡ ${enemy.name} calls down Divine Wrath! ${dmg} holy damage!`, 'combat'); break;
+    }
+    case 'summon_flame': {
+      // Persists as a burn status
+      addStatus('player', { id:'burning', name:'Burning', icon:'🔥', turnsLeft:3, dmgPerTurn:8 });
+      addLog(`🔥 ${enemy.name} summons a Flame Elemental! You are BURNING for 3 turns!`, 'combat'); break;
+    }
+    case 'void_scream': {
+      const dmg = applyDamage('player', rollDice(`${lvl}d8`, 0));
+      player.hp = Math.max(0, player.hp - dmg);
+      addStatus('player', { id:'stunned', name:'Stunned', icon:'💫', turnsLeft:1 });
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`🕳 ${enemy.name} VOID SCREAMS! ${dmg} psychic damage — STUNNED next turn!`, 'combat'); break;
+    }
+    case 'soul_rend': {
+      const dmg = applyDamage('player', rollDice(`${lvl+1}d10`, Math.floor(lvl/2)));
+      player.hp = Math.max(0, player.hp - dmg);
+      player.maxHp = Math.max(1, player.maxHp - 5); // permanent max HP reduction
+      if (gameState.character) { gameState.character.hp = player.hp; gameState.character.maxHp = player.maxHp; }
+      addLog(`🕳 ${enemy.name} RENDS your soul! ${dmg} damage — Max HP reduced by 5 permanently!`, 'combat'); break;
+    }
+    case 'dark_surge': {
+      const dmg = applyDamage('player', rollDice(`${lvl+2}d8`, Math.floor(lvl/2)));
+      player.hp = Math.max(0, player.hp - dmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`🌑 ${enemy.name} Dark Surges! ${dmg} void damage!`, 'combat'); break;
+    }
+    case 'holy_smite_corrupted': {
+      const dmg = applyDamage('player', rollDice(`${lvl}d8`, Math.floor(lvl/2)));
+      player.hp = Math.max(0, player.hp - dmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`🩸 ${enemy.name} uses Corrupted Holy Smite! ${dmg} tainted holy damage!`, 'combat'); break;
+    }
+    default: {
+      const dmg = applyDamage('player', Math.floor(Math.random()*10)+5 + Math.floor(lvl/2));
+      player.hp = Math.max(0, player.hp - dmg);
+      if (gameState.character) gameState.character.hp = player.hp;
+      addLog(`${icon} ${enemy.name} uses ${spellId}! ${dmg} damage!`, 'combat');
+    }
+  }
 }
 
 // ─── CHECK WIN/LOSE ───────────────────────────
@@ -1156,6 +1630,10 @@ const combatCSS = `
 .sb-heal { font-size:0.6rem; color:#8bc87a; background:rgba(100,160,80,0.1); padding:1px 5px; }
 .cp-cast-row { display:flex; gap:6px; margin-top:4px; }
 .cp-enemy-thinking { padding:16px; font-family:'Cinzel',serif; font-size:0.8rem; color:var(--hell-glow); text-align:center; font-style:italic; }
+.cp-status-bar { display:flex; flex-wrap:wrap; gap:4px; padding:4px 12px 6px; background:rgba(201,168,76,0.04); border-bottom:1px solid rgba(201,168,76,0.1); }
+.status-badge { font-size:0.62rem; padding:2px 7px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.25); color:var(--gold); font-family:'Cinzel',serif; letter-spacing:0.04em; }
+.status-badge small { opacity:0.7; margin-left:2px; }
+.enemy-status { font-size:0.7rem; padding:0 3px; background:rgba(192,57,43,0.15); border-color:rgba(192,57,43,0.3); color:#e74c3c; margin-left:4px; }
 `;
 const cStyle = document.createElement('style');
 cStyle.textContent = combatCSS;
