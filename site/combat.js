@@ -317,6 +317,16 @@ window.grantXP = grantXP;
 window.levelUp = levelUp;
 window.updateXPBar = updateXPBar;
 
+// Expose all combat functions on window so multiplayer.js patches intercept correctly
+window.combatAttack = combatAttack;
+window.castSelectedSpell = castSelectedSpell;
+window.endPlayerTurn = endPlayerTurn;
+window.startCombat = startCombat;
+window.selectTarget = selectTarget;
+window.getTarget = getTarget;
+window.selectSpell = selectSpell;
+window.cancelSpell = cancelSpell;
+
 // ─── INITIALIZE PLAYER SPELLS ─────────────────
 function initPlayerSpells(char) {
   if (char.spells && char.spells.length > 0) return; // already has spells
@@ -426,7 +436,7 @@ function updateCombatUI() {
         : `<div class="ce-hp-bar-wrap"><div class="ce-hp-bar" style="width:${hpPct}%;background:${hpColor}"></div></div><span class="ce-hp-num">${c.hp}/${c.maxHp}</span>`;
       const isTarget = combatState.selectedTarget === c.id;
       return `<div class="combat-enemy ${isTarget ? 'targeted' : ''} ${c.boss ? 'boss' : ''}"
-        onclick="selectTarget('${c.id}')">
+        onclick="window.selectTarget('${c.id}')">
         <span class="ce-icon">${c.icon}</span>
         <div class="ce-info">
           <span class="ce-name">${c.name}${c.boss ? ' 👑' : ''} <span class="ce-lvl">Lv${c.level||1}</span></span>
@@ -442,7 +452,7 @@ function updateCombatUI() {
     const canCast = player?.mp >= s.mp && combatState.apRemaining >= s.ap && isPlayerTurn;
     const isSelected = combatState.selectedSpell?.id === s.id;
     return `<button class="spell-btn ${canCast ? '' : 'disabled'} ${isSelected ? 'selected' : ''}"
-      onclick="${canCast ? `selectSpell('${s.id}')` : ''}" title="${s.desc}">
+      onclick="${canCast ? `window.selectSpell('${s.id}')` : ''}" title="${s.desc}">
       <span class="sb-icon">${s.icon}</span>
       <span class="sb-name">${s.name}</span>
       <div class="sb-stats">
@@ -491,7 +501,7 @@ function updateCombatUI() {
 
       <div class="cp-action-buttons">
         <button class="ca-btn attack ${combatState.apRemaining < 1 ? 'disabled' : ''}"
-          onclick="combatAttack()" title="1 AP — Basic weapon attack">
+          onclick="window.combatAttack()" title="1 AP — Basic weapon attack">
           ⚔ <span>ATTACK</span> <small>1AP</small>
         </button>
         <button class="ca-btn move ${combatState.apRemaining < 1 ? 'disabled' : ''}"
@@ -502,7 +512,7 @@ function updateCombatUI() {
           onclick="combatItem()" title="1 AP — Use item">
           🎒 <span>ITEM</span> <small>1AP</small>
         </button>
-        <button class="ca-btn end-turn" onclick="endPlayerTurn()">
+        <button class="ca-btn end-turn" onclick="window.endPlayerTurn()">
           ⏭ <span>END TURN</span>
         </button>
       </div>
@@ -513,10 +523,10 @@ function updateCombatUI() {
       ` : '<div class="cp-no-spells">No spells learned yet. Level up to learn spells.</div>'}
 
       <div class="cp-cast-row" ${combatState.selectedSpell ? '' : 'style="display:none"'} id="cast-row">
-        <button class="ca-btn cast" onclick="castSelectedSpell()">
+        <button class="ca-btn cast" onclick="window.castSelectedSpell()">
           ${combatState.selectedSpell?.icon || '✨'} CAST ${combatState.selectedSpell?.name || ''} ON TARGET
         </button>
-        <button class="ca-btn cancel" onclick="cancelSpell()">✕ Cancel</button>
+        <button class="ca-btn cancel" onclick="window.cancelSpell()">✕ Cancel</button>
       </div>
     </div>
     ` : `<div class="cp-enemy-thinking">${current?.icon} ${current?.name} is acting...</div>`}
