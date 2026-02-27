@@ -888,6 +888,93 @@ function classifyAction(text) {
   return 'free';
 }
 
+// ─── DIVINE INVOCATION HANDLER ────────────────────────────
+// Called whenever the player invokes the name of Jesus Christ,
+// regardless of context (prayer, declaration, mid-combat, etc.)
+async function handleDivineInvocation(text) {
+  const char = gameState.character;
+  if (!char) return;
+
+  const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
+  const cls = CLASSES?.find(c => c.id === char.class);
+  const race = RACES?.find(r => r.id === char.race);
+  const inCombat = window.combatState?.active;
+
+  addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+  addLog(`☩ ${char.name} invokes the name of Jesus Christ.`, 'holy');
+
+  // WIS roll — determines the degree of divine response
+  const wisVal = char.stats?.wis || 10;
+  const wisMod = Math.floor((wisVal - 10) / 2);
+  const roll = Math.floor(Math.random() * 20) + 1;
+  const total = roll + wisMod;
+  const isCrit = roll === 20;
+  const isFumble = roll === 1;
+  const isHealing = /heal|health|restore|hp|wound|hurt|recover|strength/i.test(text);
+
+  addLog(`🎲 WIS check DC11: [${roll}] + ${wisMod >= 0 ? '+' : ''}${wisMod} = ${total} — ${isCrit ? '✨ CRITICAL!' : isFumble ? '💀 FUMBLE!' : total >= 11 ? '✅ Success!' : '❌ Failure!'}`, 'dice');
+
+  // ── Mechanical HP effect ──
+  let healAmt = 0;
+  if (isHealing || isCrit || total >= 11) {
+    if (isCrit) {
+      // Critical — full restore
+      healAmt = char.maxHp - char.hp;
+      char.hp = char.maxHp;
+    } else if (total >= 11) {
+      // Success — heal 30% of max
+      healAmt = Math.floor(char.maxHp * 0.3);
+      char.hp = Math.min(char.maxHp, char.hp + healAmt);
+    }
+    // If specifically asking to restore to full with a success or crit, do full
+    if (/restore.*to.*110|restore.*full|to.*full.*health|to.*max/i.test(text) && total >= 11) {
+      healAmt = char.maxHp - char.hp;
+      char.hp = char.maxHp;
+    }
+  }
+
+  // Sync to combat combatant if in combat
+  if (inCombat && window.combatState?.combatants?.player) {
+    window.combatState.combatants.player.hp = char.hp;
+    window.combatState.combatants.player.maxHp = char.maxHp;
+  }
+
+  // ── Always update UI ──
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  if (typeof updateCharacterPanel === 'function') updateCharacterPanel();
+  if (inCombat && typeof updateCombatUI === 'function') updateCombatUI();
+
+  // ── DM narration ──
+  const divSys = `You are the DM of "Sanctum & Shadow". ${typeof TRUE_DIVINE_WORLD_LORE !== 'undefined' ? TRUE_DIVINE_WORLD_LORE : ''}
+
+${char.name} (${race?.name || ''} ${cls?.name || ''}) has just invoked the name of Jesus Christ in ${loc?.name || 'Vaelthar'}.
+Roll result: ${isCrit ? 'CRITICAL — something extraordinary and undeniable happens' : total >= 11 ? 'SUCCESS — something real and physical shifts' : isFumble ? 'FUMBLE — the prayer is genuine but something dark interferes' : 'FAILURE — the prayer is heard but the answer is silence for now'}.
+${healAmt > 0 ? `${char.name} has been healed ${healAmt} HP, now at ${char.hp}/${char.maxHp}. Narrate this restoration as a real physical event, not a spell.` : ''}
+${inCombat ? 'This is mid-combat. The fighting pauses for one breath.' : ''}
+${char.class === 'paladin' ? `${char.name} is a Paladin — this name is their entire life.` : ''}
+
+Write 3-4 complete sentences. Quiet, real, not theatrical. NEVER use markdown.`;
+
+  const narration = await callClaude(divSys, [{ role: 'user', content: `Player: "${text}"` }], 300);
+  if (narration) {
+    const clean = narration.replace(/^#+\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+    addLog(clean, 'holy');
+  } else {
+    const fallbacks = {
+      crit: `The name of Jesus Christ falls on the room like a stone into still water. Every sound stops — not from fear, not from surprise, but from something that has no name in the language of this age. ${char.name}'s wounds close. The light in the space changes, briefly. Then the world resumes, and nothing is quite the same as it was before.`,
+      success: `Something shifts when ${char.name} speaks that name. It is not loud. It does not announce itself. But everyone present feels it — a weight, a stillness, a sense of something paying attention. ${healAmt > 0 ? `${char.name} stands straighter. The pain is less than it was.` : 'The prayer was heard.'}`,
+      failure: `The prayer is genuine. The silence that follows is not empty — it is the silence of being heard, not yet answered. Something will come from this. Not yet.`,
+    };
+    addLog(isCrit ? fallbacks.crit : total >= 11 ? fallbacks.success : fallbacks.failure, 'holy');
+  }
+
+  if (healAmt > 0) {
+    addLog(`☩ ${healAmt} HP restored. ${char.hp}/${char.maxHp}. ${isCrit ? 'Full restoration.' : ''}`, 'holy');
+  }
+
+  grantHolyPoints(isCrit ? 5 : total >= 11 ? 3 : 1);
+}
+
 async function submitAction() {
   const input = document.getElementById('action-input');
   const text = input.value.trim();
@@ -896,6 +983,38 @@ async function submitAction() {
   const charName = gameState.character?.name || 'Unknown';
   addLog(`${charName}: "${text}"`, 'action', charName);
   input.value = '';
+
+  // ── Rest / Camp intercept — before anything else ──
+  const tLower = text.toLowerCase().trim();
+  const isRestWord = ['rest', 'camp', 'sleep', 'make camp', 'short rest', 'long rest', 'set up camp', 'take a rest'].some(w => tLower === w || tLower.startsWith(w + ' ') || tLower.includes(w));
+  if (isRestWord) {
+    if (typeof openCampPanel === 'function') {
+      openCampPanel();
+    } else {
+      // camp.js not loaded — do a basic in-line rest
+      const char = gameState.character;
+      if (!char) return;
+      const roll = Math.floor(Math.random() * 20) + 1;
+      addLog(`🎲 You roll: [${roll}] — ${roll >= 10 ? 'Success!' : 'Failure!'}`, 'dice');
+      if (roll >= 10) {
+        const heal = Math.floor(char.maxHp * 0.3);
+        char.hp = Math.min(char.maxHp, char.hp + heal);
+        addLog(`📖 You find a sheltered spot and rest. ${heal} HP recovered (now ${char.hp}/${char.maxHp}).`, 'narrator');
+        if (typeof renderPlayerCard === 'function') renderPlayerCard();
+        if (typeof updateCharacterPanel === 'function') updateCharacterPanel();
+        if (typeof advanceTime === 'function') advanceTime(1);
+      } else {
+        addLog(`📖 You try to rest but the city's noise and your own tension keep pulling you back. No recovery.`, 'narrator');
+      }
+    }
+    return;
+  }
+
+  // ── Jesus Christ invocation — intercept before classification ──
+  if (typeof isJesusInvocation === 'function' && isJesusInvocation(text)) {
+    await handleDivineInvocation(text);
+    return;
+  }
 
   // ── Combat check FIRST ──
   if (!combatState.active && typeof checkAutoAttack === 'function') {
@@ -1076,31 +1195,7 @@ async function resolveAction(text, roll, actionType, dc, total, success) {
   if (actionType === 'free') {
     const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
 
-    // Jesus Christ invocation — handled with full divine weight
-    if (typeof isJesusInvocation === 'function' && isJesusInvocation(text)) {
-      addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
-      addLog(`☩ ${char?.name} invokes the name of Jesus Christ.`, 'holy');
-      const inCombat = window.combatState?.active;
-      const divSys = `You are the DM of "Sanctum & Shadow". ${TRUE_DIVINE_WORLD_LORE || ''}
-
-Narrate what happens when ${char?.name} (${cls?.name}) invokes the name of Jesus Christ aloud in ${loc?.name}. Write 3-4 complete sentences. This is not a spell. This is not a game mechanic. This is the name of the one true God being spoken in a world that has almost forgotten Him. The response should be: real, physical, quiet rather than theatrical. Something in the space changes. Something in the people nearby changes — even if no words are said. Write it as a moment that will not be forgotten. ${inCombat ? 'This is mid-combat. The fighting pauses for one held breath. Every person present feels something shift. Then it resumes — but something has changed in the room.' : ''} ${char?.class === 'paladin' ? `${char.name} is a Paladin who has built their entire life on this name. That weight is in the invocation.` : ''}`;
-      const narration = await callClaude(divSys, [{ role: 'user', content: `Player invokes: "${text}"` }], 300);
-      addLog(narration || `The name hangs in the air. For a moment — just a moment — everything in earshot goes still. Not from shock. From something no one has words for.`, 'holy');
-      grantHolyPoints(3);
-      if (inCombat && window.combatState?.combatants?.player) {
-        const p = window.combatState.combatants.player;
-        const heal = Math.max(5, Math.floor((p.maxHp || 100) * 0.1));
-        if (p.hp < (p.maxHp || 100)) {
-          p.hp = Math.min(p.maxHp || 100, p.hp + heal);
-          if (gameState.character) gameState.character.hp = p.hp;
-          addLog(`☩ ${heal} HP restored. Not from a system. From Him.`, 'holy');
-          if (typeof updateCombatUI === 'function') updateCombatUI();
-          if (typeof renderPlayerCard === 'function') renderPlayerCard();
-        }
-      }
-      return;
-    }
-
+    // Jesus Christ invocation already handled above before classification
     const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention. NEVER use markdown headers (#), bold (**), or any formatting — plain prose only.`;
     const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 200);
     if (narration) {
