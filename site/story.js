@@ -376,8 +376,8 @@ STORY PROGRESSION:
 - Talked to Rhael: ${flags.talked_to_captain_rhael ? 'YES' : 'no'}
 - Talked to Scribe: ${flags.talked_to_trembling_scribe ? 'YES' : 'no'}
 - Has the document: ${flags.has_document ? 'YES' : 'no'}
-- Knows Varek's name: ${flags.knows_elder_name ? 'YES' : 'no'}
-- Knows Varek's location: ${flags.knows_varek_location ? 'YES' : 'no'}
+- Knows Varek\'s name: ${flags.knows_elder_name ? 'YES' : 'no'}
+- Knows Varek\'s location: ${flags.knows_varek_location ? 'YES' : 'no'}
 - Allied with Mourne: ${flags.allied_sister_mourne ? 'YES' : 'no'}
 - Dead NPCs: ${deadNPCs}
 - All flags: ${flagList}
@@ -450,7 +450,7 @@ const MISSING_SCENES = {
     location: 'Vaelthar — The Fractured Capital',
     locationIcon: '🏰',
     threat: '⚠ Political Crisis',
-    narration: `You're in the heart of Vaelthar and the city is holding its breath. The Covenant shattered three days ago. Church soldiers stand on corners they don't usually stand on. Merchants packed up early. Something bad is coming, and everyone can feel it except the people in charge of stopping it.`,
+    narration: `You're in the heart of Vaelthar and the city is holding its breath. The Covenant shattered three days ago. Church soldiers stand on corners they don\'t usually stand on. Merchants packed up early. Something bad is coming, and everyone can feel it except the people in charge of stopping it.`,
     sub: `Find the truth before the city tears itself apart.`,
     options: [
       { icon: '💬', label: 'Find Captain Rhael at the city gate', type: 'talk', action: () => runScene('rhael_first_meeting') },
@@ -487,7 +487,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Gate — Rhael',
       locationIcon: '🪖',
-      narration: `Rhael leans closer, voice dropping. "The man near the Archive. His name is Aldis — senior scribe, loyal to the original Covenant charter. He was the official witness at the signing." A pause. "He copied something he shouldn't have. I don't know what. But the Church sent two agents to find him this morning, and they didn't go to ask politely." He straightens. "Whatever he has — you want it before they get to him."`,
+      narration: `Rhael leans closer, voice dropping. "The man near the Archive. His name is Aldis — senior scribe, loyal to the original Covenant charter. He was the official witness at the signing." A pause. "He copied something he shouldn\'t have. I don\'t know what. But the Church sent two agents to find him this morning, and they didn't go to ask politely." He straightens. "Whatever he has — you want it before they get to him."`,
       sub: `Get to the Scribe before the Church agents do.`,
       options: [
         { icon: '🏃', label: 'Go to the Scribe right now', type: 'move', action: () => runScene('scribe_urgent') },
@@ -502,8 +502,8 @@ const MISSING_SCENES = {
   rhael_deflects: () => ({
     location: 'Vaelthar Gate',
     locationIcon: '🪖',
-    narration: `Rhael's eyes slide away from yours. "I look at a lot of things. Doesn't mean anything." He shifts his weight and looks at a point past your shoulder. "My job is the gate. Not the Archive." He's lying. Not well, but with enough conviction that pushing further right now would only close him off completely.`,
-    sub: `He's not ready to trust you yet. Come back with evidence, or find another angle.`,
+    narration: `Rhael\'s eyes slide away from yours. "I look at a lot of things. Doesn't mean anything." He shifts his weight and looks at a point past your shoulder. "My job is the gate. Not the Archive." He\'s lying. Not well, but with enough conviction that pushing further right now would only close him off completely.`,
+    sub: `He\'s not ready to trust you yet. Come back with evidence, or find another angle.`,
     options: [
       { icon: '👁', label: 'Go find the Scribe — get evidence first', type: 'move', action: () => runScene('scribe_approach') },
       { icon: '🔍', label: 'Push harder — you saw what you saw', type: 'talk',
@@ -519,7 +519,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Gate — Rhael',
       locationIcon: '🪖',
-      narration: `Rhael says the name like he's dropping something heavy. "Elder Varek. Head of the Eternal Flame order. He gave the order directly — I don't have proof, but I heard it from someone who was in that room." His jaw is tight. "He's at the Monastery of Saint Aldric right now, waiting for the dust to settle. But if he realises the Scribe survived with evidence — he'll send the Candle to clean it up."`,
+      narration: `Rhael says the name like he\'s dropping something heavy. "Elder Varek. Head of the Eternal Flame order. He gave the order directly — I don\'t have proof, but I heard it from someone who was in that room." His jaw is tight. "He\'s at the Monastery of Saint Aldric right now, waiting for the dust to settle. But if he realises the Scribe survived with evidence — he\'ll send the Candle to clean it up."`,
       sub: `Elder Varek is at the Monastery. Move before he disappears.`,
       options: [
         { icon: '🗺', label: 'Go directly to the Monastery', type: 'move',
@@ -535,8 +535,8 @@ const MISSING_SCENES = {
   rhael_clams_up: () => ({
     location: 'Vaelthar Gate',
     locationIcon: '🪖',
-    narration: `Something flickers across Rhael's face — fear, maybe, or the memory of fear. "I've said enough. More than enough." He steps back. "Whatever you're planning to do with this — leave my name out of it." He turns to face the gate and doesn't look back.`,
-    sub: `He's done talking. You have what you need. Move without him.`,
+    narration: `Something flickers across Rhael\'s face — fear, maybe, or the memory of fear. "I\'ve said enough. More than enough." He steps back. "Whatever you\'re planning to do with this — leave my name out of it." He turns to face the gate and doesn\'t look back.`,
+    sub: `He\'s done talking. You have what you need. Move without him.`,
     options: [
       { icon: '🗺', label: 'Head to the Monastery alone', type: 'move',
         action: () => { if (window.travelToLocation && WORLD_LOCATIONS['monastery_aldric']) travelToLocation(WORLD_LOCATIONS['monastery_aldric']); else runScene('monastery_arrival'); } },
@@ -547,8 +547,8 @@ const MISSING_SCENES = {
   rhael_too_afraid: () => ({
     location: 'Vaelthar Gate',
     locationIcon: '🪖',
-    narration: `Rhael shakes his head once. His eyes have gone flat, the way eyes go when a man has decided he values his life over his conscience — for now, at least. "I have a family," he says, and that's all. He walks away. You won't get the name from him today.`,
-    sub: `He's too afraid. Find the Scribe — he has written proof.`,
+    narration: `Rhael shakes his head once. His eyes have gone flat, the way eyes go when a man has decided he values his life over his conscience — for now, at least. "I have a family," he says, and that\'s all. He walks away. You won\'t get the name from him today.`,
+    sub: `He\'s too afraid. Find the Scribe — he has written proof.`,
     options: [
       { icon: '🏃', label: 'Go find the Scribe instead', type: 'move', action: () => runScene('scribe_urgent') },
     ]
@@ -561,7 +561,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Gate — Rhael',
       locationIcon: '🪖',
-      narration: `Rhael reads the document twice. Then a third time. When he looks up his face has changed — not shocked, exactly, but the kind of settled that comes from having a suspicion confirmed after too long. "Elder Varek." He folds the document carefully and hands it back. "Right. Here's what happens now. I mobilise two squads and we go to the Monastery. You're a civilian witness. You don't touch Varek — I do." He's already moving. "Try to keep up."`,
+      narration: `Rhael reads the document twice. Then a third time. When he looks up his face has changed — not shocked, exactly, but the kind of settled that comes from having a suspicion confirmed after too long. "Elder Varek." He folds the document carefully and hands it back. "Right. Here's what happens now. I mobilise two squads and we go to the Monastery. You're a civilian witness. You don\'t touch Varek — I do." He\'s already moving. "Try to keep up."`,
       sub: `Rhael is taking charge. Head to the Monastery together.`,
       options: [
         { icon: '🗺', label: 'Head to the Monastery with Rhael', type: 'move',
@@ -578,11 +578,11 @@ const MISSING_SCENES = {
       location: 'Covenant Signing Hall — Ruins',
       locationIcon: '🏛',
       threat: '⚠ Evidence Site',
-      narration: `The signing hall is a shell now — scorched beams, shattered ceremonial table, ash where the treaty documents should be. But you were trained to look. The burn pattern starts from the Church delegation's side of the table. The fire moved outward — not inward from an accident. And wedged under a piece of collapsed ceiling: a half-burned wax seal. You recognise it from the Scribe's document. Elder Varek's seal.`,
-      sub: `Physical proof the fire was set from the Church side. Varek's seal confirms it.`,
+      narration: `The signing hall is a shell now — scorched beams, shattered ceremonial table, ash where the treaty documents should be. But you were trained to look. The burn pattern starts from the Church delegation's side of the table. The fire moved outward — not inward from an accident. And wedged under a piece of collapsed ceiling: a half-burned wax seal. You recognise it from the Scribe\'s document. Elder Varek\'s seal.`,
+      sub: `Physical proof the fire was set from the Church side. Varek\'s seal confirms it.`,
       options: [
         { icon: '📜', label: 'Take the wax seal as evidence', type: 'explore',
-          action: () => { addLog('📜 ITEM GAINED: Varek\'s Wax Seal — physical evidence from the burning.', 'holy'); gameState.character?.inventory?.push("Varek's Wax Seal"); runScene('rhael_first_meeting'); } },
+          action: () => { addLog('📜 ITEM GAINED: Varek\'s Wax Seal — physical evidence from the burning.', 'holy'); gameState.character?.inventory?.push("Varek\'s Wax Seal"); runScene('rhael_first_meeting'); } },
         { icon: '🔍', label: 'Look for more evidence in the ruins', type: 'explore',
           roll: { stat: 'INT', dc: 12 },
           onSuccess: () => { addLog('📜 CLUE: A scorch pattern in the corner suggests someone hid and watched the burning.', 'holy'); runScene('scribe_approach'); },
@@ -598,8 +598,8 @@ const MISSING_SCENES = {
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
-      narration: `At the angle you're watching from, the document roll tips just enough. Wax seal, deep red. You know that crest — it's the mark of an Elder of the Eternal Flame. This isn't a scribe's working copy. This is an original order. The man is carrying something that could get him killed, and he knows it.`,
-      sub: `That's an Elder's sealed order. Approach him — carefully.`,
+      narration: `At the angle you\'re watching from, the document roll tips just enough. Wax seal, deep red. You know that crest — it\'s the mark of an Elder of the Eternal Flame. This isn\'t a scribe's working copy. This is an original order. The man is carrying something that could get him killed, and he knows it.`,
+      sub: `That\'s an Elder's sealed order. Approach him — carefully.`,
       options: [
         { icon: '💬', label: 'Approach him now — you know what he has', type: 'talk', action: () => runScene('scribe_approach') },
       ]
@@ -609,7 +609,7 @@ const MISSING_SCENES = {
   scribe_hesitates: () => ({
     location: 'Archive Steps',
     locationIcon: '📜',
-    narration: `The Scribe pulls the document back. "I don't know you. I don't know who sent you, whose side you're on." His eyes are wet but his grip is iron. "Torven is dead. I give this to the wrong person and I'm next. How do I know you're not one of Varek's people?"`,
+    narration: `The Scribe pulls the document back. "I don\'t know you. I don\'t know who sent you, whose side you\'re on." His eyes are wet but his grip is iron. "Torven is dead. I give this to the wrong person and I\'m next. How do I know you\'re not one of Varek\'s people?"`,
     sub: `He needs a reason to trust you. Give him one.`,
     options: [
       { icon: '💬', label: '"I\'m not Watch, not Church. I work alone."', type: 'talk',
@@ -629,8 +629,8 @@ const MISSING_SCENES = {
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
-      narration: `"The Monastery of Saint Aldric," the Scribe says without hesitation. "Elder Varek retreated there the morning after the Covenant burned. He has four Church soldiers with him. He thinks he's safe — the Church owns the monastery and the Abbot owes him a favour." He grips your arm. "But he doesn't know I survived. He thinks his order burned with everything else."`,
-      sub: `Varek is at the Monastery. He doesn't know the evidence survived.`,
+      narration: `"The Monastery of Saint Aldric," the Scribe says without hesitation. "Elder Varek retreated there the morning after the Covenant burned. He has four Church soldiers with him. He thinks he\'s safe — the Church owns the monastery and the Abbot owes him a favour." He grips your arm. "But he doesn\'t know I survived. He thinks his order burned with everything else."`,
+      sub: `Varek is at the Monastery. He doesn\'t know the evidence survived.`,
       options: [
         { icon: '🔐', label: '"Give me the document. I\'ll end this."', type: 'talk',
           roll: { stat: 'CHA', dc: 11 },
@@ -647,7 +647,7 @@ const MISSING_SCENES = {
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
-      narration: `The Scribe's voice drops to almost nothing. "The Candle — that's what they call her. An agent of the Elder, embedded in the Temple Quarter for years. Her job is to burn things. Evidence. Reputations." He pauses. "People." He looks at you. "I think it's Sister Mourne. The inquisitor. She was at the signing hall that morning — I saw her leave just before the fire started."`,
+      narration: `The Scribe\'s voice drops to almost nothing. "The Candle — that\'s what they call her. An agent of the Elder, embedded in the Temple Quarter for years. Her job is to burn things. Evidence. Reputations." He pauses. "People." He looks at you. "I think it\'s Sister Mourne. The inquisitor. She was at the signing hall that morning — I saw her leave just before the fire started."`,
       sub: `Sister Mourne is "The Candle." She may be at the Temple Quarter now.`,
       options: [
         { icon: '🗺', label: 'Go to the Temple Quarter — confront Mourne', type: 'move',
@@ -665,7 +665,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar — Moving',
       locationIcon: '📜',
-      narration: `Aldis falls into step beside you, clutching his document roll like a holy relic. "Where are we going?" he asks. "Somewhere the Church can't reach us," you say. He almost laughs. "In Vaelthar? That's a short list." You move quickly through the back streets. He's useful — he knows the city's layout, which doors the Church watches, and the names of three people who might be willing to help.`,
+      narration: `Aldis falls into step beside you, clutching his document roll like a holy relic. "Where are we going?" he asks. "Somewhere the Church can\'t reach us," you say. He almost laughs. "In Vaelthar? That\'s a short list." You move quickly through the back streets. He\'s useful — he knows the city\'s layout, which doors the Church watches, and the names of three people who might be willing to help.`,
       sub: `Aldis is with you. He knows things. Use them.`,
       options: [
         { icon: '💬', label: '"Tell me everything about Elder Varek"', type: 'talk', action: () => runScene('scribe_names_varek_location') },
@@ -679,8 +679,8 @@ const MISSING_SCENES = {
   scribe_refuses_to_move: () => ({
     location: 'Archive Steps',
     locationIcon: '📜',
-    narration: `"I can't," Aldis says. "If I leave the Archive steps they'll know I ran. They'll know I have something." He's shaking. "If I stay and look normal, maybe — maybe they leave me alone." He believes this. He shouldn't. You can see one of the Church agents at the end of the street, pretending to read a notice board.`,
-    sub: `He won't move. You need to change his mind fast or drag him out.`,
+    narration: `"I can\'t," Aldis says. "If I leave the Archive steps they\'ll know I ran. They'll know I have something." He\'s shaking. "If I stay and look normal, maybe — maybe they leave me alone." He believes this. He shouldn\'t. You can see one of the Church agents at the end of the street, pretending to read a notice board.`,
+    sub: `He won\'t move. You need to change his mind fast or drag him out.`,
     options: [
       { icon: '💬', label: '"They\'ve already decided. That man at the end of the street — look."', type: 'talk',
         action: () => runScene('scribe_urgent') },
@@ -694,11 +694,11 @@ const MISSING_SCENES = {
   scribe_forced_along: () => ({
     location: 'Vaelthar Streets',
     locationIcon: '📜',
-    narration: `He comes along because he has no choice. He's not happy about it — curses you under his breath for the first three streets, then falls silent and focuses on keeping up. By the time you reach a safe alley he's stopped resisting. "Fine," he says, out of breath. "Fine. You're right. They were going to kill me." He reaches into his robe. "Take it. Take the document. If I have it when they catch me, I'm dead. If you have it — maybe it does some good."`,
-    sub: `He's given you the document. Now protect him.`,
+    narration: `He comes along because he has no choice. He\'s not happy about it — curses you under his breath for the first three streets, then falls silent and focuses on keeping up. By the time you reach a safe alley he\'s stopped resisting. "Fine," he says, out of breath. "Fine. You're right. They were going to kill me." He reaches into his robe. "Take it. Take the document. If I have it when they catch me, I\'m dead. If you have it — maybe it does some good."`,
+    sub: `He\'s given you the document. Now protect him.`,
     options: [
       { icon: '📜', label: 'Take the document and find somewhere safe for him', type: 'talk',
-        action: () => { setFlag('has_document'); addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order.', 'holy'); gameState.character?.inventory?.push("Elder Varek's Sealed Order"); runScene('scribe_rescued_scene'); } },
+        action: () => { setFlag('has_document'); addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order.', 'holy'); gameState.character?.inventory?.push("Elder Varek\'s Sealed Order"); runScene('scribe_rescued_scene'); } },
     ]
   }),
 
@@ -710,7 +710,7 @@ const MISSING_SCENES = {
       locationIcon: '📜',
       threat: '☠ EXPOSED',
       narration: `He shouts. Not words — just a raw, terrified sound that echoes off the stone buildings and brings every head on the street around. The Church agents at the end of the road are already moving. Guards from the gate come at a run. The Scribe scrambles back against the Archive door, wide-eyed, the document clutched to his chest. You have three seconds before this gets very bad.`,
-      sub: `Run or fight — you can't stay here.`,
+      sub: `Run or fight — you can\'t stay here.`,
       options: [
         { icon: '🏃', label: 'Run — get out of the square', type: 'move',
           roll: { stat: 'DEX', dc: 13 },
@@ -731,41 +731,145 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Alley',
       locationIcon: '🏚',
-      narration: `Aldis leans against the alley wall and talks for four straight minutes without stopping — the signed order, the hidden treasury clause on page four of the original Covenant, Elder Varek's meetings with "The Candle" the week before the signing, the fact that Torven photographically memorised the document before he was killed. When he finishes, he looks hollowed out. "That's everything. Every last thing I know. Now please — what do we do?"`,
+      narration: `Aldis leans against the alley wall and talks for four straight minutes without stopping — the signed order, the hidden treasury clause on page four of the original Covenant, Elder Varek\'s meetings with "The Candle" the week before the signing, the fact that Torven photographically memorised the document before he was killed. When he finishes, he looks hollowed out. "That\'s everything. Every last thing I know. Now please — what do we do?"`,
       sub: `You have the full picture. Elder Varek at the Monastery. End this.`,
       options: [
         { icon: '🗺', label: 'Head to the Monastery — you have everything you need', type: 'move',
-          action: () => { setFlag('has_document'); gameState.character?.inventory?.push("Elder Varek's Sealed Order"); if (window.travelToLocation && WORLD_LOCATIONS['monastery_aldric']) travelToLocation(WORLD_LOCATIONS['monastery_aldric']); else runScene('monastery_arrival'); } },
+          action: () => { setFlag('has_document'); gameState.character?.inventory?.push("Elder Varek\'s Sealed Order"); if (window.travelToLocation && WORLD_LOCATIONS['monastery_aldric']) travelToLocation(WORLD_LOCATIONS['monastery_aldric']); else runScene('monastery_arrival'); } },
         { icon: '💬', label: 'Get Rhael first — you need muscle', type: 'talk',
           action: () => runScene('rhael_with_evidence') },
       ]
     };
   },
 
-  thornwood_gate_inn: () => {
-    setFlag('at_thornwood_inn');
+  thornwood_gate_inn: () => runScene('tarnished_cup_arrival'),
+
+  tarnished_cup_arrival: () => {
+    setFlag('visited_tarnished_cup');
+    const flags = window.sceneState?.flags || {};
+    const char = gameState.character;
     return {
-      location: 'The Last Post — Thornwood Gate Inn',
+      location: 'The Tarnished Cup',
       locationIcon: '🍺',
-      threat: '⚠ Curfew Near',
-      narration: `The Last Post is half-empty, which suits your purposes. Aldis is already in the back corner, a tankard he hasn't touched in front of him. He's calmer than when you last saw him — the kind of calm that comes after a decision. "I've been thinking," he says before you sit. "About what happens after Varek is arrested. Someone ordered the hidden clause written into the Covenant. Varek followed that order. The question is: who gave it?" He slides a folded paper across the table. "I found this in the Archive. Before they changed the locks."`,
-      sub: `There's a layer above Varek. Someone gave him the order.`,
+      narration: `The Tarnished Cup smells of tallow candles, spilled ale, and secrets. It\'s the oldest tavern in Vaelthar and the only one that stayed open when the Covenant shattered three days ago. Lyra, the innkeeper, clocks you the moment you walk in — her expression says she\'s seen everything twice. In the back corner, Aldis the Scribe is already here, a tankard untouched in front of him. At the bar, a heavyset man with ink-stained fingers is drawing maps on napkins and muttering about compass bearings. The room feels like the city\'s nervous system.`,
+      sub: `The Scribe is waiting. But this room holds more than one answer.`,
       options: [
-        { icon: '📜', label: 'Read the paper', type: 'explore',
-          action: () => { setFlag('knows_higherpower'); addLog('📜 REVELATION: The hidden clause was inserted by a royal clerk — someone inside the Crown, not just the Church.', 'holy'); runScene('scribe_tells_all_now'); } },
-        { icon: '💬', label: '"We deal with Varek first. One thing at a time."', type: 'talk',
-          action: () => { setFlag('has_document'); gameState.character?.inventory?.push("Elder Varek's Sealed Order"); runScene('monastery_arrival'); } },
+        { icon: '💬', label: 'Go to Aldis — hear what he knows', type: 'talk',
+          action: () => runScene('tarnished_cup_scribe_meeting') },
+        { icon: '🍺', label: 'Talk to Lyra first — she knows everything that moves through this city', type: 'talk',
+          action: () => runScene('tarnished_cup_lyra') },
+        { icon: '🗺', label: 'Approach the drunk cartographer — those maps look interesting', type: 'explore',
+          action: () => runScene('tarnished_cup_cartographer') },
+        { icon: '👁', label: 'Scan the room — read who else is here', type: 'explore',
+          roll: { stat: 'WIS', dc: 10 },
+          onSuccess: () => { setFlag('cup_room_read'); runScene('tarnished_cup_room_scan'); },
+          onFail: () => runScene('tarnished_cup_scribe_meeting') },
       ]
     };
   },
+
+  tarnished_cup_lyra: () => {
+    setFlag('talked_to_lyra');
+    return {
+      location: 'The Tarnished Cup — Lyra',
+      locationIcon: '🍺',
+      narration: `Lyra leans on the bar and looks at you the way she looks at everyone — like she\'s already measured the distance between what you\'re saying and what you mean. "You're not here for the ale," she says. "And you\'re not Watch. So." She tilts her head toward Aldis. "You're here about the scared man in the corner." She wipes the bar slowly. "Three nights ago, a Church deacon sat where you\'re standing and drank until he talked. Said a name he shouldn\'t have. Varek. Said the order to burn the treaty came from Varek personally — and that Varek was already at the Monastery before the ashes were cold." She stops wiping. "I didn't tell anyone because no one asked me." She looks at you. "You're asking."`,
+      sub: `Lyra already knew. Varek is at the Monastery of Saint Aldric.`,
+      options: [
+        { icon: '💬', label: '"Which deacon? I need to find him."', type: 'talk',
+          roll: { stat: 'CHA', dc: 11 },
+          onSuccess: () => { setFlag('lyra_gave_deacon_name'); addLog('📜 CLUE: Lyra names the deacon — Voss. He\'s still in the temple district. Frightened enough to talk.', 'holy'); runScene('tarnished_cup_scribe_meeting'); },
+          onFail: () => { addLog('She shakes her head. "I protect the people who drink here. That\'s the deal."', 'system'); runScene('tarnished_cup_scribe_meeting'); } },
+        { icon: '📜', label: '"You knew about Varek and said nothing."', type: 'talk',
+          action: () => { addLog('"I\'m a barkeep," she says evenly. "Not a judge. And not a corpse — which is what you become when you involve yourself in Church business uninvited. You have a death wish. I don\'t."', 'narrator'); runScene('tarnished_cup_scribe_meeting'); } },
+        { icon: '💬', label: '"Thank you. That\'s more than anyone else has given me."', type: 'talk',
+          action: () => { setFlag('lyra_respect_gained'); grantXP(75); addLog('📜 Lyra nods once. "Come back when this is over. First drink is on the house."', 'holy'); runScene('tarnished_cup_scribe_meeting'); } },
+      ]
+    };
+  },
+
+  tarnished_cup_cartographer: () => {
+    setFlag('talked_to_cartographer');
+    return {
+      location: 'The Tarnished Cup — The Drunk Cartographer',
+      locationIcon: '🗺',
+      narration: `The man looks up from his napkin when you sit down. His eyes are bloodshot but sharp — the eyes of someone who is drunk on purpose, not accidentally. Maps cover every inch of the table, rough sketches connected by compass lines. "You're going to the Monastery," he says. Not a question. He taps the largest map. "Everyone eventually goes to the Monastery." He draws a circle on the napkin. "Front gate is guarded. Has been since the crisis. But—" he sketches a line around the back of the grounds "—the eastern wall has a collapsed section behind the old root cellar. Monks never bothered to fix it. I mapped it three years ago." He slides the napkin across. "Whether that\'s useful depends entirely on what you\'re going there to do."`,
+      sub: `The cartographer knows a way in through the eastern wall. This could change how the confrontation goes.`,
+      options: [
+        { icon: '📜', label: 'Take the map — use the back route', type: 'explore',
+          action: () => { setFlag('has_monastery_back_route'); gameState.character?.inventory?.push("Cartographer\'s Monastery Sketch"); grantXP(100); addLog('📜 ITEM GAINED: Cartographer\'s Monastery Sketch — shows the collapsed eastern wall entrance. You\'ll arrive undetected.', 'holy'); runScene('tarnished_cup_scribe_meeting'); } },
+        { icon: '💬', label: '"How do you know the monastery layout?"', type: 'talk',
+          roll: { stat: 'WIS', dc: 12 },
+          onSuccess: () => { setFlag('cartographer_stone_markers'); addLog('📜 He leans in close. "I was mapping the road system last year. Found stone markers in the monastery foundations — pre-Flame. Seven of them. The Church doesn\'t know I have drawings of them." He looks at you carefully. "What\'s buried there goes deeper than Varek."', 'holy'); runScene('tarnished_cup_scribe_meeting'); },
+          onFail: () => { addLog('"Survey work," he says, and goes back to his napkin.', 'system'); runScene('tarnished_cup_scribe_meeting'); } },
+        { icon: '💬', label: 'Leave him — go to Aldis', type: 'talk',
+          action: () => runScene('tarnished_cup_scribe_meeting') },
+      ]
+    };
+  },
+
+  tarnished_cup_room_scan: () => {
+    addLog('📜 PERCEPTION: Nervous merchant near the fire has been crying. Two cloaked figures haven\'t touched their drinks in an hour. The Church agents outside haven\'t come in — they\'re afraid of Lyra.', 'holy');
+    return {
+      location: 'The Tarnished Cup — Room Scan',
+      locationIcon: '🍺',
+      narration: `The room tells you things. The nervous merchant by the fire is watching the door every thirty seconds — he owes someone something and they might walk in. The two cloaked figures in the far corner have been arguing in whispers for a long time; one of them keeps saying "the Candle" and the other keeps saying "not here." Most importantly: two Church agents are visible through the window outside on the street. They haven\'t come in. Lyra is watching them. There is some old understanding that keeps them on the pavement.`,
+      sub: `The two cloaked figures are discussing "the Candle." That\'s Sister Mourne\'s codename.`,
+      options: [
+        { icon: '👂', label: 'Get closer to the cloaked figures — listen in', type: 'explore',
+          roll: { stat: 'DEX', dc: 13 },
+          onSuccess: () => { setFlag('overheard_candle_discussion'); addLog('📜 CLUE: "The Candle was never supposed to be identified. Varek guaranteed it. Now the Scribe is still alive and she\'s exposed." — One of them slides an envelope across the table. "This is her way out. If she takes it."', 'holy'); runScene('tarnished_cup_scribe_meeting'); },
+          onFail: () => { addLog('They stop talking the moment you get close. One of them meets your eyes. You retreat.', 'system'); runScene('tarnished_cup_scribe_meeting'); } },
+        { icon: '💬', label: 'Go to Aldis — you\'ve seen enough', type: 'talk',
+          action: () => runScene('tarnished_cup_scribe_meeting') },
+      ]
+    };
+  },
+
+  tarnished_cup_scribe_meeting: () => {
+    setFlag('at_tarnished_cup_scribe');
+    const flags = window.sceneState?.flags || {};
+    const bonusContext = flags.has_monastery_back_route
+      ? ' The cartographer\'s map is in your pocket — you have a way in that Varek\'s soldiers don\'t know about.'
+      : '';
+    const lyraBonus = flags.talked_to_lyra
+      ? ' Lyra confirmed it independently — Varek was at the Monastery before the ashes were cold.'
+      : '';
+    return {
+      location: 'The Tarnished Cup — Aldis',
+      locationIcon: '📜',
+      threat: '⚠ Curfew Near',
+      narration: `Aldis is calmer than when you last saw him — the calm that follows a decision. He slides a folded paper across the table before you sit. "I\'ve been thinking about what comes after Varek." His voice is barely above the noise of the room. "Someone ordered the hidden treasury clause written into the Covenant. Varek executed the order — but he didn't draft it. The question is who." He taps the paper. "I found this in the Archive before they changed the locks." He looks at you directly for the first time. "The Monastery of Saint Aldric. That\'s where Varek is. He\'s been there since the morning of the signing."${bonusContext}${lyraBonus}`,
+      sub: `You have the full picture now. Varek is at the Monastery. Move before he disappears.`,
+      options: [
+        { icon: '📜', label: 'Read the paper — who gave Varek his orders?', type: 'explore',
+          action: () => { setFlag('knows_higherpower'); addLog('📜 REVELATION: The hidden treasury clause was drafted by a royal clerk — someone inside the Crown. Both sides were playing. Varek burned the treaty to stop a trap, not start a war.', 'holy'); runScene('tarnished_cup_scribe_decision'); } },
+        { icon: '🗺', label: 'Go to the Monastery now — enough talking', type: 'move',
+          action: () => { setFlag('has_document'); gameState.character?.inventory?.push("Elder Varek\'s Sealed Order"); runScene('monastery_arrival'); } },
+      ]
+    };
+  },
+
+  tarnished_cup_scribe_decision: () => ({
+    location: 'The Tarnished Cup — The Full Picture',
+    locationIcon: '📜',
+    narration: `Aldis watches your face as you read. "Complicated, isn\'t it," he says. "Varek broke the law. He also might have prevented the Church from being dismantled by a Crown that was acting in bad faith." He presses his hands flat on the table. "That doesn\'t make what he did right. But it means this doesn\'t end with Varek in chains. It ends with a question: who do you take down, and how far does it go?" He meets your eyes. "The Monastery. That\'s where the answer starts."`,
+    sub: `Varek burned the treaty to stop a trap. The truth is deeper than anyone admits. Go to the Monastery.`,
+    options: [
+      { icon: '🗺', label: 'Go to the Monastery — face Varek directly', type: 'move',
+        action: () => { setFlag('has_document'); setFlag('knows_full_picture'); gameState.character?.inventory?.push("Elder Varek\'s Sealed Order"); runScene('monastery_arrival'); } },
+      { icon: '💬', label: '"I need to find Captain Rhael first — show him all of this"', type: 'talk',
+        action: () => { setFlag('has_document'); gameState.character?.inventory?.push("Elder Varek\'s Sealed Order"); runScene('rhael_with_evidence'); } },
+    ]
+  }),
 
   // ── MOURNE MISSING SCENES ─────────────────
 
   mourne_observed: () => ({
     location: 'Temple Quarter — Watching Mourne',
     locationIcon: '🕯',
-    narration: `You stay in the shadow of a column and watch her. She's been kneeling for a long time — but not in prayer. Her lips aren't moving. She's thinking. Every few minutes she glances at the side door to the left of the altar. Checking it. Waiting. She's expecting someone — and she's prepared for them not to be friendly.`,
-    sub: `She's waiting for you specifically. She knows you're coming. Go to her.`,
+    narration: `You stay in the shadow of a column and watch her. She\'s been kneeling for a long time — but not in prayer. Her lips aren't moving. She\'s thinking. Every few minutes she glances at the side door to the left of the altar. Checking it. Waiting. She\'s expecting someone — and she\'s prepared for them not to be friendly.`,
+    sub: `She\'s waiting for you specifically. She knows you\'re coming. Go to her.`,
     options: [
       { icon: '💬', label: 'Approach her — she knows you\'re there', type: 'talk',
         action: () => runScene('mourne_confrontation') },
@@ -782,7 +886,7 @@ const MISSING_SCENES = {
       location: 'Temple Quarter — Flanked',
       locationIcon: '🕯',
       threat: '⚠ Agents Present',
-      narration: `You move to the side colonnade and there they are — two men in grey coats, faces neutral, hands free. Not Mourne's guards. Their eyes are on her as much as on the entrance. They're watching her. That's interesting. Maybe Elder Varek doesn't fully trust his own agent either. The moment you confront Mourne, they'll move. You need to decide how to play this.`,
+      narration: `You move to the side colonnade and there they are — two men in grey coats, faces neutral, hands free. Not Mourne\'s guards. Their eyes are on her as much as on the entrance. They're watching her. That\'s interesting. Maybe Elder Varek doesn\'t fully trust his own agent either. The moment you confront Mourne, they\'ll move. You need to decide how to play this.`,
       sub: `The agents are watching Mourne, not just guarding her. She may not be fully loyal to Varek.`,
       options: [
         { icon: '💬', label: 'Confront Mourne openly — let the agents see it', type: 'talk',
@@ -808,8 +912,8 @@ const MISSING_SCENES = {
     return {
       location: 'Temple Quarter',
       locationIcon: '🕯',
-      narration: `Mourne holds your gaze for a long moment. Then she nods, once. "Alright." She removes a small knife from her sleeve — you tense — but she sets it on the altar rail. "I won't run. I won't resist." She turns to face the nave. "I want it on record that I acted on Elder Varek's direct order. I want that part clear." She walks toward the door. "Shall we go?"`,
-      sub: `Mourne is in custody. She'll testify. Now find Varek.`,
+      narration: `Mourne holds your gaze for a long moment. Then she nods, once. "Alright." She removes a small knife from her sleeve — you tense — but she sets it on the altar rail. "I won\'t run. I won\'t resist." She turns to face the nave. "I want it on record that I acted on Elder Varek\'s direct order. I want that part clear." She walks toward the door. "Shall we go?"`,
+      sub: `Mourne is in custody. She\'ll testify. Now find Varek.`,
       options: [
         { icon: '🗺', label: 'Take Mourne to Captain Rhael, then head for the Monastery', type: 'move',
           action: () => { setFlag('rhael_has_mourne'); addLog('📜 Mourne is with Rhael. He\'s holding her as a witness.', 'holy'); runScene('rhael_with_evidence'); } },
@@ -825,8 +929,8 @@ const MISSING_SCENES = {
       location: 'Temple Quarter',
       locationIcon: '🕯',
       threat: '⚠ Turning Hostile',
-      narration: `Something closes in Mourne's expression. "No." The word is flat. "I acted to protect the Church's independence. I will not be handed to a Watch captain to stand trial for that." She steps back toward the altar. "You can arrest me when you have a court that understands the difference between law and justice. Until then—" Her hand moves to something under her robe.`,
-      sub: `She's going to fight or run. Last chance to change her mind.`,
+      narration: `Something closes in Mourne\'s expression. "No." The word is flat. "I acted to protect the Church\'s independence. I will not be handed to a Watch captain to stand trial for that." She steps back toward the altar. "You can arrest me when you have a court that understands the difference between law and justice. Until then—" Her hand moves to something under her robe.`,
+      sub: `She\'s going to fight or run. Last chance to change her mind.`,
       options: [
         { icon: '💬', label: '"The Covenant had a clause that would have destroyed the Church. I know."', type: 'talk',
           roll: { stat: 'CHA', dc: 12 },
@@ -841,7 +945,7 @@ const MISSING_SCENES = {
   mourne_sees_through_deal: () => ({
     location: 'Temple Quarter',
     locationIcon: '🕯',
-    narration: `Mourne looks at you for a long moment, then almost smiles. "You don't have the authority to make that deal. And even if you did — I don't trust it." She shakes her head. "You're offering something you can't guarantee, to someone who's already made peace with the consequences." She folds her hands. "Try something honest. It might work better."`,
+    narration: `Mourne looks at you for a long moment, then almost smiles. "You don\'t have the authority to make that deal. And even if you did — I don\'t trust it." She shakes her head. "You're offering something you can\'t guarantee, to someone who\'s already made peace with the consequences." She folds her hands. "Try something honest. It might work better."`,
     sub: `She saw through it. Try a different angle.`,
     options: [
       { icon: '💬', label: '"Then help me because it\'s the right thing — not for a deal"', type: 'talk',
@@ -860,7 +964,7 @@ const MISSING_SCENES = {
     return {
       location: 'Temple Quarter',
       locationIcon: '🕯',
-      narration: `"The Monastery of Saint Aldric," Mourne says. "He's been there since the morning of the burning. Four soldiers, the Abbot's hospitality, and the certainty that no one can touch a Church Elder in a Church building." She pauses. "He's wrong about that last part. The Abbot is terrified of him, not loyal. And the soldiers — they're guards, not martyrs." She looks at the document in your hands. "That seal is enough. Show it to him. He'll know the Scribe survived."`,
+      narration: `"The Monastery of Saint Aldric," Mourne says. "He\'s been there since the morning of the burning. Four soldiers, the Abbot's hospitality, and the certainty that no one can touch a Church Elder in a Church building." She pauses. "He\'s wrong about that last part. The Abbot is terrified of him, not loyal. And the soldiers — they\'re guards, not martyrs." She looks at the document in your hands. "That seal is enough. Show it to him. He'll know the Scribe survived."`,
       sub: `Varek is at the Monastery. The evidence will force his hand.`,
       options: [
         { icon: '🗺', label: 'Go to the Monastery — end this', type: 'move',
@@ -876,8 +980,8 @@ const MISSING_SCENES = {
     return {
       location: 'Temple Quarter — Moving',
       locationIcon: '🕯',
-      narration: `As you walk, Mourne talks. "Varek is sixty-three. He's never personally fought anyone — he gives orders. His four soldiers are Church-trained, not Watch-trained. Loyal to the institution, but not fanatically to him." She glances sideways. "He has one habit that may matter: when he's cornered, he offers money. A great deal of money. Don't let that slow you down." She pulls her hood up. "He'll recognise me on sight. That may help or hurt depending on how he reads the situation."`,
-      sub: `Four soldiers. Varek won't fight himself. Show him the evidence immediately.`,
+      narration: `As you walk, Mourne talks. "Varek is sixty-three. He\'s never personally fought anyone — he gives orders. His four soldiers are Church-trained, not Watch-trained. Loyal to the institution, but not fanatically to him." She glances sideways. "He has one habit that may matter: when he\'s cornered, he offers money. A great deal of money. Don't let that slow you down." She pulls her hood up. "He'll recognise me on sight. That may help or hurt depending on how he reads the situation."`,
+      sub: `Four soldiers. Varek won\'t fight himself. Show him the evidence immediately.`,
       options: [
         { icon: '🗺', label: 'Head to the Monastery', type: 'move',
           action: () => { if (window.travelToLocation && WORLD_LOCATIONS['monastery_aldric']) travelToLocation(WORLD_LOCATIONS['monastery_aldric']); else runScene('monastery_arrival'); } },
@@ -909,8 +1013,8 @@ const MISSING_SCENES = {
   failed_escape: () => ({
     location: 'Vaelthar Gaol',
     locationIcon: '⛓',
-    narration: `The nail bends wrong and the lock holds. A guard passes and you get back on the straw just in time. He doesn't look in. When he's gone you try again — nothing. The lock is better than it looks. You're going to need a different approach.`,
-    sub: `The lock won't give. Try talking your way out instead.`,
+    narration: `The nail bends wrong and the lock holds. A guard passes and you get back on the straw just in time. He doesn\'t look in. When he\'s gone you try again — nothing. The lock is better than it looks. You're going to need a different approach.`,
+    sub: `The lock won\'t give. Try talking your way out instead.`,
     options: [
       { icon: '💬', label: 'Call the guard — use words instead of picks', type: 'talk',
         roll: { stat: 'CHA', dc: 12 },
@@ -927,7 +1031,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Watch-House',
       locationIcon: '🪖',
-      narration: `Rhael comes himself. He waves off the guard, stands at the cell door with his arms folded, and looks at you for a long, evaluating moment. "The guard says you asked to speak with me specifically." He unlocks the door. "Smart. If you'd said 'I have information' to anyone else they'd have taken it and left you to rot." He opens the door and steps back. "I'm listening. You have until we reach the front gate."`,
+      narration: `Rhael comes himself. He waves off the guard, stands at the cell door with his arms folded, and looks at you for a long, evaluating moment. "The guard says you asked to speak with me specifically." He unlocks the door. "Smart. If you'd said 'I have information' to anyone else they\'d have taken it and left you to rot." He opens the door and steps back. "I\'m listening. You have until we reach the front gate."`,
       sub: `Rhael released you. Now convince him — fast.`,
       options: [
         { icon: '💬', label: 'Tell him about Varek, the Scribe, the burning — everything', type: 'talk',
@@ -944,8 +1048,8 @@ const MISSING_SCENES = {
   guard_ignores_you: () => ({
     location: 'Vaelthar Gaol',
     locationIcon: '⛓',
-    narration: `The guard doesn't even break stride. "Captain Rhael doesn't take messages from people in cells." You hear him laugh to himself at the end of the corridor. You're going to have to manage this differently.`,
-    sub: `The guard isn't listening. Try the lock again, or wait for Rhael.`,
+    narration: `The guard doesn\'t even break stride. "Captain Rhael doesn\'t take messages from people in cells." You hear him laugh to himself at the end of the corridor. You're going to have to manage this differently.`,
+    sub: `The guard isn\'t listening. Try the lock again, or wait for Rhael.`,
     options: [
       { icon: '🔓', label: 'Try the lock again — that nail, one more time', type: 'explore',
         roll: { stat: 'DEX', dc: 13 },
@@ -961,7 +1065,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Gaol — Rhael',
       locationIcon: '🪖',
-      narration: `Four hours later, Rhael comes. He sits on a stool outside the bars, says nothing for a minute, then: "You're not a Church agent. They don't get arrested — they do the arresting." He studies you. "And you're not Crown intelligence — they would have produced credentials immediately." A pause. "So who sent you, and what do you want with the Scribe?"`,
+      narration: `Four hours later, Rhael comes. He sits on a stool outside the bars, says nothing for a minute, then: "You're not a Church agent. They don\'t get arrested — they do the arresting." He studies you. "And you\'re not Crown intelligence — they would have produced credentials immediately." A pause. "So who sent you, and what do you want with the Scribe?"`,
       sub: `Rhael is finally talking. Be straight with him.`,
       options: [
         { icon: '💬', label: '"Nobody sent me. The city is about to burn and somebody needs to care."', type: 'talk',
@@ -982,12 +1086,12 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Back Streets',
       locationIcon: '🏚',
-      narration: `You tail them for three blocks, staying a doorway back. They stop at what looks like an ordinary house — but the shutters are wrong, too thick, and there's a fresh chalk mark on the door frame. A dead drop sign. One of the agents knocks four times, waits, and slides a folded note under the door. When they leave you move to the door. You can break it open or note the address for later.`,
-      sub: `Church agents are operating a safehouse. Varek's network is still active.`,
+      narration: `You tail them for three blocks, staying a doorway back. They stop at what looks like an ordinary house — but the shutters are wrong, too thick, and there\'s a fresh chalk mark on the door frame. A dead drop sign. One of the agents knocks four times, waits, and slides a folded note under the door. When they leave you move to the door. You can break it open or note the address for later.`,
+      sub: `Church agents are operating a safehouse. Varek\'s network is still active.`,
       options: [
         { icon: '🔍', label: 'Break in and find the note', type: 'explore',
           roll: { stat: 'DEX', dc: 12 },
-          onSuccess: () => { addLog('📜 ITEM GAINED: Church Agent\'s Instruction — confirms Varek ordered the Scribe killed.', 'holy'); gameState.character?.inventory?.push("Church Agent's Instruction"); runScene('scribe_urgent'); },
+          onSuccess: () => { addLog('📜 ITEM GAINED: Church Agent\'s Instruction — confirms Varek ordered the Scribe killed.', 'holy'); gameState.character?.inventory?.push("Church Agent\'s Instruction"); runScene('scribe_urgent'); },
           onFail: () => runScene('agents_spot_you') },
         { icon: '💬', label: 'Note the address and find Captain Rhael', type: 'talk',
           action: () => runScene('rhael_with_evidence') },
@@ -1001,7 +1105,7 @@ const MISSING_SCENES = {
       location: 'Vaelthar Square',
       locationIcon: '🏰',
       threat: '⚠ SPOTTED',
-      narration: `One of the agents turns at exactly the wrong moment. Your eyes meet. He says something to his partner and they both start moving toward you — not running, but with the purposeful calm of people used to getting what they want. They haven't drawn weapons yet. They might just want to ask you some questions. They won't like the answers.`,
+      narration: `One of the agents turns at exactly the wrong moment. Your eyes meet. He says something to his partner and they both start moving toward you — not running, but with the purposeful calm of people used to getting what they want. They haven\'t drawn weapons yet. They might just want to ask you some questions. They won\'t like the answers.`,
       sub: `They've seen you. Fight, run, or bluff.`,
       options: [
         { icon: '💬', label: '"Gentlemen. Lovely morning."', type: 'talk',
@@ -1054,7 +1158,7 @@ const MISSING_SCENES = {
     return {
       location: 'Vaelthar Street',
       locationIcon: '🏰',
-      narration: `They stop. Look at each other. Then, slowly, they release the Scribe's arms. One of them — the older one — says: "This isn't finished." They leave. Aldis straightens his robes with shaking hands. "That was..." he starts. "Yes," you say. He looks at you differently now. Like maybe you can actually do this.`,
+      narration: `They stop. Look at each other. Then, slowly, they release the Scribe\'s arms. One of them — the older one — says: "This isn\'t finished." They leave. Aldis straightens his robes with shaking hands. "That was..." he starts. "Yes," you say. He looks at you differently now. Like maybe you can actually do this.`,
       sub: `The agents backed down. The Scribe is safe — for now.`,
       options: [
         { icon: '🏃', label: 'Get off the street immediately', type: 'move',
@@ -1066,7 +1170,7 @@ const MISSING_SCENES = {
   fountain_nothing: () => ({
     location: 'Vaelthar Square',
     locationIcon: '⛲',
-    narration: `The fountain looks freshly scrubbed but you can't find anything definitive. Maybe it was just mud. Maybe a dog. The square offers no more secrets right now.`,
+    narration: `The fountain looks freshly scrubbed but you can\'t find anything definitive. Maybe it was just mud. Maybe a dog. The square offers no more secrets right now.`,
     sub: `Nothing here. Try something else.`,
     options: [
       { icon: '💬', label: 'Approach Captain Rhael', type: 'talk', action: () => runScene('rhael_first_meeting') },
@@ -1085,8 +1189,8 @@ const MISSING_SCENES = {
       location: 'Monastery of Saint Aldric — Lower Depths',
       locationIcon: '⛩',
       threat: '☠ DUNGEON',
-      narration: `Below the monastery, past the wine cellar and through a door that shouldn't be here, the air changes. Colder. Wetter. The phrase written on every wall above — "It breathes below" — makes sense now. There are torches down here, recently lit. The monks were here recently. The walls narrow into what looks like a natural cave system beneath the stone foundations, and from somewhere deep and far below, you hear something that might be breathing, or might be the earth settling. It isn't.`,
-      sub: `This isn't a cellar. Something lives down here. Be ready.`,
+      narration: `Below the monastery, past the wine cellar and through a door that shouldn\'t be here, the air changes. Colder. Wetter. The phrase written on every wall above — "It breathes below" — makes sense now. There are torches down here, recently lit. The monks were here recently. The walls narrow into what looks like a natural cave system beneath the stone foundations, and from somewhere deep and far below, you hear something that might be breathing, or might be the earth settling. It isn\'t.`,
+      sub: `This isn\'t a cellar. Something lives down here. Be ready.`,
       options: [
         { icon: '🕯', label: 'Advance carefully, torch lit', type: 'explore',
           action: () => runScene('monastery_first_chamber') },
@@ -1105,7 +1209,7 @@ const MISSING_SCENES = {
       location: 'Monastery Dungeon — First Chamber',
       locationIcon: '🕳',
       threat: '☠ UNDEAD',
-      narration: `The first chamber opens wide. Stone altar at the centre, cracked in half. Three skeletons rise from the floor as you enter — not sudden, but slow, deliberate, as if they've been waiting and are not yet fully sure you're worth the effort. On the altar: a journal, leather-bound. The last entry reads: "It told us its name. We shouldn't have asked."`,
+      narration: `The first chamber opens wide. Stone altar at the centre, cracked in half. Three skeletons rise from the floor as you enter — not sudden, but slow, deliberate, as if they've been waiting and are not yet fully sure you\'re worth the effort. On the altar: a journal, leather-bound. The last entry reads: "It told us its name. We shouldn\'t have asked."`,
       sub: `Three skeletons. The altar journal. Something named itself.`,
       options: [
         { icon: '⚔', label: 'Fight through the skeletons', type: 'combat',
@@ -1116,7 +1220,7 @@ const MISSING_SCENES = {
           ]) },
         { icon: '📜', label: 'Grab the journal while watching the skeletons', type: 'explore',
           roll: { stat: 'DEX', dc: 12 },
-          onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); gameState.character?.inventory?.push("Last Monk's Journal"); startCombat([
+          onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); gameState.character?.inventory?.push("Last Monk\'s Journal"); startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
           ]); },
@@ -1134,8 +1238,8 @@ const MISSING_SCENES = {
       location: 'Monastery Dungeon — Deep Chamber',
       locationIcon: '🕳',
       threat: '☠ SHADOW',
-      narration: `The passage narrows then opens into a chamber that shouldn't fit inside the hill the monastery sits on. The ceiling is lost in darkness. At the centre: a shadow that doesn't match anything in the room. It turns, slowly, and you understand why the monks wrote those words. It doesn't breathe exactly — but the air moves when it wants it to, in a rhythm that approximates breathing. It knows you're here. It knew before you arrived.`,
-      sub: `The Voice Below. It's been waiting. Not just for you.`,
+      narration: `The passage narrows then opens into a chamber that shouldn\'t fit inside the hill the monastery sits on. The ceiling is lost in darkness. At the centre: a shadow that doesn\'t match anything in the room. It turns, slowly, and you understand why the monks wrote those words. It doesn\'t breathe exactly — but the air moves when it wants it to, in a rhythm that approximates breathing. It knows you\'re here. It knew before you arrived.`,
+      sub: `The Voice Below. It\'s been waiting. Not just for you.`,
       options: [
         { icon: '⚔', label: 'Fight it — this is what you came for', type: 'combat',
           action: () => startCombat([generateEnemy('the_voice_below', 4)]) },
@@ -1176,7 +1280,7 @@ const MISSING_SCENES = {
     return {
       location: 'Monastery Dungeon',
       locationIcon: '🕳',
-      narration: `The floor. The monks laid runes — you can see them now, centuries old, partially ground away by the thing moving through this chamber. If the circle were complete it would bind the Voice again. Three runes are broken. You could restore them — if you have sufficient holy power, and if the Voice doesn't stop you.`,
+      narration: `The floor. The monks laid runes — you can see them now, centuries old, partially ground away by the thing moving through this chamber. If the circle were complete it would bind the Voice again. Three runes are broken. You could restore them — if you have sufficient holy power, and if the Voice doesn\'t stop you.`,
       sub: `Complete the binding circle. Requires Holy Points. The Voice will try to stop you.`,
       options: [
         { icon: '✝', label: 'Complete the runes — spend Holy Points to bind it (costs 15)', type: 'explore',
@@ -1206,7 +1310,7 @@ const MISSING_SCENES = {
       location: 'Monastery Dungeon',
       locationIcon: '🕳',
       narration: `A long silence. Then: "The circle. The monks built it. It requires a willing hand and sufficient — conviction." It might be mocking the word "holy." It might not be. "If you complete the runes, I return to the state I was in before the seal broke. Aware. Contained. Not free. Not dead." Another pause. "It is better than this."`,
-      sub: `It's willing to be rebound. Complete the runes if you have Holy Points.`,
+      sub: `It\'s willing to be rebound. Complete the runes if you have Holy Points.`,
       options: [
         { icon: '✝', label: 'Complete the binding (costs 15 Holy Points)', type: 'explore',
           action: () => {
@@ -1233,7 +1337,7 @@ const MISSING_SCENES = {
   monastery_dungeon_cleared: () => ({
     location: 'Monastery Dungeon — Cleared',
     locationIcon: '⛩',
-    narration: `The dungeon is quiet now in a way it hasn't been in years. The skeletons don't rise. The air is still. As you climb back to the monastery proper, the last monk — the one they called catatonic — is sitting up in the courtyard. He blinks. Looks at his hands. Looks at you. "Is it quiet?" he asks. "Yes," you say. He closes his eyes. "I've been waiting a very long time to hear that."`,
+    narration: `The dungeon is quiet now in a way it hasn\'t been in years. The skeletons don\'t rise. The air is still. As you climb back to the monastery proper, the last monk — the one they called catatonic — is sitting up in the courtyard. He blinks. Looks at his hands. Looks at you. "Is it quiet?" he asks. "Yes," you say. He closes his eyes. "I\'ve been waiting a very long time to hear that."`,
     sub: `The monastery is clear. The deeper mystery — the shattered god — remains.`,
     options: [
       { icon: '🗺', label: 'Return to Vaelthar with what you\'ve learned', type: 'move',
@@ -1253,7 +1357,7 @@ const MISSING_SCENES = {
       location: 'Thornwood Gate — Lost Cartographer',
       locationIcon: '🌲',
       threat: '⚠ Missing Person',
-      narration: `At the Thornwood Gate, a woman paces near the guardhouse. Mira — wife of Edden, the only man who has successfully mapped the Thornwood passages. He went in three days ago to update his charts. He hasn't come back. "The soldiers won't go in," she says. "They say it's not their jurisdiction. It's a forest." She pushes a folded map into your hands. "He had the newer version. This is the last one he gave me. Please."`,
+      narration: `At the Thornwood Gate, a woman paces near the guardhouse. Mira — wife of Edden, the only man who has successfully mapped the Thornwood passages. He went in three days ago to update his charts. He hasn\'t come back. "The soldiers won\'t go in," she says. "They say it\'s not their jurisdiction. It\'s a forest." She pushes a folded map into your hands. "He had the newer version. This is the last one he gave me. Please."`,
       sub: `Edden the cartographer is lost in the Thornwood. His maps are essential.`,
       options: [
         { icon: '🌲', label: 'Enter the Thornwood to find him', type: 'move',
@@ -1282,7 +1386,7 @@ const MISSING_SCENES = {
             { name: 'Dire Wolf', hp: 35, ac: 12, atk: 5, icon: '🐺', id: 'wolf_2', xp: 70 },
           ]); }},
       { icon: '📜', label: 'Collect his fallen maps — they\'re the whole point', type: 'explore',
-        action: () => { addLog('📜 ITEM GAINED: Edden\'s Partial Maps — the Thornwood passage routes, incomplete.', 'holy'); gameState.character?.inventory?.push("Edden's Partial Maps"); runScene('cartographer_found'); } },
+        action: () => { addLog('📜 ITEM GAINED: Edden\'s Partial Maps — the Thornwood passage routes, incomplete.', 'holy'); gameState.character?.inventory?.push("Edden\'s Partial Maps"); runScene('cartographer_found'); } },
     ]
   }),
 
@@ -1294,7 +1398,7 @@ const MISSING_SCENES = {
     return {
       location: 'Thornwood — Edden\'s Shelter',
       locationIcon: '🌲',
-      narration: `You find him in a hollow beneath a fallen tree — a middle-aged man, dirt-covered, with a broken ankle and the expression of someone who has had a great deal of time to regret a series of decisions. "The wolves," he says when he sees you. "They weren't hunting. They were herding. They pushed me away from the main path deliberately." He holds up a finished map. "But I finished it. The whole passage. I wasn't going to die with an incomplete chart."`,
+      narration: `You find him in a hollow beneath a fallen tree — a middle-aged man, dirt-covered, with a broken ankle and the expression of someone who has had a great deal of time to regret a series of decisions. "The wolves," he says when he sees you. "They weren\'t hunting. They were herding. They pushed me away from the main path deliberately." He holds up a finished map. "But I finished it. The whole passage. I wasn\'t going to die with an incomplete chart."`,
       sub: `Edden is alive. The Thornwood passage is mapped. The wolves behaved strangely.`,
       options: [
         { icon: '🏃', label: 'Get him out of the forest — back to the gate', type: 'move',
@@ -1316,7 +1420,7 @@ const MISSING_SCENES = {
       locationIcon: '🛤',
       threat: '☠ DANGEROUS',
       narration: `The third caravan site. Three wagons, all intact — nothing was stolen. The bodies are arranged. Not fallen where they died, but placed: in a circle, hands folded, facing inward. Like a ritual. The lone survivor sits against a wheel, eyes fixed on nothing. When you crouch beside him he says, without looking at you: "They came from the ground. Not from the trees. The ground opened and they came out and they knew exactly who to kill first."`,
-      sub: `A ritual massacre. Coordinated. Underground origin. This isn't banditry.`,
+      sub: `A ritual massacre. Coordinated. Underground origin. This isn\'t banditry.`,
       options: [
         { icon: '🔍', label: 'Examine the bodies — look for marks or symbols', type: 'explore',
           roll: { stat: 'INT', dc: 12 },
@@ -1367,7 +1471,7 @@ const MISSING_SCENES = {
       location: 'Mol Village — The Heretic\'s Pulpit',
       locationIcon: '🏘',
       threat: '⚠ Religious Tension',
-      narration: `The village green is packed. Two hundred people, maybe more, listening to a man standing on an overturned cart. He's not young and not old, and he's not performing — he's reporting. "The Church of the Eternal Flame collected your tithe. Then they burned the Covenant that would have protected your land rights. Then they sent soldiers to this village to silence me. That is not a church. That is a protection racket with candles." Nobody speaks. Nobody leaves.`,
+      narration: `The village green is packed. Two hundred people, maybe more, listening to a man standing on an overturned cart. He\'s not young and not old, and he\'s not performing — he\'s reporting. "The Church of the Eternal Flame collected your tithe. Then they burned the Covenant that would have protected your land rights. Then they sent soldiers to this village to silence me. That is not a church. That is a protection racket with candles." Nobody speaks. Nobody leaves.`,
       sub: `Preacher Aldran tells the truth. The Church wants him gone — permanently.`,
       options: [
         { icon: '💬', label: 'Talk to Preacher Aldran after his sermon', type: 'talk',
@@ -1386,7 +1490,7 @@ const MISSING_SCENES = {
       location: 'Mol Village — Aldran',
       locationIcon: '🏘',
       narration: `Aldran climbs down from the cart and meets you without surprise. "You're not from Mol," he says. "You came from Vaelthar." Not an accusation. "The Church has sent people before. They were less well-armed." He studies your face. "But you didn't come to silence me." He sits on the cart's wheel. "So: investigator, opportunist, or someone who actually wants the truth?"`,
-      sub: `Aldran is sharp. He'll help you if you're straight with him.`,
+      sub: `Aldran is sharp. He'll help you if you\'re straight with him.`,
       options: [
         { icon: '💬', label: '"I\'m investigating the Covenant. You know things. So do I. Trade?"', type: 'talk',
           roll: { stat: 'CHA', dc: 11 },
@@ -1411,8 +1515,8 @@ const MISSING_SCENES = {
     return {
       location: 'Mol Village',
       locationIcon: '🏘',
-      narration: `Aldran goes into his house and returns with a bundle of papers that he clearly has memorised. "I have a copy of the original Covenant. Not the version the Church distributed — the actual text, obtained by a clerk who feared what would happen if it was destroyed." He finds page four and lays it flat. "Read this clause." You do. Then read it again. The Crown would have controlled the Church's finances within eighteen months of signing. The Church would effectively cease to exist as an independent body within three years.`,
-      sub: `You now have proof the Covenant was a trap. Varek's motive is confirmed.`,
+      narration: `Aldran goes into his house and returns with a bundle of papers that he clearly has memorised. "I have a copy of the original Covenant. Not the version the Church distributed — the actual text, obtained by a clerk who feared what would happen if it was destroyed." He finds page four and lays it flat. "Read this clause." You do. Then read it again. The Crown would have controlled the Church\'s finances within eighteen months of signing. The Church would effectively cease to exist as an independent body within three years.`,
+      sub: `You now have proof the Covenant was a trap. Varek\'s motive is confirmed.`,
       options: [
         { icon: '📜', label: 'Take a copy — this is crucial evidence', type: 'explore',
           action: () => { addLog('📜 ITEM GAINED: Original Covenant Text — page four proves the hidden power clause.', 'holy'); gameState.character?.inventory?.push("Original Covenant (Full Text)"); grantHolyPoints(5); runScene('aldran_church_soldiers'); } },
@@ -1426,8 +1530,8 @@ const MISSING_SCENES = {
     location: 'Mol Village — Church Arrives',
     locationIcon: '🏘',
     threat: '⚔ SOLDIERS INCOMING',
-    narration: `A rider arrives at the village edge — Church livery, sword drawn. Behind him, six soldiers on foot. The crowd scatters. Aldran doesn't move. "Right on time," he says quietly. The lead soldier points at him. "Aldran of Mol, you are under arrest for heresy and sedition against the Church of the Eternal Flame." He looks at you. "And whoever you are — step away from him."`,
-    sub: `Six soldiers. Aldran won't run. What do you do?`,
+    narration: `A rider arrives at the village edge — Church livery, sword drawn. Behind him, six soldiers on foot. The crowd scatters. Aldran doesn\'t move. "Right on time," he says quietly. The lead soldier points at him. "Aldran of Mol, you are under arrest for heresy and sedition against the Church of the Eternal Flame." He looks at you. "And whoever you are — step away from him."`,
+    sub: `Six soldiers. Aldran won\'t run. What do you do?`,
     options: [
       { icon: '🛡', label: 'Stand between Aldran and the soldiers', type: 'combat',
         action: () => {
@@ -1458,7 +1562,7 @@ const MISSING_SCENES = {
   aldran_protected: () => ({
     location: 'Mol Village',
     locationIcon: '🏘',
-    narration: `Aldran looks at you for a long moment. "You'd do that. For a stranger you just met." He tucks the papers away. "All right. Then there are things I should show you." He leads you inside. The house is full of documents, testimonies, a map of every Church holding in the region. He's been building a case for years. "When the soldiers come — and they will come — it'll be good to have someone who knows how to hold a sword on the right side."`,
+    narration: `Aldran looks at you for a long moment. "You'd do that. For a stranger you just met." He tucks the papers away. "All right. Then there are things I should show you." He leads you inside. The house is full of documents, testimonies, a map of every Church holding in the region. He\'s been building a case for years. "When the soldiers come — and they will come — it'll be good to have someone who knows how to hold a sword on the right side."`,
     sub: `Aldran trusts you. He has evidence and needs protection.`,
     options: [
       { icon: '💬', label: '"Show me what you have"', type: 'talk', action: () => runScene('aldran_shares_intel') },
@@ -1476,7 +1580,7 @@ const MISSING_SCENES = {
       locationIcon: '🏯',
       threat: '⚠ BARRICADED',
       narration: `The gates of Fortress Harren are sealed from within — massive beams, from the sound when you knock. No guards on the walls. A single window is lit in the east tower. A note is nailed to the gate. In precise handwriting: "I will speak with one person. Unarmed. If they have come to bring me back to the Order, I will know before they finish their first sentence. If they have come for a different reason, knock three times, pause, twice."`,
-      sub: `Harren is in there. He's choosing who to speak to. How do you knock?`,
+      sub: `Harren is in there. He\'s choosing who to speak to. How do you knock?`,
       options: [
         { icon: '🚪', label: 'Knock: three, pause, two — signal you\'re not Order', type: 'explore',
           action: () => runScene('harren_opens_door') },
@@ -1495,8 +1599,8 @@ const MISSING_SCENES = {
     return {
       location: 'Fortress Harren — Interior',
       locationIcon: '🏯',
-      narration: `A long silence. Then the sound of beams being moved. The gate opens enough for one person to pass. Sir Aldric Harren — once the most celebrated paladin of the age — looks like a man who has been awake for three days and has found the experience clarifying. He's in plain clothes, no armour, and he looks at you with the directness of someone who has stopped performing composure. "You're not Order." Not a question. "Good. Come in. There's something I need to tell someone before I decide whether to live or die."`,
-      sub: `He's in crisis. Listen first — the reason he renounced his vows may be crucial.`,
+      narration: `A long silence. Then the sound of beams being moved. The gate opens enough for one person to pass. Sir Aldric Harren — once the most celebrated paladin of the age — looks like a man who has been awake for three days and has found the experience clarifying. He\'s in plain clothes, no armour, and he looks at you with the directness of someone who has stopped performing composure. "You're not Order." Not a question. "Good. Come in. There\'s something I need to tell someone before I decide whether to live or die."`,
+      sub: `He\'s in crisis. Listen first — the reason he renounced his vows may be crucial.`,
       options: [
         { icon: '💬', label: '"Tell me. I\'m listening."', type: 'talk',
           action: () => runScene('harren_confession') },
@@ -1512,7 +1616,7 @@ const MISSING_SCENES = {
     return {
       location: 'Fortress Harren',
       locationIcon: '🏯',
-      narration: `"The Grand Master gave me the order six days ago," Harren says. "When the Covenant was signed, we were to enforce the treasury transfer by military force if the Church resisted. I asked: what if they resist peacefully? He said that doesn't change the order." He looks at his hands. "I've killed for this Order. I've died for it, almost. But I will not march soldiers into churches to seize candlesticks." He looks up. "The Covenant burning saved lives. I don't know if I should hate Varek for breaking it or thank him."`,
+      narration: `"The Grand Master gave me the order six days ago," Harren says. "When the Covenant was signed, we were to enforce the treasury transfer by military force if the Church resisted. I asked: what if they resist peacefully? He said that doesn\'t change the order." He looks at his hands. "I\'ve killed for this Order. I\'ve died for it, almost. But I will not march soldiers into churches to seize candlesticks." He looks up. "The Covenant burning saved lives. I don\'t know if I should hate Varek for breaking it or thank him."`,
       sub: `The Order planned to enforce the Covenant at swordpoint. Harren chose conscience over obedience.`,
       options: [
         { icon: '💬', label: '"You made the right call. Help me bring Varek in cleanly — no more bloodshed."', type: 'talk',
@@ -1535,7 +1639,7 @@ const MISSING_SCENES = {
     return {
       location: 'Fortress Harren',
       locationIcon: '🏯',
-      narration: `Harren stands. Reaches for his sword — then stops, and hangs it back on the wall. Takes a plain dagger instead. "I'll come. As a witness, not a soldier." He looks at the empty fortress. "I have been kneeling to nothing here. You're right about that." He opens the gate properly. Outside, the Order's scouts haven't arrived yet. You have time.`,
+      narration: `Harren stands. Reaches for his sword — then stops, and hangs it back on the wall. Takes a plain dagger instead. "I\'ll come. As a witness, not a soldier." He looks at the empty fortress. "I have been kneeling to nothing here. You're right about that." He opens the gate properly. Outside, the Order's scouts haven\'t arrived yet. You have time.`,
       sub: `Harren will testify. Head back — the pieces are coming together.`,
       options: [
         { icon: '🗺', label: 'Return to Vaelthar with Harren', type: 'move',
@@ -1547,7 +1651,7 @@ const MISSING_SCENES = {
   harren_hesitates: () => ({
     location: 'Fortress Harren',
     locationIcon: '🏯',
-    narration: `He's quiet for a long time. "It's not that simple," he says finally. "Nothing that looked right to everyone ever needed a fortress to think it over in." He picks up a cup, sets it down. "Give me a reason that isn't about what's clever. Give me one that's about what's right."`,
+    narration: `He\'s quiet for a long time. "It\'s not that simple," he says finally. "Nothing that looked right to everyone ever needed a fortress to think it over in." He picks up a cup, sets it down. "Give me a reason that isn\'t about what\'s clever. Give me one that\'s about what\'s right."`,
     sub: `Appeal to his conscience, not his strategy.`,
     options: [
       { icon: '💬', label: '"Because people are going to die if the truth doesn\'t come out. And you have the truth."', type: 'talk',
@@ -1575,8 +1679,8 @@ const MISSING_SCENES = {
       location: 'Fortress Harren — Interior',
       locationIcon: '🏯',
       threat: '⚔ HOSTILE',
-      narration: `The gate splinters. Harren is waiting in the courtyard with a sword drawn and an expression of profound disappointment. "So you're with the Order after all." He's in full armour now — he had time to prepare. "I had hoped otherwise." He settles into a fighting stance. "I'm not going back. And I'm not going quietly."`,
-      sub: `He's going to fight. This was avoidable.`,
+      narration: `The gate splinters. Harren is waiting in the courtyard with a sword drawn and an expression of profound disappointment. "So you\'re with the Order after all." He\'s in full armour now — he had time to prepare. "I had hoped otherwise." He settles into a fighting stance. "I\'m not going back. And I\'m not going quietly."`,
+      sub: `He\'s going to fight. This was avoidable.`,
       options: [
         { icon: '⚔', label: 'Fight Sir Harren', type: 'combat',
           action: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }]) },
@@ -1627,8 +1731,8 @@ const SCENES = {
       location: 'Vaelthar — The Fractured Capital',
       locationIcon: '🏰',
       threat: '⚠ Political Crisis',
-      narration: `You step into Vaelthar's main square as grey morning light cuts through the smoke. Three days ago the Covenant — the treaty between the Crown and the Church — shattered. No one admits why. Church banners hang torn from the gate posts. A captain in worn armor stands rigid near the gate, jaw locked, scanning every face that passes. To your left, a thin man in scribe's robes hovers near the Archive doors, clutching a document roll he clearly doesn't want to be seen with.`,
-      sub: `Captain Rhael looks like a man who knows more than he's saying. The scribe looks terrified.`,
+      narration: `You step into Vaelthar's main square as grey morning light cuts through the smoke. Three days ago the Covenant — the treaty between the Crown and the Church — shattered. No one admits why. Church banners hang torn from the gate posts. A captain in worn armor stands rigid near the gate, jaw locked, scanning every face that passes. To your left, a thin man in scribe's robes hovers near the Archive doors, clutching a document roll he clearly doesn\'t want to be seen with.`,
+      sub: `Captain Rhael looks like a man who knows more than he\'s saying. The scribe looks terrified.`,
       options: [
         {
           icon: '💬', label: 'Approach Captain Rhael — he commands the Watch', type: 'talk',
@@ -1657,7 +1761,7 @@ const SCENES = {
     return {
       location: 'Vaelthar Gate — Captain Rhael',
       locationIcon: '🪖',
-      narration: `Captain Rhael turns slowly when you approach, one hand resting on his sword hilt — not aggressive, but ready. He's a big man, fifties, with a face that's absorbed too much bad news. "Stranger," he says flatly. "If you're here to ask about the Covenant, join the queue. If you're here to cause trouble—" he glances pointedly at your weapon "—don't." His eyes are doing something interesting though: they keep flicking to the Archive, where the Scribe stands. He knows something about that man.`,
+      narration: `Captain Rhael turns slowly when you approach, one hand resting on his sword hilt — not aggressive, but ready. He\'s a big man, fifties, with a face that\'s absorbed too much bad news. "Stranger," he says flatly. "If you\'re here to ask about the Covenant, join the queue. If you\'re here to cause trouble—" he glances pointedly at your weapon "—don\'t." His eyes are doing something interesting though: they keep flicking to the Archive, where the Scribe stands. He knows something about that man.`,
       sub: `He keeps looking at the Archive. Push him on it.`,
       options: [
         {
@@ -1693,7 +1797,7 @@ const SCENES = {
     return {
       location: 'Vaelthar Gate — Captain Rhael',
       locationIcon: '🪖',
-      narration: `Rhael glances around, then lowers his voice. "The signing hall — it wasn't a negotiation breakdown. Someone burned the documents before the ink dried. Church-side. I saw the ashes." He straightens. "I don't know who gave the order. But Sister Mourne at the Temple Quarter was there that morning. She left before the fire." His jaw tightens. "That's all I'm saying in public."`,
+      narration: `Rhael glances around, then lowers his voice. "The signing hall — it wasn\'t a negotiation breakdown. Someone burned the documents before the ink dried. Church-side. I saw the ashes." He straightens. "I don\'t know who gave the order. But Sister Mourne at the Temple Quarter was there that morning. She left before the fire." His jaw tightens. "That\'s all I\'m saying in public."`,
       sub: `Sister Mourne was at the signing hall. Find her at the Temple Quarter.`,
       options: [
         {
@@ -1721,8 +1825,8 @@ const SCENES = {
   rhael_stonewalls: () => ({
     location: 'Vaelthar Gate',
     locationIcon: '🪖',
-    narration: `Rhael's face closes like a door. "I don't know you. I don't trust you. And I've had three days of people asking questions I can't answer in public." He turns away. "Come back with a reason I should talk to you — or don't come back."`,
-    sub: `He's not hostile, just closed. The Scribe might be easier.`,
+    narration: `Rhael\'s face closes like a door. "I don\'t know you. I don\'t trust you. And I\'ve had three days of people asking questions I can\'t answer in public." He turns away. "Come back with a reason I should talk to you — or don\'t come back."`,
+    sub: `He\'s not hostile, just closed. The Scribe might be easier.`,
     options: [
       { icon: '💬', label: 'Show him something — your guild mark, a coin, credentials', type: 'talk',
         roll: { stat: 'CHA', dc: 11 }, onSuccess: () => runScene('rhael_reveals_covenant'), onFail: () => runScene('rhael_first_meeting') },
@@ -1762,7 +1866,7 @@ const SCENES = {
     return {
       location: 'Vaelthar Gate',
       locationIcon: '🪖',
-      narration: `Something breaks in Rhael's composure. He lowers his voice to almost nothing. "The Covenant wasn't broken — it was murdered. There's a name. A Church elder. I have it written down, somewhere safe, because I know what happens to people who say it out loud." He pulls back. "The Scribe — he was the witness. He copied the order. Find him before they do."`,
+      narration: `Something breaks in Rhael\'s composure. He lowers his voice to almost nothing. "The Covenant wasn\'t broken — it was murdered. There\'s a name. A Church elder. I have it written down, somewhere safe, because I know what happens to people who say it out loud." He pulls back. "The Scribe — he was the witness. He copied the order. Find him before they do."`,
       sub: `Find the Trembling Scribe NOW — he has the written proof.`,
       options: [
         { icon: '🏃', label: 'Run to the Archive — find the Scribe immediately', type: 'move',
@@ -1779,8 +1883,8 @@ const SCENES = {
   scribe_observation: () => ({
     location: 'Archive Steps — Watching',
     locationIcon: '📜',
-    narration: `You hang back and watch. The Scribe is sweating despite the cold morning air. He keeps trying to enter the Archive but the door won't open — the lock has been changed. Someone locked him out of his own workplace. He looks over his shoulder every thirty seconds. When he sees you watching, he nearly drops his document roll. He considers running, then doesn't. He wants to talk to someone. He's just terrified to.`,
-    sub: `He wants to be approached — he's waiting for someone safe.`,
+    narration: `You hang back and watch. The Scribe is sweating despite the cold morning air. He keeps trying to enter the Archive but the door won\'t open — the lock has been changed. Someone locked him out of his own workplace. He looks over his shoulder every thirty seconds. When he sees you watching, he nearly drops his document roll. He considers running, then doesn\'t. He wants to talk to someone. He\'s just terrified to.`,
+    sub: `He wants to be approached — he\'s waiting for someone safe.`,
     options: [
       { icon: '💬', label: 'Approach him calmly — "I\'m not with the Church"', type: 'talk',
         action: () => runScene('scribe_approach') },
@@ -1797,7 +1901,7 @@ const SCENES = {
     return {
       location: 'Archive Steps — The Trembling Scribe',
       locationIcon: '📜',
-      narration: `The Scribe flinches when you get close, then steadies himself. "You're not Watch. Not Church." It's not a question. His voice is barely above a whisper. "I copied a document three days ago. Orders. Signed at the top by Elder Varek of the Eternal Flame — instructing one of his agents to burn the Covenant treaty before ratification." He swallows. "I shouldn't be alive right now. The Archive's been locked. My assistant hasn't shown up in two days."`,
+      narration: `The Scribe flinches when you get close, then steadies himself. "You're not Watch. Not Church." It\'s not a question. His voice is barely above a whisper. "I copied a document three days ago. Orders. Signed at the top by Elder Varek of the Eternal Flame — instructing one of his agents to burn the Covenant treaty before ratification." He swallows. "I shouldn\'t be alive right now. The Archive's been locked. My assistant hasn\'t shown up in two days."`,
       sub: `He has evidence. Elder Varek ordered the Covenant destroyed.`,
       options: [
         { icon: '🔐', label: '"Give me the document. I\'ll protect you."', type: 'talk',
@@ -1820,13 +1924,13 @@ const SCENES = {
 
   scribe_gives_document: () => {
     addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order — proof the Covenant was sabotaged.', 'holy');
-    gameState.character.inventory.push("Elder Varek's Sealed Order");
+    gameState.character.inventory.push("Elder Varek\'s Sealed Order");
     grantXP(200);
     grantHolyPoints(5);
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
-      narration: `The Scribe's hands shake as he passes you the document roll. The seal on it bears Elder Varek's mark — broken, because the Scribe opened it. Inside: a single page order, signed and dated the morning of the Covenant signing, instructing an agent called "The Candle" to burn the treaty before ratification and make it look like the Crown's fault. The Scribe whispers: "There's an agent still in the city. Elder Varek's fixer. I think — I think it might be Sister Mourne."`,
+      narration: `The Scribe\'s hands shake as he passes you the document roll. The seal on it bears Elder Varek\'s mark — broken, because the Scribe opened it. Inside: a single page order, signed and dated the morning of the Covenant signing, instructing an agent called "The Candle" to burn the treaty before ratification and make it look like the Crown\'s fault. The Scribe whispers: "There\'s an agent still in the city. Elder Varek\'s fixer. I think — I think it might be Sister Mourne."`,
       sub: `You have proof. Sister Mourne may be "The Candle." Find her at the Temple Quarter.`,
       options: [
         { icon: '🗺', label: 'Go to the Temple Quarter — confront Sister Mourne', type: 'move',
@@ -1844,8 +1948,8 @@ const SCENES = {
     location: 'Temple Quarter — Church of the Eternal Flame',
     locationIcon: '🕯',
     threat: '⚠ Church Territory',
-    narration: `The Temple Quarter is too quiet for a district that usually echoes with prayer bells. The great doors of the Church of the Eternal Flame stand open — unusual. Inside the dim nave, candles burn in rows but no clergy move between them. At the far end, kneeling before the altar, is a woman in grey robes. Sister Mourne. She doesn't look up when you enter, but her shoulders tighten. She knew you were coming.`,
-    sub: `She's waiting for you. She's already decided something.`,
+    narration: `The Temple Quarter is too quiet for a district that usually echoes with prayer bells. The great doors of the Church of the Eternal Flame stand open — unusual. Inside the dim nave, candles burn in rows but no clergy move between them. At the far end, kneeling before the altar, is a woman in grey robes. Sister Mourne. She doesn\'t look up when you enter, but her shoulders tighten. She knew you were coming.`,
+    sub: `She\'s waiting for you. She\'s already decided something.`,
     options: [
       { icon: '💬', label: '"Sister Mourne. I know about Elder Varek\'s order."', type: 'talk',
         action: () => runScene('mourne_confrontation') },
@@ -1863,8 +1967,8 @@ const SCENES = {
     return {
       location: 'Temple Quarter — Sister Mourne',
       locationIcon: '🕯',
-      narration: `Mourne rises from the kneeler without hurry. She turns, and her face is completely calm — the calm of someone who has thought through every possible version of this conversation. "I wondered how long it would take," she says. "A day? Two?" She folds her hands. "You have a document. Or you've spoken to the Scribe. Either way, you know Elder Varek gave an order." A long pause. "What you don't know is why I followed it."`,
-      sub: `She's not denying it. She wants to explain. This could go many directions.`,
+      narration: `Mourne rises from the kneeler without hurry. She turns, and her face is completely calm — the calm of someone who has thought through every possible version of this conversation. "I wondered how long it would take," she says. "A day? Two?" She folds her hands. "You have a document. Or you\'ve spoken to the Scribe. Either way, you know Elder Varek gave an order." A long pause. "What you don\'t know is why I followed it."`,
+      sub: `She\'s not denying it. She wants to explain. This could go many directions.`,
       options: [
         { icon: '💬', label: '"Why? Why burn the Covenant?"', type: 'talk',
           action: () => runScene('mourne_explains_motive') },
@@ -1892,7 +1996,7 @@ const SCENES = {
     return {
       location: 'Temple Quarter',
       locationIcon: '🕯',
-      narration: `"The Covenant wasn't peace," Mourne says quietly. "Read the clause on page four. The Crown gains oversight of Church finances within a year of signing. Within two years, the Church becomes a department of the crown. We would have ceased to exist as an independent institution." She meets your eyes. "Elder Varek saw it. I saw it. We made a decision." She pauses. "A wrong one, perhaps. But the alternative was institutional death."`,
+      narration: `"The Covenant wasn\'t peace," Mourne says quietly. "Read the clause on page four. The Crown gains oversight of Church finances within a year of signing. Within two years, the Church becomes a department of the crown. We would have ceased to exist as an independent institution." She meets your eyes. "Elder Varek saw it. I saw it. We made a decision." She pauses. "A wrong one, perhaps. But the alternative was institutional death."`,
       sub: `The Covenant was a power grab. Both sides had reasons. What do you do with this?`,
       options: [
         { icon: '💬', label: '"Where is Elder Varek now? This still needs to end properly."', type: 'talk',
@@ -1917,7 +2021,7 @@ const SCENES = {
     return {
       location: 'Temple Quarter',
       locationIcon: '🕯',
-      narration: `Something shifts in Mourne's expression — not relief exactly, but the easing of a weight she's carried alone for three days. "Elder Varek is at the Monastery of Saint Aldric. He went there to wait out the fallout." She looks at the document in your hands. "He doesn't know about the Scribe. He thinks the evidence is destroyed." She pulls a grey hood over her head. "I'll take you there. But understand — he is not going to come quietly."`,
+      narration: `Something shifts in Mourne\'s expression — not relief exactly, but the easing of a weight she\'s carried alone for three days. "Elder Varek is at the Monastery of Saint Aldric. He went there to wait out the fallout." She looks at the document in your hands. "He doesn\'t know about the Scribe. He thinks the evidence is destroyed." She pulls a grey hood over her head. "I\'ll take you there. But understand — he is not going to come quietly."`,
       sub: `Head to the Monastery of Saint Aldric. The final confrontation awaits.`,
       options: [
         { icon: '🗺', label: 'Travel to the Monastery of Saint Aldric with Mourne', type: 'move',
@@ -1957,7 +2061,7 @@ const SCENES = {
   vaelthar_scout: () => ({
     location: 'Vaelthar Main Square',
     locationIcon: '🏰',
-    narration: `The square tells a story if you know how to read it. The merchants have packed up early — a sign of expected violence. Three Church soldiers in plain clothes linger near the Archive; they're not subtle. The fountain in the center has been recently scrubbed — someone cleaned up blood. And Captain Rhael hasn't moved from his post in what looks like hours. He's guarding something, or waiting for something.`,
+    narration: `The square tells a story if you know how to read it. The merchants have packed up early — a sign of expected violence. Three Church soldiers in plain clothes linger near the Archive; they\'re not subtle. The fountain in the center has been recently scrubbed — someone cleaned up blood. And Captain Rhael hasn\'t moved from his post in what looks like hours. He\'s guarding something, or waiting for something.`,
     sub: `Church soldiers watching the Archive. Rhael standing guard. Someone cleaned up blood.`,
     options: [
       { icon: '💬', label: 'Approach Captain Rhael', type: 'talk', action: () => runScene('rhael_first_meeting') },
@@ -1980,7 +2084,7 @@ const SCENES = {
     return {
       location: 'Vaelthar Gate',
       locationIcon: '🏰',
-      narration: `You pull back a section of the torn banner and freeze. The tear is from the inside — someone grabbed it from behind the gate and pulled. Church-side. Whoever tore these banners was making a statement, or staging a scene. And there's a small ink mark on the fabric — an Elder's seal. Not the Crown's. The Church tore its own banners.`,
+      narration: `You pull back a section of the torn banner and freeze. The tear is from the inside — someone grabbed it from behind the gate and pulled. Church-side. Whoever tore these banners was making a statement, or staging a scene. And there\'s a small ink mark on the fabric — an Elder's seal. Not the Crown\'s. The Church tore its own banners.`,
       sub: `The Church destroyed its own symbols to frame the Crown. This was staged.`,
       options: [
         { icon: '💬', label: 'Bring this to Captain Rhael', type: 'talk', action: () => runScene('rhael_first_meeting') },
@@ -1994,8 +2098,8 @@ const SCENES = {
     return {
       location: 'Vaelthar Square — The Fountain',
       locationIcon: '⛲',
-      narration: `Between the cobblestones, where water runs slow, you find it — a smear of dark red that soap and water didn't quite erase. And caught in the drain grate: a button. Not a soldier's button. A scribe's button — pale bone, carved with a small quill mark. The Scribe's assistant didn't "not show up." The Scribe's assistant was killed here.`,
-      sub: `The Scribe's assistant was murdered. The Scribe is next if you don't move.`,
+      narration: `Between the cobblestones, where water runs slow, you find it — a smear of dark red that soap and water didn't quite erase. And caught in the drain grate: a button. Not a soldier\'s button. A scribe's button — pale bone, carved with a small quill mark. The Scribe\'s assistant didn't "not show up." The Scribe\'s assistant was killed here.`,
+      sub: `The Scribe\'s assistant was murdered. The Scribe is next if you don\'t move.`,
       options: [
         { icon: '🏃', label: 'Rush to the Scribe immediately — he\'s in danger', type: 'move',
           action: () => runScene('scribe_urgent') },
@@ -2011,7 +2115,7 @@ const SCENES = {
       location: 'Archive Steps — URGENT',
       locationIcon: '📜',
       threat: '⚠ In Danger',
-      narration: `You find the Scribe still at the Archive steps — but now two men in plain clothes have positioned themselves at either end of the street. They haven't moved yet, but their eyes are on him. The Scribe sees you coming and his expression shifts from terror to desperate hope. You have maybe sixty seconds before those men decide to act.`,
+      narration: `You find the Scribe still at the Archive steps — but now two men in plain clothes have positioned themselves at either end of the street. They haven\'t moved yet, but their eyes are on him. The Scribe sees you coming and his expression shifts from terror to desperate hope. You have maybe sixty seconds before those men decide to act.`,
       sub: `Get him out NOW. The Church agents are about to move.`,
       options: [
         { icon: '🏃', label: 'Grab the Scribe and run — get him off the street', type: 'combat',
@@ -2037,11 +2141,11 @@ const SCENES = {
     return {
       location: 'Vaelthar Back Alley',
       locationIcon: '🏚',
-      narration: `You pull the Scribe into a narrow alley as the Church agents break into a run behind you. Two turns, a locked gate — you vault it, he barely makes it. When you finally stop, he's panting, hands on his knees. "They killed Torven," he gasps. "My assistant. He saw the document." He looks up. "I need to show you something. Something I didn't tell anyone. Meet me at the inn by the Thornwood Gate tonight. Come alone."`,
-      sub: `The Scribe has more information. Meet him at the Thornwood Gate inn.`,
+      narration: `You pull the Scribe into a narrow alley as the Church agents break into a run behind you. Two turns, a locked gate — you vault it, he barely makes it. When you finally stop, he\'s panting, hands on his knees. "They killed Torven," he gasps. "My assistant. He saw the document." He looks up. "I need to show you something. Something I didn't tell anyone. Meet me at the inn by the Thornwood Gate tonight. Come alone."`,
+      sub: `The Scribe knows more. He'll tell you everything at The Tarnished Cup — the one place Church agents won\'t risk a scene.`,
       options: [
-        { icon: '🗺', label: 'Head to the Thornwood Gate inn now', type: 'move',
-          action: () => runScene('thornwood_gate_inn') },
+        { icon: '🍺', label: 'Head to The Tarnished Cup — meet him there', type: 'move',
+          action: () => runScene('tarnished_cup_arrival') },
         { icon: '💬', label: '"Tell me now — we may not have time"', type: 'talk',
           action: () => runScene('scribe_tells_all_now') },
       ]
@@ -2049,63 +2153,7 @@ const SCENES = {
   },
 
   // ── CHAPTER 1 FINALE ─────────────────────
-  monastery_arrival: () => {
-    setFlag('chapter1_finale');
-    return {
-      location: 'Monastery of Saint Aldric',
-      locationIcon: '⛪',
-      threat: '⚔ HIGH DANGER',
-      narration: `The monastery sits on a ridge above Vaelthar — walls of grey stone, torches burning despite the daylight. As you approach, you spot Elder Varek through the courtyard gate: a heavyset man in white robes, surrounded by four armed Church soldiers. He hasn't seen you yet. This is the moment. The evidence is in your hands. Varek ordered the Covenant burned, triggered a crisis that's already cost lives. How this ends is up to you.`,
-      sub: `Elder Varek is here. You have the evidence. The chapter ends here — one way or another.`,
-      options: [
-        { icon: '⚔', label: 'Storm in and arrest Varek — take the soldiers if they resist', type: 'combat',
-          roll: { stat: 'STR', dc: 14 },
-          onSuccess: () => {
-            addLog(`Your charge scatters the soldiers — but Varek draws a blade. "I won't be chained." The real fight begins.`, 'combat');
-            startCombat([
-              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
-                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
-            ]);
-          },
-          onFail: () => {
-            addLog(`The soldiers hold the line. Varek watches coldly from behind them.`, 'combat');
-            startCombat([
-              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
-              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
-              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
-                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
-            ]);
-          }
-        },
-        { icon: '🗣', label: 'Confront Varek openly — show the document and demand surrender', type: 'talk',
-          roll: { stat: 'CHA', dc: 15 },
-          onSuccess: () => {
-            addLog(`⚔ Varek's soldiers lower their weapons — but Varek himself draws a blade. "I will not be taken alive." The fight is unavoidable.`, 'combat');
-            startCombat([
-              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
-                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
-            ]);
-          },
-          onFail: () => {
-            addLog(`Varek signals his soldiers. "Kill them." They draw weapons.`, 'combat');
-            startCombat([
-              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' },
-              { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' },
-              { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true,
-                spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 },
-            ]);
-          }
-        },
-        { icon: '🕵', label: 'Slip in and steal Varek\'s communications before confronting him', type: 'explore',
-          roll: { stat: 'DEX', dc: 14 },
-          onSuccess: () => { setFlag('varek_evidence_doubled'); addLog('📜 ITEM GAINED: Varek\'s private correspondence — more evidence.', 'holy'); runScene('chapter1_end_surrender'); },
-          onFail: () => runScene('monastery_caught_sneaking') },
-        { icon: '🏃', label: 'This is bigger than you. Go back — alert Captain Rhael first', type: 'move',
-          action: () => { setFlag('called_rhael_help'); runScene('chapter1_end_rhael_leads'); } },
-      ]
-    };
-  },
-
+  monastery_arrival: () => {    setFlag('chapter1_finale');    const flags = window.sceneState?.flags || {};    const hasBackRoute = flags.has_monastery_back_route;    const rhaelComing = flags.rhael_comes_along;    if (hasBackRoute) {      return {        location: 'Monastery of Saint Aldric — East Wall',        locationIcon: '⛪',        threat: '⚔ UNDETECTED — For Now',        narration: `The cartographer\'s sketch is right. Behind the root cellar, the eastern wall has buckled inward — enough to slip through. You move through empty corridors, past cells with doors hanging open. You find Varek alone in the monastery library, reading. He looks up without surprise. "I wondered which door you\'d use," he says.`,        sub: `You arrived undetected. No soldiers between you and Varek. He was expecting someone.`,        options: [          { icon: '💬', label: '"Elder Varek. I have your sealed order. This is over."', type: 'talk',            action: () => runScene('varek_confrontation_talk') },          { icon: '💬', label: '"Tell me who gave you the order before I decide what to do."', type: 'talk',            action: () => runScene('varek_confrontation_negotiate') },          { icon: '⚔', label: 'Attack immediately — no conversation', type: 'combat',            action: () => { addLog(`Varek stands slowly from the desk. "Very well."`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }          },        ]      };    }    return {      location: 'Monastery of Saint Aldric',      locationIcon: '⛪',      threat: '⚔ HIGH DANGER',      narration: `The monastery sits on a ridge above Vaelthar — walls of grey stone, torches burning despite the daylight. Four Church soldiers guard the courtyard gate. Elder Varek stands among them in white robes — heavyset, unhurried. He sees you before you reach the gate. He doesn\'t move away.${rhaelComing ? ' Captain Rhael\'s squad arrives at your flank. The Watch is here.' : ''} He waits.`,      sub: `Varek sees you coming and doesn\'t run. He\'s made his choice too.`,      options: [        { icon: '⚔', label: 'Storm the gate — scatter the soldiers and reach Varek', type: 'combat',          roll: { stat: 'STR', dc: 14 },          onSuccess: () => { addLog(`Your charge breaks the line. Varek steps forward. "I won\'t be taken in chains." Calm.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); },          onFail: () => { addLog(`The soldiers hold. Varek watches without expression.`, 'combat'); startCombat([{ name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' }, { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' }, { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },        { icon: '💬', label: 'Call out to Varek — face you without soldiers between you', type: 'talk',          roll: { stat: 'CHA', dc: 13 },          onSuccess: () => { setFlag('varek_dismissed_soldiers'); addLog(`Varek raises one hand. The soldiers step back. "Come in," he says. "Let\'s finish this properly."`, 'system'); runScene('varek_confrontation_talk'); },          onFail: () => { addLog(`Varek signals. "Kill them." The soldiers move.`, 'combat'); startCombat([{ name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' }, { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' }, { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },        { icon: '🕵', label: 'Find the eastern wall — try to slip in through the back', type: 'explore',          roll: { stat: 'DEX', dc: 14 },          onSuccess: () => { setFlag('found_back_route'); runScene('varek_confrontation_talk'); },          onFail: () => runScene('monastery_caught_sneaking') },        { icon: '🏃', label: 'Alert Captain Rhael — don\'t face this alone', type: 'move',          action: () => { setFlag('called_rhael_help'); runScene('chapter1_end_rhael_leads'); } },      ]    };  },  varek_confrontation_talk: () => {    setFlag('confronted_varek_peacefully');    return {      location: 'Monastery of Saint Aldric — With Varek',      locationIcon: '⛪',      narration: `Varek sits across from you with the stillness of a man who has been waiting for this. "You have the Scribe\'s document," he says. Not a question. "My seal. My order. Yes." He sets a second page on the table. "Before you decide what happens next — page four of the original Covenant draft. Read the treasury oversight clause." He waits.`,      sub: `He\'s not denying it. He\'s showing you why. You can read his argument or move directly to the ending.`,      options: [        { icon: '📜', label: 'Read his argument', type: 'explore',          action: () => runScene('varek_reveals_his_truth') },        { icon: '⚖', label: '"I\'ve heard enough. Come with me to Rhael. Peacefully."', type: 'talk',          roll: { stat: 'CHA', dc: 14 },          onSuccess: () => { setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); },          onFail: () => runScene('varek_refuses_surrender') },        { icon: '⚔', label: 'No more words — fight', type: 'combat',          action: () => { addLog(`Varek closes the document. "If that\'s your decision." He stands.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },      ]    };  },  varek_confrontation_negotiate: () => {    setFlag('negotiated_with_varek');    return {      location: 'Monastery — Varek',      locationIcon: '⛪',      narration: `Varek sets down his book. He studies you for a long moment, recalibrating. "You want the name above me." A pause. "That is the right question." He stands. "The hidden treasury clause was drafted by a Crown clerk named Caelan Vey — office of institutional affairs. The Covenant was a trap. The Church would have signed itself out of existence." He meets your eyes. "I can give you written testimony of that, signed, in exchange for a tribunal rather than a street arrest."`,      sub: `Varek is offering a deal — information on the Crown official who set the trap, in exchange for due process.`,      options: [        { icon: '⚖', label: 'Accept — tribunal, not summary arrest', type: 'talk',          action: () => { setFlag('varek_deal_accepted'); setFlag('knows_caelan_vey'); addLog('📜 REVELATION: Caelan Vey — the Crown clerk who drafted the trap. A thread for Chapter II.', 'holy'); runScene('chapter1_end_surrender'); } },        { icon: '🚫', label: 'Refuse — a deal with Varek isn\'t justice', type: 'talk',          action: () => { addLog(`"I understand," Varek says quietly. "Then let\'s finish this the other way."`, 'system'); runScene('varek_confrontation_talk'); } },        { icon: '⚔', label: 'Take the name — then arrest him anyway', type: 'combat',          roll: { stat: 'CHA', dc: 10 },          onSuccess: () => { setFlag('knows_caelan_vey'); addLog('📜 He says the name before he realises your intent. Caelan Vey.', 'hell'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); },          onFail: () => { addLog(`Varek stops mid-sentence. "You\'ve already decided." He stands.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); } },      ]    };  },  varek_reveals_his_truth: () => {    setFlag('knows_full_picture');    setFlag('knows_caelan_vey');    addLog('📜 REVELATION: The Covenant clause would have ended the Church\'s independence. Varek burned a trap, not a peace treaty. Crown clerk Caelan Vey drafted it.', 'holy');    grantXP(200);    return {      location: 'Monastery — The Whole Truth',      locationIcon: '⛪',      narration: `You read. The clause is exactly what he said — financial oversight transferred within a year, the Church a Crown department within two. The institution ceases to exist. Varek watches your face. "I broke the law," he says when you look up. "People died in the fallout. I accept both of those things." A pause. "The man who drafted that clause is named Caelan Vey. He is still employed. Still in his office." He folds his hands. "You can arrest me. I won\'t resist. But that name should come with me."`,      sub: `Varek burned a trap to save his institution. The truth is bigger than either side admits. How this ends is your choice.`,      options: [        { icon: '⚖', label: '"Come with me. You\'ll face trial. That\'s the deal."', type: 'talk',          action: () => { setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); } },        { icon: '💬', label: '"You had other options. You chose fire and you know it."', type: 'talk',          roll: { stat: 'WIS', dc: 12 },          onSuccess: () => { setFlag('varek_confronted_on_choice'); addLog('"Yes," he says, after a long silence. "I did." He stands. "Take me to Rhael."', 'narrator'); setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); },          onFail: () => runScene('varek_refuses_surrender') },        { icon: '⚔', label: 'Whatever his reasons — he still has to answer with blood', type: 'combat',          action: () => { addLog(`"I understand," Varek says. He doesn\'t raise his voice. He draws a blade.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },      ]    };  },  varek_refuses_surrender: () => ({    location: 'Monastery — Varek Refuses',    locationIcon: '⛪',    threat: '⚔ FIGHT UNAVOIDABLE',    narration: `"I will not be chained," Varek says. Not anger. A statement. "Take me by force if you must. But I will not walk into a Watch cell." He steps back from the table. Something in his robes moves. "I\'ve made my peace with what I did. I won\'t make peace with what comes after."`,    sub: `He won\'t go quietly. The fight is the only path left.`,    options: [      { icon: '⚔', label: 'Fight', type: 'combat',        action: () => startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]) },    ]  }),
   chapter1_end_arrest: () => {
     setFlag('chapter1_complete');
     grantHolyPoints(15);
@@ -2117,7 +2165,7 @@ const SCENES = {
     return {
       location: 'Monastery Courtyard — After the Storm',
       locationIcon: '⛪',
-      narration: `The soldiers yielded when Varek fell. He's on his knees in the monastery courtyard, wrists bound, his white robes dusty and torn. He looks older suddenly — not an elder of the Church, just a frightened man who made a catastrophic decision and got caught. Captain Rhael arrives within the hour, takes Varek into Watch custody, and looks at you for a long moment. "The city owes you something," he says. "It won't say so publicly. But it does." Chapter I is over. The road ahead leads deeper into the shadow of what the Covenant's death has already set in motion.`,
+      narration: `The soldiers yielded when Varek fell. He\'s on his knees in the monastery courtyard, wrists bound, his white robes dusty and torn. He looks older suddenly — not an elder of the Church, just a frightened man who made a catastrophic decision and got caught. Captain Rhael arrives within the hour, takes Varek into Watch custody, and looks at you for a long moment. "The city owes you something," he says. "It won\'t say so publicly. But it does." Chapter I is over. The road ahead leads deeper into the shadow of what the Covenant's death has already set in motion.`,
       sub: `Chapter I complete. Chapter II begins: "What the Covenant Left Behind."`,
       options: [
         { icon: '📖', label: 'Begin Chapter II — the aftermath', type: 'move',
@@ -2136,7 +2184,7 @@ const SCENES = {
     return {
       location: 'Monastery — Varek Yields',
       locationIcon: '⛪',
-      narration: `The document does what a sword could not. Varek reads it once — his own seal, his own order — and something goes out of him. He dismisses his soldiers with a gesture, and when they hesitate he repeats it. He surrenders quietly, without theatrics. "I acted to protect the Church," he says. "Whether that justifies it — that's for the magistrates now." You escort him back to Vaelthar. The streets are quiet. Word travels faster than you do. By evening, the crisis has a name, a face, and a verdict pending. Chapter I is over.`,
+      narration: `The document does what a sword could not. Varek reads it once — his own seal, his own order — and something goes out of him. He dismisses his soldiers with a gesture, and when they hesitate he repeats it. He surrenders quietly, without theatrics. "I acted to protect the Church," he says. "Whether that justifies it — that\'s for the magistrates now." You escort him back to Vaelthar. The streets are quiet. Word travels faster than you do. By evening, the crisis has a name, a face, and a verdict pending. Chapter I is over.`,
       sub: `Chapter I complete. Chapter II begins.`,
       options: [
         { icon: '📖', label: 'Begin Chapter II', type: 'move',
@@ -2155,7 +2203,7 @@ const SCENES = {
     return {
       location: 'Vaelthar — Rhael Mobilizes',
       locationIcon: '🏰',
-      narration: `Rhael doesn't hesitate. Within an hour the Watch is moving in force toward the monastery. Varek's soldiers yield at the gate — they're soldiers, not martyrs, and they know what the document means. Varek is taken alive. At the debriefing afterward, Rhael gives you a look across the table. "You could have done this alone," he says. "You chose not to. That's either wisdom or doubt. I haven't decided which." Either way, it's over — for now. Chapter I ends not with thunder, but with paperwork and the sound of chains.`,
+      narration: `Rhael doesn\'t hesitate. Within an hour the Watch is moving in force toward the monastery. Varek\'s soldiers yield at the gate — they\'re soldiers, not martyrs, and they know what the document means. Varek is taken alive. At the debriefing afterward, Rhael gives you a look across the table. "You could have done this alone," he says. "You chose not to. That\'s either wisdom or doubt. I haven\'t decided which." Either way, it\'s over — for now. Chapter I ends not with thunder, but with paperwork and the sound of chains.`,
       sub: `Chapter I complete. You chose caution over glory.`,
       options: [
         { icon: '📖', label: 'Begin Chapter II', type: 'move',
@@ -2168,7 +2216,7 @@ const SCENES = {
     location: 'Monastery Corridor',
     locationIcon: '⛪',
     threat: '⚠ CAUGHT',
-    narration: `A soldier rounds a corner and you're face to face. He shouts. The alarm spreads through the monastery in seconds — boots on stone, doors slamming. You have seconds to decide.`,
+    narration: `A soldier rounds a corner and you\'re face to face. He shouts. The alarm spreads through the monastery in seconds — boots on stone, doors slamming. You have seconds to decide.`,
     sub: `Caught inside the monastery. Fight or flee.`,
     options: [
       { icon: '⚔', label: 'Fight your way to Varek', type: 'combat',
@@ -2226,7 +2274,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — The Merchant\'s Back Room',
       locationIcon: '🏰',
-      narration: `The merchant, once he's sure the door is locked and no one is watching, pulls out a ledger. His hands shake. "The debt purchase was arranged by a notary working for the Church of the Eternal Flame. I bought the building from the Church, not from your family. I always assumed—" He stops. "I assumed your family sold willingly. I think now they didn't have a choice." He looks at you. "The notary's name was Aldis. He worked at the Archive."`,
+      narration: `The merchant, once he\'s sure the door is locked and no one is watching, pulls out a ledger. His hands shake. "The debt purchase was arranged by a notary working for the Church of the Eternal Flame. I bought the building from the Church, not from your family. I always assumed—" He stops. "I assumed your family sold willingly. I think now they didn't have a choice." He looks at you. "The notary's name was Aldis. He worked at the Archive."`,
       sub: `The Church engineered your family's ruin. The Archive scribe may know more.`,
       options: [
         { icon: '💬', label: 'Find Aldis the Scribe — he\'s connected to everything', type: 'talk',
@@ -2244,7 +2292,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — A Soldier\'s Face',
       locationIcon: '🏰',
-      narration: `In the square, among the Watch soldiers standing guard, you see a face. Old now, heavier, a scar you don't remember — but the jaw, the eyes, the particular way he stands with his weight on his left foot. You were seven when you last saw that face. He was giving orders. You were hiding in a root cellar, listening to your village burn above you. He's a Watch sergeant now. He hasn't seen you yet.`,
+      narration: `In the square, among the Watch soldiers standing guard, you see a face. Old now, heavier, a scar you don\'t remember — but the jaw, the eyes, the particular way he stands with his weight on his left foot. You were seven when you last saw that face. He was giving orders. You were hiding in a root cellar, listening to your village burn above you. He\'s a Watch sergeant now. He hasn\'t seen you yet.`,
       sub: `One of the men who ordered the raid on your village. Right here. Right now.`,
       options: [
         { icon: '👁', label: 'Watch him — don\'t act yet. Confirm it\'s him.', type: 'explore',
@@ -2267,8 +2315,8 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — The Truth About the Raid',
       locationIcon: '🏰',
-      narration: `You find what you can from the Watch records — a clerk who owes you a favour, a ledger left open too long. The raid on your village is listed as "pacification action, commissioned by the Church of the Eternal Flame, year 14 of the current covenant period." It was paid for. Your village was targeted because it sat on land the Church wanted for a reliquary road. The commander's name is listed. General Vane. He's alive. He's in the capital.`,
-      sub: `The raid was commissioned by the Church. General Vane ordered it. He's alive.`,
+      narration: `You find what you can from the Watch records — a clerk who owes you a favour, a ledger left open too long. The raid on your village is listed as "pacification action, commissioned by the Church of the Eternal Flame, year 14 of the current covenant period." It was paid for. Your village was targeted because it sat on land the Church wanted for a reliquary road. The commander's name is listed. General Vane. He\'s alive. He\'s in the capital.`,
+      sub: `The raid was commissioned by the Church. General Vane ordered it. He\'s alive.`,
       options: [
         { icon: '📜', label: 'Copy the record — you\'ll need proof', type: 'explore',
           action: () => { addLog('📜 ITEM GAINED: Watch Pacification Ledger (copy) — proof the raid was Church-commissioned.', 'holy'); gameState.character?.inventory?.push('Pacification Ledger (copy)'); grantHolyPoints(3); addLog('📜 PERSONAL QUEST: You have a name. General Vane. A face. Sergeant Mael. And proof.', 'holy'); } },
@@ -2286,7 +2334,7 @@ const PERSONAL_QUEST_SCENES = {
       location: 'Vaelthar — The Voice, Louder',
       locationIcon: '🏰',
       threat: '⚠ Bloodline Stirs',
-      narration: `It hasn't spoken since you arrived in Vaelthar — and then, in the quiet of the evening, standing near the Archive, it does. Clearer than usual. A single sentence, in a language you didn't know you knew: "The seal is broken. I am waking." And then, very quietly: "I have been waiting for you specifically." Your palm burns where the scar sits. Across the square, a woman in grey robes turns and looks directly at you. She couldn't have heard. But she smiles as if she did.`,
+      narration: `It hasn\'t spoken since you arrived in Vaelthar — and then, in the quiet of the evening, standing near the Archive, it does. Clearer than usual. A single sentence, in a language you didn't know you knew: "The seal is broken. I am waking." And then, very quietly: "I have been waiting for you specifically." Your palm burns where the scar sits. Across the square, a woman in grey robes turns and looks directly at you. She couldn\'t have heard. But she smiles as if she did.`,
       sub: `The Voice in your blood is awake. The woman in grey knows something.`,
       options: [
         { icon: '💬', label: 'Follow the woman in grey — she recognised something', type: 'talk',
@@ -2309,7 +2357,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — The Shard Bearers',
       locationIcon: '🏰',
-      narration: `The woman finds you instead, eventually. Her name is Ysel. She carries the same mark on her wrist, different shape. "When the old god shattered," she says, "its essence split into pieces. Some pieces went into bloodlines. Your grandmother didn't make a deal with a demon. She was chosen as a vessel — involuntarily, I think — for one of the fragments." She holds out her wrist. "The Covenant was the seal that kept the fragments dormant. It's broken now. We're all waking up." She pauses. "There are six of us I know of. The seventh fragment went somewhere worse."`,
+      narration: `The woman finds you instead, eventually. Her name is Ysel. She carries the same mark on her wrist, different shape. "When the old god shattered," she says, "its essence split into pieces. Some pieces went into bloodlines. Your grandmother didn't make a deal with a demon. She was chosen as a vessel — involuntarily, I think — for one of the fragments." She holds out her wrist. "The Covenant was the seal that kept the fragments dormant. It\'s broken now. We're all waking up." She pauses. "There are six of us I know of. The seventh fragment went somewhere worse."`,
       sub: `Your curse is a god-fragment. Six carriers exist. The seventh fragment is the Voice Below.`,
       options: [
         { icon: '💬', label: '"Is this curable? Can the fragment be removed?"', type: 'talk',
@@ -2327,7 +2375,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Church of the Eternal Flame — Vaelthar',
       locationIcon: '🕯',
-      narration: `You step into the church for reasons you can't fully explain — something pulled. Inside, past the rows of Eternal Flame candles, you see it. On the back wall behind the main altar, carved into stone that predates the current building by centuries: a phrase in old script. You can read it, somehow. It says: "In the name of Jesus Christ — the Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Below it, crudely scratched in fresher marks: your description. Physical. Exact. The name at the top is older than the Eternal Flame itself — the Church built this place on top of something they couldn't destroy.`,
+      narration: `You step into the church for reasons you can\'t fully explain — something pulled. Inside, past the rows of Eternal Flame candles, you see it. On the back wall behind the main altar, carved into stone that predates the current building by centuries: a phrase in old script. You can read it, somehow. It says: "In the name of Jesus Christ — the Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Below it, crudely scratched in fresher marks: your description. Physical. Exact. The name at the top is older than the Eternal Flame itself — the Church built this place on top of something they couldn\'t destroy.`,
       sub: `Someone carved your description into a pre-Church wall centuries ago. The name above it is the name the Church buried.`,
       options: [
         { icon: '🔍', label: 'Study the carving — when was it made?', type: 'explore',
@@ -2350,7 +2398,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Church Archive — Lower Level',
       locationIcon: '🕯',
-      narration: `A priest finds you at the wall. Old enough to know. He speaks quietly. "We call it the Anticipatory Saint. Every generation, someone matches the description. They always arrive near a breaking point." He leads you to a locked cabinet in the lower archive. Inside: a scroll written in the older script — a record of every previous Chosen, what they did, and what it cost them. The list is long. At the top of each entry, the same invocation: "In the name of Jesus Christ." The Church plastered over this room with Eternal Flame iconography but couldn't bring itself to destroy the scroll. The last entry has no name. Just a date. Six months from today.`,
+      narration: `A priest finds you at the wall. Old enough to know. He speaks quietly. "We call it the Anticipatory Saint. Every generation, someone matches the description. They always arrive near a breaking point." He leads you to a locked cabinet in the lower archive. Inside: a scroll written in the older script — a record of every previous Chosen, what they did, and what it cost them. The list is long. At the top of each entry, the same invocation: "In the name of Jesus Christ." The Church plastered over this room with Eternal Flame iconography but couldn\'t bring itself to destroy the scroll. The last entry has no name. Just a date. Six months from today.`,
       sub: `The older faith named you across centuries. Every Chosen served the same God the Church buried. The scroll ends six months from now.`,
       options: [
         { icon: '📜', label: 'Take the scroll', type: 'explore',
@@ -2369,7 +2417,7 @@ const PERSONAL_QUEST_SCENES = {
       location: 'Vaelthar — The Brand Is Recognised',
       locationIcon: '🏰',
       threat: '⚠ Exposed',
-      narration: `Your collar slips in the crowd. Just for a moment. But a man with a sharp face and sharper eyes catches the edge of the brand on your neck, and his expression shifts — not hostile, something more considered. He falls into step beside you. "The exile brand of the city of Hareth," he says quietly. "I know that brand. I know the case it came from. I also know the man who gave the false testimony that put it there." He doesn't slow. "His name is worth something to you, I think."`,
+      narration: `Your collar slips in the crowd. Just for a moment. But a man with a sharp face and sharper eyes catches the edge of the brand on your neck, and his expression shifts — not hostile, something more considered. He falls into step beside you. "The exile brand of the city of Hareth," he says quietly. "I know that brand. I know the case it came from. I also know the man who gave the false testimony that put it there." He doesn\'t slow. "His name is worth something to you, I think."`,
       sub: `Someone knows your case. And they know who lied.`,
       options: [
         { icon: '💬', label: '"Who are you and what do you want for the name?"', type: 'talk',
@@ -2392,7 +2440,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Church Archive — Basement',
       locationIcon: '📜',
-      narration: `Green ledger, third shelf. It's there. Court testimony transcripts — including a case from Hareth, including your name, including the witness statement that exiled you. And next to it, in the same handwriting but a different ink, the original version. Before it was edited. The difference is one sentence. One sentence that completely inverts the testimony. The editor's initials are stamped on the revision: E.V. Elder Varek's initials. The man you're already hunting arranged your exile.`,
+      narration: `Green ledger, third shelf. It\'s there. Court testimony transcripts — including a case from Hareth, including your name, including the witness statement that exiled you. And next to it, in the same handwriting but a different ink, the original version. Before it was edited. The difference is one sentence. One sentence that completely inverts the testimony. The editor's initials are stamped on the revision: E.V. Elder Varek\'s initials. The man you\'re already hunting arranged your exile.`,
       sub: `Elder Varek arranged your false exile. This just became very personal.`,
       options: [
         { icon: '📜', label: 'Take both documents — the original and the edited version', type: 'explore',
@@ -2410,8 +2458,8 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — A Familiar Kill Pattern',
       locationIcon: '🏰',
-      narration: `The Watch sergeant is briefing his men near the fountain. You catch fragments: bodies arranged in a circle, no signs of struggle, markings on the palms. You've seen this before. Not here — three years ago, in a village two hundred miles east, at the start of a case you never closed. The same pattern. The same markings. Which means whatever did this then has been following the same path as you for three years, and you've only just noticed.`,
-      sub: `The Vaelthar murders match a case you couldn't close three years ago. It followed you here.`,
+      narration: `The Watch sergeant is briefing his men near the fountain. You catch fragments: bodies arranged in a circle, no signs of struggle, markings on the palms. You've seen this before. Not here — three years ago, in a village two hundred miles east, at the start of a case you never closed. The same pattern. The same markings. Which means whatever did this then has been following the same path as you for three years, and you\'ve only just noticed.`,
+      sub: `The Vaelthar murders match a case you couldn\'t close three years ago. It followed you here.`,
       options: [
         { icon: '💬', label: 'Talk to the Watch sergeant — get the full details', type: 'talk',
           roll: { stat: 'CHA', dc: 11 },
@@ -2433,11 +2481,11 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — The Creature\'s Trail',
       locationIcon: '🏰',
-      narration: `Your old case notes. You kept them, of course — hunters keep notes. The first incident: eleven people, circle, palm marks. Second: nine. Third: fourteen. The numbers aren't random. They're primes. The circles have been getting larger. The palm marks have been getting clearer. It's not hunting randomly — it's getting ready for something. The children with blank memories are the most recent marks. They're being prepared for something specific. The pattern ends at a number you recognise: forty-nine.`,
+      narration: `Your old case notes. You kept them, of course — hunters keep notes. The first incident: eleven people, circle, palm marks. Second: nine. Third: fourteen. The numbers aren't random. They're primes. The circles have been getting larger. The palm marks have been getting clearer. It\'s not hunting randomly — it\'s getting ready for something. The children with blank memories are the most recent marks. They're being prepared for something specific. The pattern ends at a number you recognise: forty-nine.`,
       sub: `49 marked victims and then — the ritual completes. Currently at 37. You have time. Not much.`,
       options: [
         { icon: '📜', label: 'Document the full pattern — you\'ll need this to stop it', type: 'explore',
-          action: () => { addLog('📜 ITEM GAINED: Hunter\'s Case File — full pattern documentation. 37 of 49 marked. 12 remain.', 'holy'); gameState.character?.inventory?.push("Hunter's Case File (Ritual Pattern)"); addLog('📜 PERSONAL QUEST: 12 more victims before the ritual completes. Whatever it\'s building toward connects to the shattered god.', 'holy'); setFlag('pq_hunter_ritual_known'); } },
+          action: () => { addLog('📜 ITEM GAINED: Hunter\'s Case File — full pattern documentation. 37 of 49 marked. 12 remain.', 'holy'); gameState.character?.inventory?.push("Hunter\'s Case File (Ritual Pattern)"); addLog('📜 PERSONAL QUEST: 12 more victims before the ritual completes. Whatever it\'s building toward connects to the shattered god.', 'holy'); setFlag('pq_hunter_ritual_known'); } },
         { icon: '💬', label: 'Find the children — they\'re the key to understanding this', type: 'talk',
           action: () => { addLog('📜 QUEST LINK: The children with blank memories (c1q10) are directly connected to your personal hunt. Investigating one advances both.', 'system'); setFlag('pq_hunter_children_link'); } },
       ]
@@ -2452,7 +2500,7 @@ const PERSONAL_QUEST_SCENES = {
       location: 'Church of the Eternal Flame — Confession',
       locationIcon: '🕯',
       threat: '⚠ The Debt Stirs',
-      narration: `The confessional smells of old wood and other people's sins. You're not here to confess — you're here because you followed a rumour about a priest who hears more than he should. But the moment you step inside the booth, the darkness changes. Not the demon you made your deal with — something else. A collector. "Your invoice is overdue," it says, pleasantly. "The original entity assigned to you has been — retired. I'm handling the outstanding accounts now." A pause. "The first payment is simple. Let the man across the street leave the city tonight. That's all."`,
+      narration: `The confessional smells of old wood and other people's sins. You're not here to confess — you\'re here because you followed a rumour about a priest who hears more than he should. But the moment you step inside the booth, the darkness changes. Not the demon you made your deal with — something else. A collector. "Your invoice is overdue," it says, pleasantly. "The original entity assigned to you has been — retired. I\'m handling the outstanding accounts now." A pause. "The first payment is simple. Let the man across the street leave the city tonight. That\'s all."`,
       sub: `Someone is collecting on your deal. They want you to let a man escape tonight.`,
       options: [
         { icon: '💬', label: '"Who is the man? What does it matter if he leaves?"', type: 'talk',
@@ -2473,7 +2521,7 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — The Choice',
       locationIcon: '🕯',
-      narration: `The man across the street is exactly where the voice said he'd be. Middle-aged, merchant-looking, nervous. You watch him for ten minutes. He's about to board a coach. If you do nothing, he leaves. The Covenant case loses a witness. Varek's prosecution becomes harder. If you stop him — report him to Rhael, hold him here — you've defied the collector. The Church probably won't learn your secret immediately. But the collector will find another way to call in the debt.`,
+      narration: `The man across the street is exactly where the voice said he\'d be. Middle-aged, merchant-looking, nervous. You watch him for ten minutes. He\'s about to board a coach. If you do nothing, he leaves. The Covenant case loses a witness. Varek\'s prosecution becomes harder. If you stop him — report him to Rhael, hold him here — you\'ve defied the collector. The Church probably won\'t learn your secret immediately. But the collector will find another way to call in the debt.`,
       sub: `Let him go and serve darkness, or stop him and pay later. Both have a cost.`,
       options: [
         { icon: '✋', label: 'Stop him — report him to Rhael. Defy the collector.', type: 'talk',
@@ -2491,8 +2539,8 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Vaelthar — A Letter, Hand-Delivered',
       locationIcon: '🏰',
-      narration: `A child hands you a folded letter and runs before you can ask questions. The handwriting is familiar — you've been trying to find it for years. It belongs to Senna, the person who saved your life at a cost you've never been able to repay. The letter is short: "I know you've been looking. Please stop. What I gave was given freely and I don't want it returned. I'm fine. Don't come here." The seal on the letter is a church seal. Of the Eternal Flame.`,
-      sub: `Senna is alive. She's connected to the Church of the Eternal Flame. She wants you to leave her alone.`,
+      narration: `A child hands you a folded letter and runs before you can ask questions. The handwriting is familiar — you\'ve been trying to find it for years. It belongs to Senna, the person who saved your life at a cost you\'ve never been able to repay. The letter is short: "I know you\'ve been looking. Please stop. What I gave was given freely and I don\'t want it returned. I\'m fine. Don't come here." The seal on the letter is a church seal. Of the Eternal Flame.`,
+      sub: `Senna is alive. She\'s connected to the Church of the Eternal Flame. She wants you to leave her alone.`,
       options: [
         { icon: '🔍', label: 'Investigate the church seal — which parish sent this?', type: 'explore',
           roll: { stat: 'INT', dc: 11 },
@@ -2514,8 +2562,8 @@ const PERSONAL_QUEST_SCENES = {
     return {
       location: 'Following the Trail — Senna',
       locationIcon: '🏰',
-      narration: `The trail leads, inevitably, toward the monastery. A monk you speak to on the road remembers her: "Sister Senna. She came to us three years ago. Gave a great deal to the Order." He pauses. "Elder Varek gave her a position. She serves him directly." He looks away. "She doesn't seem… free to leave." The word he chose carefully was "doesn't seem." What he meant was: she isn't.`,
-      sub: `Senna is at the monastery, serving Elder Varek under duress. She's not free.`,
+      narration: `The trail leads, inevitably, toward the monastery. A monk you speak to on the road remembers her: "Sister Senna. She came to us three years ago. Gave a great deal to the Order." He pauses. "Elder Varek gave her a position. She serves him directly." He looks away. "She doesn\'t seem… free to leave." The word he chose carefully was "doesn\'t seem." What he meant was: she isn\'t.`,
+      sub: `Senna is at the monastery, serving Elder Varek under duress. She\'s not free.`,
       options: [
         { icon: '😠', label: 'Varek has Senna. This is no longer just duty.', type: 'talk',
           action: () => { grantHellPoints(3); setFlag('pq_debt_varek_target'); addLog('📜 PERSONAL QUEST: Varek took Senna. Arresting him means freeing her. The debt and the mission are the same thing now.', 'hell'); } },
