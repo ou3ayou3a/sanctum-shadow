@@ -301,12 +301,15 @@ async function sendNPCMessage(playerText, isOpener = false) {
     .join(', ') || 'none';
 
   if (!isOpener) {
-    // Strip the [PlayerName ...] framing wrapper before displaying — it's for Claude, not the player
-    const displayText = playerText.replace(/^\[([^\]]+)\]$/, (_, inner) => {
-      // "[Khiax demands answers]" → "demands answers" (name already in the label)
+    // Strip framing wrappers and invocation notes — these are for Claude, not the player
+    let displayText = playerText;
+    // Remove INVOCATION NOTE suffix
+    displayText = displayText.replace(/\n*INVOCATION NOTE:[\s\S]*/i, '').trim();
+    // Strip [PlayerName ...] wrapper
+    displayText = displayText.replace(/^\[([^\]]+)\]/, (_, inner) => {
       const withoutName = inner.replace(new RegExp('^' + (char?.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').trim();
       return withoutName || inner;
-    });
+    }).trim();
     addLog(`${char?.name}: "${displayText}"`, 'action', char?.name);
     // Update local conv panel to show this player's portrait
     if (typeof updateConvPlayerPortrait === 'function') {

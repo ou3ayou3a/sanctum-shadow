@@ -1101,9 +1101,12 @@ Narrate what happens when ${char?.name} (${cls?.name}) invokes the name of Jesus
       return;
     }
 
-    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention.`;
+    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention. NEVER use markdown headers (#), bold (**), or any formatting — plain prose only.`;
     const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 200);
-    if (narration) addLog(narration, 'narrator');
+    if (narration) {
+      const clean = narration.replace(/^#+\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/_{2,}([^_]+)_{2,}/g, '$1').trim();
+      addLog(clean, 'narrator');
+    }
     return;
   }
 
@@ -1114,7 +1117,7 @@ Narrate what happens when ${char?.name} (${cls?.name}) invokes the name of Jesus
   const race = RACES?.find(r => r.id === char?.race);
   const flags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
 
-  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 complete sentences. Be specific to the setting. Never mention dice or rolls. Always finish your sentences. Stay in narrative voice.`;
+  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 complete sentences. Be specific to the setting. Never mention dice or rolls. Always finish your sentences. Stay in narrative voice. NEVER use markdown headers (#), bold (**text**), italic (*text*), or any markdown formatting — write plain prose only. No "What do you do?" at the end.`;
 
   const userMsg = `Player: ${char?.name}, ${race?.name} ${cls?.name}
 Location: ${loc?.name}
@@ -1130,7 +1133,14 @@ ${!success && !isFumble ? 'FAILURE — it fails and there is a real negative con
   const narration = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 250);
 
   if (narration) {
-    addLog(narration, success ? 'narrator' : 'combat');
+    // Strip any markdown the DM Claude returned
+    const cleanNarration = narration
+      .replace(/^#+\s+/gm, '')          // ## Headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // **bold**
+      .replace(/\*([^*]+)\*/g, '$1')     // *italic* (keep for now, used for actions)
+      .replace(/_{2,}([^_]+)_{2,}/g, '$1') // __bold__
+      .trim();
+    addLog(cleanNarration, success ? 'narrator' : 'combat');
   } else {
     // Fallback
     if (isCrit) addLog(`A critical success — everything goes better than hoped.`, 'holy');

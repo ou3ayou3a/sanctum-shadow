@@ -1065,6 +1065,7 @@ function getTarget() {
 
 // ─── ADVANCE TURN ─────────────────────────────
 function advanceTurn() {
+  if (!combatState.active) return; // combat ended — stop the turn loop
   do {
     combatState.currentTurnIndex = (combatState.currentTurnIndex + 1) % combatState.turnOrder.length;
     if (combatState.currentTurnIndex === 0) combatState.round++;
@@ -1075,6 +1076,7 @@ function advanceTurn() {
 }
 
 function processTurn() {
+  if (!combatState.active) return; // combat ended — stop
   const currentId = combatState.turnOrder[combatState.currentTurnIndex];
   const current = combatState.combatants[currentId];
   if (!current || current.hp <= 0) { advanceTurn(); return; }
@@ -1108,6 +1110,7 @@ function processTurn() {
 
 // ─── ENEMY AI ─────────────────────────────────
 function enemyAI(enemyId) {
+  if (!combatState.active) return; // combat ended — stop
   const enemy = combatState.combatants[enemyId];
   if (!enemy || enemy.hp <= 0) { advanceTurn(); return; }
 
@@ -1291,6 +1294,9 @@ function checkCombatEnd() {
 }
 
 function endCombat(victory) {
+  // Guard against re-entry — the infinite loop happens when advanceTurn fires
+  // via setTimeout after endCombat already ran
+  if (!combatState.active) return;
   combatState.active = false;
 
   // Identify who was just defeated (for story triggers and loot)
@@ -1315,6 +1321,11 @@ function endCombat(victory) {
     grantXP(totalXP);
     if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
 
+    // Sync player HP (victory — whatever they ended with, minimum 1)
+    if (gameState.character && combatState.combatants['player']) {
+      gameState.character.hp = Math.max(1, combatState.combatants['player'].hp);
+    }
+
     // Generate and show loot
     const loot = generateLoot(defeatedEnemies);
     if (loot.length > 0) {
@@ -1331,21 +1342,25 @@ function endCombat(victory) {
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`💀 DEFEATED! You wake up, wounded but alive...`, 'combat');
     grantHellPoints(3);
+
+    // Restore player to 20% HP — set BOTH the character object AND the combatant
+    // Order matters: set character first, then combatant, so no sync overwrites it
+    const restoreHp = Math.max(10, Math.floor((gameState.character?.maxHp || 100) * 0.2));
     if (gameState.character) {
-      gameState.character.hp = Math.floor(gameState.character.maxHp * 0.2);
+      gameState.character.hp = restoreHp;
+    }
+    // Also set combatant so any accidental reads get the right value
+    if (combatState.combatants['player']) {
+      combatState.combatants['player'].hp = restoreHp;
     }
     if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
-  }
-
-  // Sync player HP back
-  if (gameState.character && combatState.combatants['player']) {
-    gameState.character.hp = Math.max(1, combatState.combatants['player'].hp);
   }
 
   setTimeout(() => {
     const panel = document.getElementById('combat-panel');
     if (panel) panel.remove();
     if (window.updateCharacterPanel) updateCharacterPanel();
+    if (window.renderPlayerCard) renderPlayerCard();
   }, 2000);
 }
 
