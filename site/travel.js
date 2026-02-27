@@ -533,6 +533,7 @@ function resolveTravelOption(index, destination) {
     const gold = Math.floor(Math.random() * (max - min)) + min;
     char.gold = (char.gold || 0) + gold;
     if (opt.hell) { char.hellPoints = (char.hellPoints || 0) + opt.hell; addLog(`⛧ +${opt.hell} Hell Points`, 'hell'); }
+    if (window.onHarmCitizen) onHarmCitizen();
     addLog(opt.text_result || `You take ${gold} gold.`, 'narrator');
     addLog(`🪙 +${gold} gold`, 'system');
     arriveAtDestination(destination);
@@ -543,6 +544,10 @@ function resolveTravelOption(index, destination) {
   addLog(opt.text_result || opt.text || 'You continue on your way.', 'narrator');
   if (opt.holy) { char.holyPoints = (char.holyPoints || 0) + opt.holy; addLog(`✝ +${opt.holy} Holy Points`, 'holy'); }
   if (opt.hell) { char.hellPoints = (char.hellPoints || 0) + opt.hell; addLog(`⛧ +${opt.hell} Hell Points`, 'hell'); }
+  // Rep hooks for generic outcomes
+  if (opt.holy && opt.holy >= 5 && window.onHelpCitizen) onHelpCitizen();
+  if (opt.hell && opt.hell >= 5 && window.onHarmCitizen) onHarmCitizen();
+  if (opt.action === 'spend_gold' && window.onBribeGuard) onBribeGuard();
   arriveAtDestination(destination);
 }
 

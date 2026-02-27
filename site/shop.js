@@ -474,3 +474,7 @@ function useConsumable(itemName) {
 })();
 
 console.log('🛒 Shop system loaded.');
+
+// ─── GLOBAL EXPORTS ──────────────────────────────────────
+window.useConsumable = useConsumable;
+window.openShop = openShop;

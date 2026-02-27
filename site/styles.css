@@ -1240,7 +1240,20 @@ body {
 }
 
 .inv-icon { font-size: 1rem; }
-.inv-name { color: var(--text-secondary); }
+.inv-name { color: var(--text-secondary); flex: 1; }
+.inv-use-btn {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  background: rgba(201,168,76,0.12);
+  border: 1px solid rgba(201,168,76,0.3);
+  color: var(--gold);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.inv-use-btn:hover { background: rgba(201,168,76,0.25); }
 
 /* ============================================
    OVERLAYS

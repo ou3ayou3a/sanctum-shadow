@@ -787,11 +787,14 @@ function renderInventory() {
   const char = gameState.character;
   if (!char) return;
   const container = document.getElementById('inventory-panel'); if (!container) return;
-  const icons = { 'Sword': '⚔', 'Mace': '🔨', 'Staff': '🔮', 'Bow': '🏹', 'Daggers': '🗡', 'Armor': '🛡', 'Robe': '🧥', 'Cloak': '🧥', 'Potion': '🧪', 'Water': '💧', 'Book': '📜', 'Scripture': '📖', 'Kit': '💊', 'Candle': '🕯', 'Crystal': '💎', 'Quiver': '🏹', 'Lockpick': '🔑' };
+  const icons = { 'Sword': '⚔', 'Mace': '🔨', 'Staff': '🔮', 'Bow': '🏹', 'Daggers': '🗡', 'Armor': '🛡', 'Robe': '🧥', 'Cloak': '🧥', 'Potion': '🧪', 'Water': '💧', 'Book': '📜', 'Scripture': '📖', 'Kit': '💊', 'Candle': '🕯', 'Crystal': '💎', 'Quiver': '🏹', 'Lockpick': '🔑', 'Salve': '🧪', 'Bandage': '🩹', 'Ration': '🥩', 'Draught': '⚗️', 'Essence': '💧', 'Antidote': '🌿', 'Smoke': '💨', 'Draft': '🍺', 'Oil': '🌑' };
+  const consumableKeywords = ['potion', 'salve', 'bandage', 'ration', 'draught', 'essence', 'antidote', 'smoke bomb', 'draft', 'oil', 'holy water', 'healing kit', 'vial', 'mending', 'focus', 'might', 'shadow'];
   container.innerHTML = char.inventory.map(item => {
     const icon = Object.entries(icons).find(([k]) => item.toLowerCase().includes(k.toLowerCase()))?.[1] || '📦';
-    return `<div class="inv-item"><span class="inv-icon">${icon}</span><span class="inv-name">${item}</span></div>`;
-  }).join('');
+    const isConsumable = consumableKeywords.some(k => item.toLowerCase().includes(k));
+    const useBtn = isConsumable ? `<button class="inv-use-btn" onclick="useConsumable('${item.replace(/'/g,"\\'")}')">USE</button>` : '';
+    return `<div class="inv-item">${useBtn}<span class="inv-icon">${icon}</span><span class="inv-name">${item}</span></div>`;
+  }).join('') || '<div style="color:var(--text-dim);font-size:0.85rem;padding:8px">Nothing in your pack.</div>';
 }
 
 function renderPartyList() {
@@ -991,7 +994,6 @@ async function submitAction() {
     if (typeof openCampPanel === 'function') {
       openCampPanel();
     } else {
-      // camp.js not loaded — do a basic in-line rest
       const char = gameState.character;
       if (!char) return;
       const roll = Math.floor(Math.random() * 20) + 1;
@@ -1006,6 +1008,40 @@ async function submitAction() {
       } else {
         addLog(`📖 You try to rest but the city's noise and your own tension keep pulling you back. No recovery.`, 'narrator');
       }
+    }
+    return;
+  }
+
+  // ── Use item intercept ──
+  // "use healing salve", "drink potion", "eat rations", "use [item name]"
+  const useMatch = tLower.match(/^(?:use|drink|eat|apply|consume)\s+(.+)$/);
+  if (useMatch) {
+    const itemQuery = useMatch[1].trim();
+    const char = gameState.character;
+    if (char?.inventory) {
+      // Find matching item in inventory (fuzzy)
+      const match = char.inventory.find(i => i.toLowerCase().includes(itemQuery) || itemQuery.includes(i.toLowerCase().split(' ')[0]));
+      if (match) {
+        if (typeof useConsumable === 'function') {
+          useConsumable(match);
+        } else {
+          addLog(`You use ${match}.`, 'system');
+        }
+        return;
+      } else {
+        addLog(`You don't have "${itemQuery}" in your pack.`, 'system');
+        return;
+      }
+    }
+  }
+
+  // ── Shop intercept ──
+  const isShopWord = ['shop', 'buy', 'sell', 'merchant', 'open shop', 'visit shop', 'browse wares'].some(w => tLower === w || tLower.startsWith(w) || tLower.includes(w));
+  if (isShopWord) {
+    if (typeof openShop === 'function') {
+      openShop();
+    } else {
+      addLog(`There is no merchant nearby to trade with.`, 'system');
     }
     return;
   }
