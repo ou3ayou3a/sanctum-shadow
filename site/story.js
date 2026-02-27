@@ -72,7 +72,7 @@ function showScene(sceneData) {
           ? '🔖 This is your personal story — only you decide'
           : isMP
             ? '🗳 All players vote — majority wins, ties broken by dice'
-            : 'Or type any action freely below ↓'
+            : 'Or type freely in the ACT box below — your words go to the scene'
         }</span>
       </div>
     </div>

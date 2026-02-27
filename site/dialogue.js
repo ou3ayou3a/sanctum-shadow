@@ -1600,9 +1600,31 @@ function installNPCHook() {
       return;
     }
 
-    // ── Fast local talk detection — scan for any known NPC name in text ──
+    // ── If a scene panel is open, ACT box feeds narrative — never start NPC dialogue ──
+    // Player is mid-scene: their words are for the current scene context, not NPC lookup
+    if (document.getElementById('scene-panel')) {
+      input.value = '';
+      // Pass to game.js action handler as-is
+      const actionInput = document.getElementById('action-input');
+      if (actionInput) {
+        actionInput.value = text;
+        if (typeof submitAction === 'function') submitAction();
+      } else {
+        addLog(`*${text}*`, 'narrator');
+      }
+      return;
+    }
+
+    // ── Fast local talk detection — only fires on EXPLICIT conversation intent ──
+    // Requires "talk to X", "speak to X", "approach X", "ask X directly", etc. at START
+    // OR text is JUST the NPC name (e.g. "Rhael" / "talk to Rhael")
+    // Does NOT fire when NPC name is merely MENTIONED in a sentence about them
+    const _CONV_VERBS = /^(?:talk to|speak to|speak with|approach|greet|ask|tell|say to|whisper to|call out to|confront|find|go to|visit)\s+/i;
     const _quickNPC = (() => {
-      const l = text.toLowerCase();
+      const l = text.toLowerCase().trim();
+      // Only proceed if text starts with a conversation verb OR IS very short (1-3 words = just the name)
+      const hasConvIntent = _CONV_VERBS.test(l) || l.split(/\s+/).length <= 3;
+      if (!hasConvIntent) return null;
       // Check aliases first
       const aliasMap = {
         // Original 5
@@ -1652,7 +1674,7 @@ function installNPCHook() {
       for (const [alias, id] of Object.entries(aliasMap)) {
         if (l.includes(alias)) return id;
       }
-      // Check NPC registry names
+      // Check NPC registry names (only if conv intent confirmed above)
       return Object.values(NPC_REGISTRY || {}).find(n => {
         const last = n.name.toLowerCase().split(' ').pop();
         return l.includes(last) && last.length > 3;
