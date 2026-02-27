@@ -324,18 +324,32 @@ async function sendNPCMessage(playerText, isOpener = false) {
     }
   }
 
-  // Track turn depth — conversations max 8 exchanges before forcing a scene break
+  // Track turn depth — conversations have a soft limit before naturally concluding
   window.npcConvState.turnCount = (window.npcConvState.turnCount || 0) + 1;
-  if (window.npcConvState.turnCount > 8) {
-    addLog(`*The conversation has run its course. ${npc.name} signals that it's time to act, not talk.*`, 'narrator');
+  if (window.npcConvState.turnCount > 20) {
+    addLog(`*${npc.name} has given you everything they can. The conversation has reached its natural end.*`, 'narrator');
+    // Clear any pending scene — don't auto-fire it on forced close. Let player navigate naturally.
+    window._pendingScene = null;
     closeConvPanel();
-    // Try to trigger a relevant scene based on story flags
-    if (window.runScene) {
-      const flags = window.sceneState?.flags || {};
-      if (flags.knows_varek_location) window.runScene('monastery_arrival');
-      else if (flags.has_document) window.runScene('vaelthar_main');
-      else if (flags.talked_to_rhael) window.runScene('rhael_reveals_covenant');
-    }
+    return;
+  }
+
+  // ── "go to [NPC/place]" — navigation intent, end conv and let world handle it ──
+  const goToMatch = lower.match(/^go to\s+(.+)|^head to\s+(.+)|^walk to\s+(.+)|^go find\s+(.+)|^go back to\s+(.+)/);
+  if (goToMatch) {
+    const dest = (goToMatch[1] || goToMatch[2] || goToMatch[3] || goToMatch[4] || goToMatch[5] || '').trim();
+    addLog(`${char?.name} takes their leave and heads toward ${dest}.`, 'narrator');
+    closeConvPanel();
+    // Try to open that NPC's conversation if it's a known NPC
+    setTimeout(() => {
+      if (dest && typeof startNPCConversation === 'function') {
+        const npcKey = Object.values(NPC_REGISTRY || {}).find(n =>
+          dest.toLowerCase().includes(n.name.toLowerCase().split(' ').pop()) ||
+          (n.aliases || []).some(a => dest.toLowerCase().includes(a.toLowerCase()))
+        );
+        if (npcKey) startNPCConversation(npcKey.id, text);
+      }
+    }, 500);
     return;
   }
 
@@ -370,7 +384,7 @@ CURRENT CONTEXT:
 - Location: ${loc?.name}
 - Story flags: ${knownInfoFlags}
 - Disposition: ${npc.disposition}
-- Conversation turn: ${window.npcConvState.turnCount}/8
+- Conversation turn: ${window.npcConvState.turnCount}/20
 - ${knownNPCs}
 
 WORLD STATE (treat this as absolute truth):
@@ -397,7 +411,8 @@ CRITICAL RULES:
 11. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line.
 12. NEVER break character. NEVER acknowledge being an AI.
 13. NEVER ask the player about their stats, modifiers, or dice rolls. The game system handles all rolls automatically. If a freeform action requires a check, use [ROLL:STAT:DC] in your response text and the system resolves it — you just narrate the outcome as if you already know whether they succeeded or failed based on context.
-14. When a player takes a freeform dramatic action (draws weapon, intimidates, seduces, sneaks), embed [ROLL:STAT:DC] directly in your narrative. Example: "*She watches you draw the blade.* [ROLL:STR:12] *The guard steps forward.*" — NEVER ask them to confirm their modifier.`;
+14. When a player takes a freeform dramatic action (draws weapon, intimidates, seduces, sneaks), embed [ROLL:STAT:DC] directly in your narrative. Example: "*She watches you draw the blade.* [ROLL:STR:12] *The guard steps forward.*" — NEVER ask them to confirm their modifier.
+15. NEVER voice or narrate another NPC during this conversation. If the scene transitions to a new NPC (e.g. the player arrives at the Archive and meets the Scribe), end the conversation naturally — say your farewell, perhaps describe what the player sees as they leave, and let the player approach the new NPC themselves. Do NOT play both roles. Output [SCENE_BREAK:transition] if handing off to a new scene.`;
 
   const charName = char?.name || 'The player';
   // Frame the message clearly so Claude always knows who is acting
@@ -481,7 +496,8 @@ CRITICAL RULES:
     const sceneName = sceneBreakMatch[1].trim();
     setTimeout(() => {
       addLog(`📖 *The conversation reaches a turning point...*`, 'system');
-      closeConvPanel();
+      window._pendingScene = null; // scene fires directly below, don't double-fire
+      closeConvPanel(false);
       if (window.runScene) window.runScene(sceneName);
     }, 4000); // Give player time to read the response
   }
@@ -535,7 +551,7 @@ async function pickNPCOption(index) {
   if (isAttack) {
     addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
     if (window.AudioEngine) AudioEngine.sfx?.sword?.();
-    closeConvPanel();
+    closeConvPanel(false);
     const enemyTemplateMap = {
       'captain_rhael': () => generateEnemy('captain_rhael', 1),
       'vaelthar_guard': () => generateEnemy('city_guard', 1),
@@ -595,7 +611,7 @@ async function submitConvInput() {
   if (hasAttackWord) {
     addLog(`⚔ ${char?.name} attacks ${npc.name}!`, 'combat');
     if (window.AudioEngine) AudioEngine.sfx?.sword?.();
-    closeConvPanel();
+    closeConvPanel(false);
     const enemyTemplateMap = {
       'captain_rhael':   () => generateEnemy('captain_rhael', 1),
       'vaelthar_guard':  () => generateEnemy('city_guard', 1),
@@ -969,7 +985,7 @@ function _updateWorldFromConversation(npc, speech, fullResponse) {
   if (window.autoSave) window.autoSave();
 }
 
-function closeConvPanel() {
+function closeConvPanel(graceful = true) {
   const p = document.getElementById('conv-panel');
   if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
   window.npcConvState.active = false;
@@ -990,11 +1006,11 @@ function closeConvPanel() {
     setTimeout(() => scenePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 350);
   }
 
-  // Fire any scene that was queued while conv was open
-  if (window._pendingScene) {
+  // Fire any scene that was queued while conv was open — only if ending naturally
+  if (graceful && window._pendingScene) {
     const pending = window._pendingScene;
     window._pendingScene = null;
-    setTimeout(() => { if (window.showScene) window.showScene(pending); }, 500);
+    setTimeout(() => { if (window.showScene) window.showScene(pending); }, 800);
   }
 
   // Broadcast close to all party members
@@ -1122,7 +1138,7 @@ function installNPCHook() {
       if (_hasAtk) {
         addLog(`⚔ ${char?.name} attacks ${_npc.name}!`, 'combat');
         if (window.AudioEngine) AudioEngine.sfx?.sword?.();
-        closeConvPanel();
+        closeConvPanel(false);
         const _ef = { captain_rhael:()=>generateEnemy('captain_rhael',1), sister_mourne:()=>generateEnemy('sister_mourne',2), bresker:()=>generateEnemy('city_guard',2) };
         const _en = (_ef[_npc.id] ? _ef[_npc.id]() : generateEnemy('bandit', AREA_LEVELS[window.mapState?.currentLocation]||1));
         _en.name = _npc.name; _en.icon = _npc.portrait||'👤';
