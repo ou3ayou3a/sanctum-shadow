@@ -1552,7 +1552,7 @@ window.takeAllLoot = function() {
 function checkAutoAttack(text) {
   const lower = text.toLowerCase();
   const attackWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'fight', 'kill', 'shoot', 'slash'];
-  if (!attackWords.some(w => lower.startsWith(w) || lower.includes(' ' + w + ' '))) return false;
+  if (!attackWords.some(w => new RegExp('\\b' + w + '\\b', 'i').test(lower))) return false;
   if (combatState.active) return false;
 
   // Extract target name

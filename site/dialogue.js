@@ -527,8 +527,9 @@ async function pickNPCOption(index) {
     return;
   }
 
-  // Hostile action
-  const isAttack = ['attack', 'stab', 'punch', 'kill', 'draw sword', 'draw weapon', 'strike'].some(w => lower.includes(w));
+  // Hostile action — word boundaries prevent false positives like 'strike' in 'strict'
+  const _atkList = ['attack', 'stab', 'punch', 'kill', 'draw sword', 'draw weapon', 'strike'];
+  const isAttack = _atkList.some(w => new RegExp('\\b' + w.replace(/\s+/g,'\\s+') + '\\b', 'i').test(lower));
   const isGrapple = ['tie', 'grab', 'grapple', 'restrain', 'shove', 'tackle'].some(w => lower.includes(w));
 
   if (isAttack) {
@@ -585,8 +586,13 @@ async function submitConvInput() {
   }
 
   // ── Attack detection — close conv, show flavor, launch combat ──
+  // Uses word boundaries (\b) to prevent 'figure' matching 'fight', 'shift' matching 'hit', etc.
   const attackWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'kill', 'slash', 'draw sword', 'draw my sword', 'fight', 'lunge', 'charge', 'shoot'];
-  if (attackWords.some(w => lower.includes(w))) {
+  const hasAttackWord = attackWords.some(w => {
+    const re = new RegExp('\\b' + w.replace(/\s+/g, '\\s+') + '\\b', 'i');
+    return re.test(lower);
+  });
+  if (hasAttackWord) {
     addLog(`⚔ ${char?.name} attacks ${npc.name}!`, 'combat');
     if (window.AudioEngine) AudioEngine.sfx?.sword?.();
     closeConvPanel();
@@ -1015,9 +1021,9 @@ async function classifyPlayerIntent(text) {
 
   // ── Fast local check first — no API needed ──
 
-  // 1. Combat words
+  // 1. Combat words — word boundaries prevent substring false positives
   const combatWords = ['attack','stab','strike','punch','kill','slash','fight','shoot','lunge','charge'];
-  if (combatWords.some(w => lower.includes(w))) {
+  if (combatWords.some(w => new RegExp('\\b' + w + '\\b', 'i').test(lower))) {
     return { intent: 'combat', target: lower };
   }
 
@@ -1110,8 +1116,10 @@ function installNPCHook() {
       }
 
       // Attack words → close conv and start combat immediately
+      // Word boundaries prevent 'figure' matching 'fight', 'shift' matching 'hit', etc.
       const _atkW = ['attack','stab','strike','punch','hit','kill','slash','fight','lunge','charge','shoot','draw sword'];
-      if (_atkW.some(w => lower.includes(w))) {
+      const _hasAtk = _atkW.some(w => new RegExp('\\b' + w.replace(/\s+/g,'\\s+') + '\\b','i').test(lower));
+      if (_hasAtk) {
         addLog(`⚔ ${char?.name} attacks ${_npc.name}!`, 'combat');
         if (window.AudioEngine) AudioEngine.sfx?.sword?.();
         closeConvPanel();

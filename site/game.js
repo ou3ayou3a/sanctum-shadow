@@ -865,7 +865,7 @@ function classifyAction(text) {
 
   // Combat — handled by checkAutoAttack
   const combatWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'fight', 'kill', 'shoot', 'slash', 'draw sword', 'draw weapon'];
-  if (combatWords.some(w => t.includes(w))) return 'combat';
+  if (combatWords.some(w => new RegExp('\\b' + w.replace(/\s+/g,'\\s+') + '\\b', 'i').test(t))) return 'combat';
 
   // Charisma actions — CHA roll
   const chaActions = ['flirt', 'seduce', 'romance', 'charm', 'persuade', 'convince', 'beg', 'plead', 'negotiate', 'bribe', 'threaten to', 'intimidate', 'bluff', 'lie to', 'deceive'];
@@ -1046,6 +1046,18 @@ async function submitAction() {
     return;
   }
 
+  // ── If conversation is active, ALL text goes to the conv panel — no classification ──
+  // This prevents "talk to the scribe" inside a long message from being misread as
+  // a new NPC lookup, and prevents any attack-word false positives from classifyAction
+  if (window.npcConvState?.active) {
+    const convInput = document.getElementById('conv-input');
+    if (convInput) {
+      convInput.value = text;
+      if (typeof submitConvInput === 'function') submitConvInput();
+    }
+    return;
+  }
+
   // ── Jesus Christ invocation — intercept before classification ──
   if (typeof isJesusInvocation === 'function' && isJesusInvocation(text)) {
     await handleDivineInvocation(text);
@@ -1063,8 +1075,8 @@ async function submitAction() {
 
   // Speech — pass to NPC dialogue if target mentioned, else narrate freely
   if (actionType === 'speech') {
-    // Try to extract NPC name
-    const talkMatch = text.match(/(?:say to|tell|ask|talk to|speak to|shout at|whisper to|call out to)\s+(.+?)(?:\s+that|\s+to|\s*"|\s*$)/i);
+    // Extract NPC name — cap at 3 words max to prevent capturing entire sentences
+    const talkMatch = text.match(/(?:say to|tell|ask|talk to|speak to|shout at|whisper to|call out to)\s+(\w+(?:\s+\w+){0,2})/i);
     const npcName = talkMatch?.[1]?.trim();
     if (npcName && typeof startNPCConversation === 'function') {
       startNPCConversation(npcName, text);
