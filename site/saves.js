@@ -60,6 +60,7 @@ function buildSaveSlot(slotName, type) {
     type: type || (window.mp?.sessionCode ? 'multiplayer' : 'solo'),
     character: {
       name: char.name,
+      portrait: char.portrait || null,
       class: char.class,
       race: char.race,
       level: char.level || 1,
@@ -83,6 +84,8 @@ function buildSaveSlot(slotName, type) {
       personalQuests: char.personalQuests || [],
       backstory: char.backstory || '',
       origin: char.origin || '',
+      appearance: char.appearance || '',
+      secret: char.secret || '',
       revealChoice: char.revealChoice || '',
       tree: char.tree || '',
     },
@@ -403,8 +406,11 @@ function renderSaveLoadScreen(mode = 'load') {
           padding:12px 16px; display:flex; gap:14px; align-items:center;
           transition:border-color 0.15s;
         " onmouseover="this.style.borderLeftColor='var(--gold)'" onmouseout="this.style.borderLeftColor='rgba(201,168,76,0.4)'">
-          <div style="font-size:1.8rem;flex-shrink:0">
-            ${s.character.race === 'elf' ? '🧝' : s.character.race === 'dwarf' ? '⛏' : s.character.race === 'orc' ? '🗡' : s.character.race === 'undead' ? '💀' : s.character.race === 'demon' ? '😈' : '⚔'}
+          <div style="flex-shrink:0;width:48px;height:60px;border:1px solid rgba(201,168,76,0.2);border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center">
+            ${s.character.portrait
+              ? `<img src="${s.character.portrait}" alt="${s.character.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top">`
+              : `<span style="font-size:1.8rem">${s.character.race === 'elf' ? '🧝' : s.character.race === 'dwarf' ? '⛏' : s.character.race === 'orc' ? '🗡' : s.character.race === 'undead' ? '💀' : s.character.race === 'demon' ? '😈' : '⚔'}</span>`
+            }
           </div>
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
