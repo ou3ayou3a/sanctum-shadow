@@ -852,6 +852,9 @@ function addLog(text, type = 'system', playerName = null) {
   });
 
   gameState.log.push({ text, type, playerName, time: Date.now() });
+
+  // Feed dice rolls to the live history panel
+  if (type === 'dice') addRollToHistory(text);
 }
 
 // ─── ACTION SUBMISSION ────────────────────
@@ -1390,20 +1393,44 @@ function rollDice() {
   showContestedRoll('Custom Contest');
 }
 
+// ─── DICE HISTORY PANEL ───────────────────
+// Automatically populated whenever any addLog(..., 'dice') is called
+// Max 8 entries, newest at top
+const _diceHistory = [];
+const DICE_HISTORY_MAX = 8;
+
+function addRollToHistory(text) {
+  _diceHistory.unshift({ text, time: Date.now() });
+  if (_diceHistory.length > DICE_HISTORY_MAX) _diceHistory.length = DICE_HISTORY_MAX;
+  renderDiceHistory();
+}
+
+function renderDiceHistory() {
+  const panel = document.getElementById('dice-history');
+  if (!panel) return;
+
+  if (_diceHistory.length === 0) {
+    panel.innerHTML = '<div class="dice-history-empty">Dice rolls appear here automatically as the game calls for them.</div>';
+    return;
+  }
+
+  panel.innerHTML = _diceHistory.map((entry, i) => {
+    const txt = entry.text.replace(/^🎲\s*/, '');
+    // Colour by outcome
+    const isCrit   = txt.includes('CRITICAL') || txt.includes('MAX ROLL') || txt.includes('⭐');
+    const isFumble = txt.includes('FUMBLE')   || txt.includes('MINIMUM')  || txt.includes('💀');
+    const isSuccess = txt.includes('✅') || txt.includes('Success') || txt.includes('HIT');
+    const isFail    = txt.includes('❌') || txt.includes('Failure') || txt.includes('MISS');
+    const colour = isCrit ? 'var(--holy)' : isFumble ? 'var(--hell-glow)' : isSuccess ? '#8bc87a' : isFail ? '#c87060' : 'var(--gold-light)';
+    const icon   = isCrit ? '⭐' : isFumble ? '💀' : isSuccess ? '✅' : isFail ? '❌' : '🎲';
+    const opacity = i === 0 ? '1' : `${Math.max(0.35, 1 - i * 0.1)}`;
+    return `<div class="dice-history-entry" style="opacity:${opacity};color:${colour}">${icon} ${txt}</div>`;
+  }).join('');
+}
+
+// Legacy stub — free rolling removed. Rolls are automatic.
 function rollSpecific(sides) {
-  const resultEl = document.getElementById('dice-result');
-  let count = 0;
-  const interval = setInterval(() => {
-    resultEl.textContent = `d${sides}: ${Math.floor(Math.random() * sides) + 1}`;
-    count++;
-    if (count >= 12) {
-      clearInterval(interval);
-      const final = Math.floor(Math.random() * sides) + 1;
-      resultEl.textContent = `d${sides}: ${final}`;
-      resultEl.style.color = final === sides ? 'var(--holy)' : final === 1 ? 'var(--hell)' : 'var(--gold-light)';
-      addLog(`🎲 ${gameState.character?.name || 'You'} rolls d${sides}: [${final}]${final === sides ? ' — MAX ROLL!' : final === 1 ? ' — MINIMUM!' : ''}`, 'dice');
-    }
-  }, 60);
+  addLog(`🎲 The dice roll when the game demands it — no free rolls.`, 'system');
 }
 
 // ─── ATTACK MENU ──────────────────────────

@@ -6,7 +6,7 @@
 <title>SANCTUM & SHADOW — The Chronicle</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="visuals.css?v=82">
+<link rel="stylesheet" href="visuals.css?v=83">
 <script>
 // Early stub — replaced by real function when multiplayer.js loads
 window.mpBroadcastStoryEvent = function(eventType, payload) {
@@ -296,14 +296,16 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
           <div class="quick-actions">
             <button class="qa-btn holy" onclick="pray('holy')">✝ Holy Prayer</button>
             <button class="qa-btn dark" onclick="pray('dark')">⛧ Dark Prayer</button>
-            <button class="qa-btn dice" onclick="rollDice()">🎲 Dice</button>
             <button class="qa-btn attack" onclick="showAttackMenu()">🗡 Attack</button>
             <button class="qa-btn spell" onclick="showSpellMenu()">✨ Spells</button>
             <button class="qa-btn quest" onclick="showQuestLog()">📜 Quests</button>
             <button class="qa-btn" style="border-color:rgba(201,168,76,0.5);color:#c9a84c;font-weight:600" onclick="openShop()">🛒 Shop</button>
+            <button class="qa-btn" style="border-color:rgba(100,200,100,0.3);color:#6abf6a" onclick="openCampPanel()">⛺ Camp</button>
+            <button class="qa-btn" style="border-color:rgba(180,120,80,0.4);color:#c48a5a" onclick="openRepPanel ? openRepPanel() : null">⚖ Rep</button>
             <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
             <button class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
             <button class="qa-btn" style="border-color:rgba(130,100,200,0.4);color:#a07ad4" onclick="openLoadScreen()">📂 Runs</button>
+            <button class="qa-btn" style="border-color:rgba(80,80,80,0.4);color:#888" onclick="openDMPanel ? openDMPanel() : null">📖 DM</button>
           </div>
         </div>
       </div>
@@ -337,18 +339,12 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
           </div>
         </div>
 
-        <!-- DICE -->
+        <!-- DICE HISTORY -->
         <div class="panel-section">
-          <h3 class="panel-title">🎲 Dice Table</h3>
-          <div class="dice-buttons">
-            <button class="die-btn" onclick="rollSpecific(4)">d4</button>
-            <button class="die-btn" onclick="rollSpecific(6)">d6</button>
-            <button class="die-btn" onclick="rollSpecific(8)">d8</button>
-            <button class="die-btn" onclick="rollSpecific(10)">d10</button>
-            <button class="die-btn featured" onclick="rollSpecific(20)">d20</button>
-            <button class="die-btn" onclick="rollSpecific(100)">d100</button>
+          <h3 class="panel-title">🎲 Roll History</h3>
+          <div id="dice-history" class="dice-history">
+            <div class="dice-history-empty">Dice rolls appear here automatically as the game calls for them.</div>
           </div>
-          <div id="dice-result" class="dice-result"></div>
         </div>
 
         <!-- STATS -->
@@ -447,24 +443,24 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=82"></script>
-<script src="audio.js?v=82"></script>
-<script src="map.js?v=82"></script>
-<script src="game.js?v=82"></script>
-<script src="combat.js?v=82"></script>
-<script src="additions.js?v=82"></script>
-<script src="story.js?v=82"></script>
-<script src="dialogue.js?v=82"></script>
-<script src="romance.js?v=82"></script>
-<script src="senses.js?v=82"></script>
-<script src="multiplayer.js?v=82"></script>
-<script src="saves.js?v=82"></script>
-<script src="visuals.js?v=82"></script>
-<script src="shop.js?v=82"></script>
-<script src="travel.js?v=82"></script>
-<script src="camp.js?v=82"></script>
-<script src="reputation.js?v=82"></script>
-<script src="schedules.js?v=82"></script>
+<script src="data.js?v=83"></script>
+<script src="audio.js?v=83"></script>
+<script src="map.js?v=83"></script>
+<script src="game.js?v=83"></script>
+<script src="combat.js?v=83"></script>
+<script src="additions.js?v=83"></script>
+<script src="story.js?v=83"></script>
+<script src="dialogue.js?v=83"></script>
+<script src="romance.js?v=83"></script>
+<script src="senses.js?v=83"></script>
+<script src="multiplayer.js?v=83"></script>
+<script src="saves.js?v=83"></script>
+<script src="visuals.js?v=83"></script>
+<script src="shop.js?v=83"></script>
+<script src="travel.js?v=83"></script>
+<script src="camp.js?v=83"></script>
+<script src="reputation.js?v=83"></script>
+<script src="schedules.js?v=83"></script>
 <script>
 // Show Load Chronicle button on splash if saves exist
 document.addEventListener('DOMContentLoaded', () => {

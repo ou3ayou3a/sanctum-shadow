@@ -1761,3 +1761,37 @@ body {
 .esc-feedback { font-size: 0.75rem; text-align: center; min-height: 18px; }
 .esc-feedback.success { color: #a8c890; }
 .esc-feedback.error   { color: #c87060; }
+
+/* ── DICE HISTORY PANEL ─────────────────────── */
+.dice-history {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 40px;
+}
+.dice-history-empty {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-style: italic;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+.dice-history-entry {
+  font-size: 0.72rem;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.03em;
+  padding: 4px 8px;
+  background: rgba(201,168,76,0.04);
+  border-left: 2px solid currentColor;
+  border-radius: 0 2px 2px 0;
+  line-height: 1.4;
+  transition: opacity 0.3s;
+  word-break: break-word;
+}
+.dice-history-entry:first-child {
+  animation: diceFlash 0.4s ease;
+}
+@keyframes diceFlash {
+  0%   { background: rgba(201,168,76,0.22); }
+  100% { background: rgba(201,168,76,0.04); }
+}
