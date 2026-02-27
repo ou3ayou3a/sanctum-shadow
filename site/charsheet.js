@@ -34,13 +34,13 @@ function openCharSheet() {
   const equipped = char.equipped || { weapon: null, armor: null, accessory: null };
 
   // Reputation summary
-  const rep = window.gameState?.reputation || {};
+  const rep = window.reputation || {};
   const factionNames = { church:'Eternal Flame', crown:'The Crown', watch:'City Watch', scholars:'The Scholars', remnant:'The Remnant', shadow:'Shadow Court' };
   const factionIcons = { church:'🕯', crown:'👑', watch:'⚔', scholars:'📜', remnant:'✝', shadow:'🌑' };
 
   // Relationships
-  const rels = char.relationships || {};
-  const relEntries = Object.entries(rels).filter(([,r]) => r.affection >= 20);
+  const rels = window.romanceState?.relationships || {};
+  const relEntries = Object.entries(rels).filter(([,r]) => (r.affection || 0) >= 20);
 
   const overlay = document.createElement('div');
   overlay.id = 'char-sheet-overlay';

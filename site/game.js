@@ -499,6 +499,10 @@ function finalizeCharacter() {
     skills: { ...cls.skills },
     personalQuests: originData ? originData.quests.map((q, i) => ({ ...q, id: 'pq_' + i, status: 'active', chapter: 1 })) : [],
     revealChoice: null,
+    skillPoints: 1,
+    skillPointsTotal: 1,
+    unlockedSkills: [],
+    equipped: { weapon: null, armor: null, accessory: null },
   };
 
   gameState.character = character;

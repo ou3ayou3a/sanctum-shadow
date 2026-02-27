@@ -478,3 +478,5 @@ console.log('🛒 Shop system loaded.');
 // ─── GLOBAL EXPORTS ──────────────────────────────────────
 window.useConsumable = useConsumable;
 window.openShop = openShop;
+
+window.SHOP_ITEMS = SHOP_ITEMS;

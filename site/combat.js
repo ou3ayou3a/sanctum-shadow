@@ -651,6 +651,21 @@ function updateCombatUI() {
         <div class="cp-ap-pips">${apPips}</div>
         <span class="cp-ap-num">${combatState.apRemaining}/${MAX_AP} AP</span>
       </div>
+      ${(()=>{
+        const cr = window.classResource;
+        if (!cr || !cr.type) return '';
+        const pct = Math.round((cr.current/cr.max)*100);
+        const glowStyle = (cr.type==='rage'&&cr.current>=100)||(cr.type==='surge'&&cr.current>=5) ? `box-shadow:0 0 12px ${cr.color}80` : '';
+        return `<div style="padding:4px 0 6px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-family:'Cinzel',serif;font-size:0.62rem;color:${cr.color};letter-spacing:0.08em">${cr.icon} ${cr.label.toUpperCase()}</span>
+            <span style="font-family:'Cinzel',serif;font-size:0.62rem;color:var(--gold)">${cr.current}/${cr.max}</span>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;${glowStyle}">
+            <div style="height:100%;width:${pct}%;background:${cr.color};border-radius:3px;transition:width 0.3s"></div>
+          </div>
+        </div>`;
+      })()}
 
       <div class="cp-action-buttons">
         <button class="ca-btn attack ${combatState.apRemaining < 1 ? 'disabled' : ''}"
@@ -684,8 +699,6 @@ function updateCombatUI() {
     </div>
     ` : `<div class="cp-enemy-thinking">${current?.icon} ${current?.name} is acting...</div>`}
   `;
-  // Inject class resource bar
-  if (window.injectClassResourceBar) setTimeout(injectClassResourceBar, 0);
 }
 
 // ─── PLAYER ACTIONS ───────────────────────────

@@ -312,3 +312,6 @@ const MORALITY_ACTIONS = {
     { desc: 'Wrapped Bresker to a tree and pissed on him', hell: 12 },
   ]
 };
+
+window.CLASSES = CLASSES;
+window.RACES = RACES;
