@@ -72,8 +72,16 @@ function showScene(sceneData) {
           ? '🔖 This is your personal story — only you decide'
           : isMP
             ? '🗳 All players vote — majority wins, ties broken by dice'
-            : 'Or type freely in the ACT box below — your words go to the scene'
+            : ''
         }</span>
+        ${!isPersonal && !isMP ? `
+        <div class="sp-input-row">
+          <input id="scene-free-input" class="sp-free-input" type="text"
+            placeholder="Or type freely here — your action goes directly into the scene..."
+            onkeydown="if(event.key==='Enter') submitSceneFreeInput()"
+            autocomplete="off">
+          <button class="sp-free-send" onclick="submitSceneFreeInput()">↵</button>
+        </div>` : ''}
       </div>
     </div>
   `;
@@ -2687,6 +2695,29 @@ window.initGameScreen = function() {
   // MP story start is triggered by launchGame → server start_game event
 };
 
+// ─── SCENE FREE INPUT ────────────────────────
+// Called by the scene panel's inline input — mirrors into ACT box and submits
+function submitSceneFreeInput() {
+  const sceneInput = document.getElementById('scene-free-input');
+  const actBox = document.getElementById('action-input');
+  const text = (sceneInput?.value || '').trim();
+  if (!text) return;
+  sceneInput.value = '';
+  if (actBox) {
+    actBox.value = text;
+    // Call the original game.js submitAction (before dialogue.js patched it)
+    // _origSubmitAction is stored on window so we can always reach the base
+    if (window._baseSubmitAction) {
+      window._baseSubmitAction();
+    } else if (window.submitAction) {
+      // Fallback: set input and fire — the patched version will route correctly
+      // since scene panel is open it goes to _prev() which is game.js
+      window.submitAction();
+    }
+  }
+}
+window.submitSceneFreeInput = submitSceneFreeInput;
+
 // ─── SCENE CSS ───────────────────────────────
 const sceneCSS = `
 .scene-panel {
@@ -2749,6 +2780,24 @@ const sceneCSS = `
 .vote-count { font-size:0.62rem; color:var(--gold); font-family:'Cinzel',serif; margin-left:2px; }
 .sp-free-action { padding:3px 14px 8px; }
 .sp-free-hint { font-size:0.65rem; color:var(--text-dim); font-style:italic; }
+.sp-input-row {
+  display:flex; gap:4px; margin-top:6px;
+}
+.sp-free-input {
+  flex:1; background:rgba(0,0,0,0.5);
+  border:1px solid rgba(201,168,76,0.2); border-radius:2px;
+  color:var(--text-primary); font-family:'IM Fell English','Palatino',serif;
+  font-size:0.8rem; padding:6px 10px; outline:none;
+  transition:border-color 0.15s;
+}
+.sp-free-input:focus { border-color:rgba(201,168,76,0.5); }
+.sp-free-input::placeholder { color:var(--text-dim); font-style:italic; }
+.sp-free-send {
+  background:rgba(201,168,76,0.1); border:1px solid rgba(201,168,76,0.2);
+  color:var(--gold); font-size:0.85rem; padding:6px 10px;
+  cursor:pointer; border-radius:2px; transition:all 0.15s;
+}
+.sp-free-send:hover { background:rgba(201,168,76,0.2); border-color:var(--gold); }
 
 /* Fullscreen button */
 #fullscreen-btn {

@@ -680,7 +680,7 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
     const convInput = document.getElementById('conv-input');
     if (actionInput && convInput) {
       actionInput.addEventListener('focus', _redirectFocusToConv, { once: false });
-      actionInput.placeholder = '↑ Conversation active — type here or in the panel above';
+      actionInput.placeholder = '↑ Talking to ' + (npc?.name || 'NPC') + ' — type here, same as the panel above';
       convInput.focus();
     }
   }, 400);
@@ -1030,6 +1030,12 @@ async function submitConvInput() {
   const text = (input?.value || '').trim();
   if (!text || !window.npcConvState.active) return;
   input.value = '';
+  // Mirror to ACT box so both inputs feel unified — player sees their words in both places
+  const actBox = document.getElementById('action-input');
+  if (actBox && actBox !== document.activeElement) {
+    actBox.value = text;
+    setTimeout(() => { if (actBox.value === text) actBox.value = ''; }, 1200);
+  }
 
   const char = gameState.character;
   const npc = window.npcConvState.npc;
@@ -1549,6 +1555,8 @@ function installNPCHook() {
   _npcHookInstalled = true;
 
   const _prev = window.submitAction;
+  // Store the base (game.js) submitAction for direct access by scene input
+  if (!window._baseSubmitAction) window._baseSubmitAction = window.submitAction;
   window.submitAction = async function () {
     const input = document.getElementById('action-input');
     const text = (input?.value || '').trim();
@@ -1600,18 +1608,10 @@ function installNPCHook() {
       return;
     }
 
-    // ── If a scene panel is open, ACT box feeds narrative — never start NPC dialogue ──
-    // Player is mid-scene: their words are for the current scene context, not NPC lookup
+    // ── If a scene panel is open, ACT box feeds narrative — bypass NPC detection ──
     if (document.getElementById('scene-panel')) {
-      input.value = '';
-      // Pass to game.js action handler as-is
-      const actionInput = document.getElementById('action-input');
-      if (actionInput) {
-        actionInput.value = text;
-        if (typeof submitAction === 'function') submitAction();
-      } else {
-        addLog(`*${text}*`, 'narrator');
-      }
+      input.value = text; // keep text in field so _prev (game.js) can read it
+      _prev();            // call original game.js submitAction — handles narration
       return;
     }
 
