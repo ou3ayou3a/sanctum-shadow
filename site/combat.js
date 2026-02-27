@@ -707,13 +707,12 @@ function cancelSpell() {
 }
 
 function combatAttack() {
-  if (combatState.apRemaining < 1) return;
+  if (combatState.apRemaining < 1) { addLog(`No AP remaining. Click "End Turn" or wait.`, 'system'); return; }
   const target = getTarget();
   if (!target) { addLog('Select a target first!', 'system'); return; }
   const player = combatState.combatants['player'];
   const roll = Math.floor(Math.random()*20)+1;
   const atkBonus = (player.atk || 0) + getAtkMod('player');
-  const targetAC = target.ac - (hasStatus(target.id, 'smoke_bomb_debuff') ? 0 : 0); // smoke hits attacker not AC
   const hit = roll + atkBonus >= target.ac || roll === 20;
 
   if (hit) {
@@ -734,16 +733,26 @@ function combatAttack() {
     if (hasStatus('player', 'last_stand') && player.hp < 20) baseDmg = Math.floor(baseDmg * 1.5);
 
     const finalDmg = applyDamage(target.id, baseDmg);
-    target.hp = Math.max(0, target.hp - finalDmg);
-    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage!`, 'combat');
+    // applyDamage returns net damage after shields — apply it to target HP here (only once)
+    if (finalDmg > 0) target.hp = Math.max(0, target.hp - finalDmg);
+    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage! (${target.hp}/${target.maxHp} HP)`, 'combat');
     if (gameState.character) { gameState.character.hp = player.hp; }
   } else {
     addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] MISS (AC ${target.ac})`, 'system');
   }
+
   combatState.apRemaining--;
   checkCombatEnd();
+  if (!combatState.active) return; // combat ended (enemy died)
+
   syncPlayerHP();
   updateCombatUI();
+
+  // Auto-end turn when all AP spent — clear and unambiguous
+  if (combatState.apRemaining <= 0) {
+    addLog(`⏸ All AP spent — ending your turn.`, 'system');
+    setTimeout(endPlayerTurn, 600);
+  }
 }
 
 function castSelectedSpell() {
@@ -993,8 +1002,15 @@ function castSelectedSpell() {
 
   combatState.selectedSpell = null;
   checkCombatEnd();
+  if (!combatState.active) return;
   syncPlayerHP();
   updateCombatUI();
+
+  // Auto-end turn when AP spent
+  if (combatState.apRemaining <= 0) {
+    addLog(`⏸ All AP spent — ending your turn.`, 'system');
+    setTimeout(endPlayerTurn, 600);
+  }
 }
 
 function rollDice(formula, statMod) {
