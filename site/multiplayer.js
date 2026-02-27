@@ -343,6 +343,50 @@ function initMultiplayer() {
       if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
     }
 
+    // ── Inter-party contested rolls ──
+    if (eventType === 'contest_challenge') {
+      // Someone is challenging ME to a contested roll
+      if (payload.targetPlayerId === window.mp?.playerId) {
+        addLog(`⚔ ${payload.challenger} challenges you to a contested roll: "${payload.actionText}"`, 'system');
+        // Show contest overlay on target's screen — they roll Player 2
+        document.getElementById('contest-title').textContent = '⚔ You\'ve Been Challenged!';
+        document.getElementById('c1-name').textContent = payload.challenger;
+        document.getElementById('c2-name').textContent = gameState.character?.name || 'You';
+        document.getElementById('c1-die').textContent = '⏳';
+        document.getElementById('c2-die').textContent = '?';
+        document.getElementById('c1-die').classList.remove('rolled');
+        document.getElementById('c2-die').classList.remove('rolled');
+        document.getElementById('contest-result').classList.add('hidden');
+        document.getElementById('c1-roll-btn').disabled = true;  // challenger rolls on their screen
+        document.getElementById('c2-roll-btn').disabled = false; // we roll here
+        // Wire c2-roll-btn to broadcast our roll
+        document.getElementById('c2-roll-btn').onclick = () => rollContestTarget();
+        if (typeof openOverlay === 'function') openOverlay('dice-overlay');
+      }
+    }
+
+    if (eventType === 'contest_roll') {
+      // Receive roll from the challenger — show it on target's screen
+      if (payload.targetPlayerId === window.mp?.playerId) {
+        if (typeof receiveContestRoll === 'function') {
+          receiveContestRoll(payload.playerName, payload.roll);
+        }
+        // Update the die display for the challenger
+        const die1 = document.getElementById('c1-die');
+        if (die1) {
+          let count = 0;
+          const anim = setInterval(() => {
+            die1.textContent = Math.floor(Math.random() * 20) + 1;
+            if (++count >= 8) {
+              clearInterval(anim);
+              die1.textContent = payload.roll;
+              die1.classList.add('rolled');
+            }
+          }, 60);
+        }
+      }
+    }
+
     if (eventType === 'location_change') {
       if (window.mp._receiving) return;
       window.mp._receiving = true;

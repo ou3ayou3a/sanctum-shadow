@@ -390,6 +390,7 @@ CURRENT CONTEXT:
 WORLD STATE (treat this as absolute truth):
 ${deadNPCContext}
 ${window._npcCombatContext ? `\nCOMBAT HISTORY: ${window._npcCombatContext}` : ''}
+${window.getPartyStrifeContext ? window.getPartyStrifeContext() : ''}
 
 ${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
 

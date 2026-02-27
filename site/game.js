@@ -799,17 +799,37 @@ function renderInventory() {
 
 function renderPartyList() {
   const container = document.getElementById('party-list'); if (!container) return;
-  // In single-player demo, show self + simulated party members
-  const parties = [
-    { name: gameState.character?.name || 'You', class: gameState.character?.class || 'warrior', hp: gameState.character?.hp || 100, maxHp: gameState.character?.maxHp || 100, self: true },
-    { name: 'Bresker', class: 'warrior', hp: 85, maxHp: 120, self: false },
-  ];
-  container.innerHTML = parties.map(p => {
-    const pct = (p.hp / p.maxHp * 100).toFixed(0);
+
+  // Multiplayer: show all connected session players
+  // Solo: show only the player themselves
+  const mpPlayers = window.mp?.session?.players ? Object.values(window.mp.session.players) : [];
+  const isMP = mpPlayers.length > 1;
+
+  let members = [];
+  if (isMP) {
+    members = mpPlayers.map(p => ({
+      name: p.name,
+      class: p.character?.class || 'warrior',
+      hp: p.hp ?? p.character?.hp ?? 100,
+      maxHp: p.maxHp ?? p.character?.maxHp ?? 100,
+      self: p.id === window.mp?.playerId,
+      connected: p.connected !== false,
+    }));
+  } else {
+    const char = gameState.character;
+    if (char) members = [{ name: char.name, class: char.class, hp: char.hp, maxHp: char.maxHp, self: true, connected: true }];
+  }
+
+  container.innerHTML = members.map(p => {
+    const pct = Math.max(0, (p.hp / p.maxHp * 100)).toFixed(0);
     const cls = CLASSES.find(c => c.id === p.class);
-    return `<div class="party-member">
-      <div class="pm-name"><span>${cls?.icon || '⚔'} ${p.name}${p.self ? ' (You)' : ''}</span><span style="color:var(--text-dim);font-size:0.7rem">${p.hp}/${p.maxHp}</span></div>
-      <div class="pm-hp-bar"><div class="pm-hp-fill" style="width:${pct}%"></div></div>
+    const hpColor = pct > 60 ? '#4a9a6a' : pct > 30 ? '#c9a84c' : '#c0392b';
+    return `<div class="party-member ${!p.connected ? 'pm-disconnected' : ''}">
+      <div class="pm-name">
+        <span>${cls?.icon || '⚔'} ${p.name}${p.self ? ' (You)' : ''}</span>
+        <span style="color:var(--text-dim);font-size:0.7rem">${p.hp}/${p.maxHp}</span>
+      </div>
+      <div class="pm-hp-bar"><div class="pm-hp-fill" style="width:${pct}%;background:${hpColor}"></div></div>
     </div>`;
   }).join('');
 }
@@ -1123,17 +1143,86 @@ function detectMajorMoment(text) {
 }
 
 function detectContested(text) {
-  const names = ['bresker', 'party', 'companion', 'ally', 'enemy', 'bandit', 'guard', 'them', 'him', 'her'];
-  const contestVerbs = ['grab', 'push', 'shove', 'wrestle', 'tie', 'wrap', 'piss', 'seduce', 'deceive', 'sneak past', 'tackle', 'disarm'];
+  // Check if action targets a named party member in multiplayer
   const lower = text.toLowerCase();
-  return contestVerbs.some(v => lower.includes(v)) && names.some(n => lower.includes(n));
+  const contestVerbs = ['grab', 'push', 'shove', 'wrestle', 'tie', 'wrap', 'piss', 'seduce', 'deceive', 'sneak past', 'tackle', 'disarm', 'steal from', 'trip', 'grapple'];
+
+  if (!contestVerbs.some(v => lower.includes(v))) return false;
+
+  // In multiplayer: check if target is a real party member name
+  const mpPlayers = window.mp?.session?.players ? Object.values(window.mp.session.players) : [];
+  if (mpPlayers.length > 1) {
+    const otherPlayers = mpPlayers.filter(p => p.id !== window.mp?.playerId);
+    return otherPlayers.some(p => lower.includes(p.name.toLowerCase()) || lower.includes(p.character?.name?.toLowerCase() || ''));
+  }
+
+  // In solo: generic targets
+  const soloTargets = ['party', 'companion', 'ally', 'enemy', 'bandit', 'guard', 'them', 'him', 'her', 'bresker'];
+  return soloTargets.some(n => lower.includes(n));
 }
 
-function showContestedRoll(actionText) {
-  pendingContestData = { actionText, p1Roll: null, p2Roll: null };
+// ─── PARTY STRIFE TRACKING ────────────────
+// Tracks inter-party contested actions — NPCs read this and react
+window._partyStrife = window._partyStrife || {
+  count: 0,       // total contested actions between players
+  log: [],        // last 5 incidents: { actor, target, action, actorWon, roll1, roll2 }
+};
+
+function recordPartyStrife(actor, target, action, actorWon, roll1, roll2) {
+  window._partyStrife.count++;
+  window._partyStrife.log.unshift({ actor, target, action, actorWon, roll1, roll2, time: Date.now() });
+  if (window._partyStrife.log.length > 5) window._partyStrife.log.length = 5;
+
+  // Write to scene flags so it persists in saves and gets injected into NPC prompts
+  if (window.setFlag) {
+    window.setFlag('party_strife_count', window._partyStrife.count);
+    window.setFlag('party_strife_last', `${actor} tried to ${action} ${target} — ${actorWon ? actor : target} won [${roll1} vs ${roll2}]`);
+    if (window._partyStrife.count >= 3) window.setFlag('party_tension_high', true);
+    if (window._partyStrife.count >= 6) window.setFlag('party_tension_severe', true);
+  }
+}
+
+function getPartyStrifeContext() {
+  const s = window._partyStrife;
+  if (!s || s.count === 0) return '';
+  const recent = s.log.slice(0, 3).map(e =>
+    `- ${e.actor} attempted to ${e.action} ${e.target} — ${e.actorWon ? e.actor : e.target} won the roll [${e.roll1} vs ${e.roll2}]`
+  ).join('\n');
+  const tension = s.count >= 6 ? 'SEVERE' : s.count >= 3 ? 'HIGH' : 'PRESENT';
+  return '\nPARTY STRIFE (' + tension + ' — ' + s.count + ' incidents):\n' + recent + '\nNPCs who know this party may reference the tension, distrust, or specific incidents. Sister Mourne and observant NPCs should notice and potentially exploit this.';
+}
+window.getPartyStrifeContext = getPartyStrifeContext;
+
+function showContestedRoll(actionText, targetName) {
+  const char = gameState.character;
+  const p1Name = char?.name || 'You';
+
+  // Detect real MP target
+  const mpPlayers = window.mp?.session?.players ? Object.values(window.mp.session.players) : [];
+  const isRealMP = mpPlayers.length > 1;
+  let targetPlayer = null;
+  if (isRealMP && targetName) {
+    const lower = targetName.toLowerCase();
+    targetPlayer = mpPlayers.find(p =>
+      p.id !== window.mp?.playerId &&
+      (p.name.toLowerCase().includes(lower) || (p.character?.name || '').toLowerCase().includes(lower))
+    );
+  }
+
+  pendingContestData = {
+    actionText,
+    targetName: targetPlayer?.name || targetName || 'Opponent',
+    targetPlayerId: targetPlayer?.id || null,
+    p1Name,
+    p1Roll: null,
+    p2Roll: null,
+    isRealMP: !!targetPlayer,
+  };
+
+  // Update overlay UI
   document.getElementById('contest-title').textContent = '⚔ Contested Roll!';
-  document.getElementById('c1-name').textContent = gameState.character?.name || 'You';
-  document.getElementById('c2-name').textContent = 'Bresker'; // simulated
+  document.getElementById('c1-name').textContent = p1Name;
+  document.getElementById('c2-name').textContent = pendingContestData.targetName;
   document.getElementById('c1-die').textContent = '?';
   document.getElementById('c2-die').textContent = '?';
   document.getElementById('c1-die').classList.remove('rolled');
@@ -1141,99 +1230,207 @@ function showContestedRoll(actionText) {
   document.getElementById('contest-result').classList.add('hidden');
   document.getElementById('contest-result').textContent = '';
   document.getElementById('c1-roll-btn').disabled = false;
-  document.getElementById('c2-roll-btn').disabled = false;
 
-  addLog(`⚔ CONTESTED: "${actionText}" — Both parties must roll!`, 'system');
+  if (targetPlayer) {
+    // Real MP contest — target player must roll on their screen
+    document.getElementById('c2-roll-btn').disabled = true;
+    document.getElementById('c2-die').textContent = '⏳';
+    addLog(`⚔ CONTESTED: "${actionText}" — ${p1Name} vs ${pendingContestData.targetName}! Both players must roll!`, 'system');
+    // Notify the target player via socket
+    if (window.mpBroadcastStoryEvent) {
+      window.mpBroadcastStoryEvent('contest_challenge', {
+        actionText,
+        challenger: p1Name,
+        targetPlayerId: targetPlayer.id,
+      });
+    }
+  } else {
+    // Solo or NPC target — opponent auto-rolls after a dramatic pause
+    document.getElementById('c2-roll-btn').disabled = true;
+    addLog(`⚔ CONTESTED: "${actionText}" — both parties roll d20!`, 'system');
+    setTimeout(() => {
+      const npcRoll = Math.floor(Math.random() * 20) + 1;
+      pendingContestData.p2Roll = npcRoll;
+      const die2 = document.getElementById('c2-die');
+      let count = 0;
+      const anim = setInterval(() => {
+        die2.textContent = Math.floor(Math.random() * 20) + 1;
+        if (++count >= 10) {
+          clearInterval(anim);
+          die2.textContent = npcRoll;
+          die2.classList.add('rolled');
+          addLog(`🎲 ${pendingContestData.targetName} rolls: [${npcRoll}]${npcRoll===20?' — CRITICAL!':npcRoll===1?' — FUMBLE!':''}`, 'dice');
+          if (pendingContestData.p1Roll !== null) setTimeout(resolveContest, 600);
+        }
+      }, 60);
+    }, 1200);
+  }
+
   openOverlay('dice-overlay');
 }
 
 function rollContest(player) {
+  if (player !== 1) return; // Player 2 is always NPC/auto or remote
   const roll = Math.floor(Math.random() * 20) + 1;
-  const die = document.getElementById('c' + player + '-die');
-  const btn = document.getElementById('c' + player + '-roll-btn');
+  const die = document.getElementById('c1-die');
+  const btn = document.getElementById('c1-roll-btn');
 
-  // Animate
   let count = 0;
   const interval = setInterval(() => {
     die.textContent = Math.floor(Math.random() * 20) + 1;
-    count++;
-    if (count >= 15) {
+    if (++count >= 15) {
       clearInterval(interval);
       die.textContent = roll;
       die.classList.add('rolled');
       btn.disabled = true;
+      if (roll === 20) die.style.color = 'var(--holy)';
+      if (roll === 1)  die.style.color = 'var(--hell)';
 
-      if (player === 1) pendingContestData.p1Roll = roll;
-      else pendingContestData.p2Roll = roll;
+      pendingContestData.p1Roll = roll;
+      addLog(`🎲 ${pendingContestData.p1Name} rolls: [${roll}]${roll===20?' — CRITICAL!!':roll===1?' — FUMBLE!':''}`, 'dice');
 
-      const isCrit = roll === 20;
-      const isFumble = roll === 1;
-      if (isCrit) die.style.color = 'var(--holy)';
-      if (isFumble) die.style.color = 'var(--hell)';
-
-      addLog(`🎲 ${document.getElementById('c'+player+'-name').textContent} rolls: [${roll}]${isCrit ? ' — CRITICAL!!' : isFumble ? ' — FUMBLE!' : ''}`, 'dice');
-
-      // If both rolled, resolve
-      if (pendingContestData.p1Roll !== null && pendingContestData.p2Roll !== null) {
-        setTimeout(() => resolveContest(), 800);
+      // In real MP: broadcast our roll to the target
+      if (pendingContestData.isRealMP && window.mpBroadcastStoryEvent) {
+        window.mpBroadcastStoryEvent('contest_roll', {
+          fromPlayerId: window.mp?.playerId,
+          targetPlayerId: pendingContestData.targetPlayerId,
+          roll,
+          playerName: pendingContestData.p1Name,
+        });
       }
+
+      if (pendingContestData.p2Roll !== null) setTimeout(resolveContest, 600);
     }
   }, 60);
 }
 
+// Handle incoming contest roll from another MP player
+function receiveContestRoll(fromName, roll) {
+  pendingContestData.p2Roll = roll;
+  const die2 = document.getElementById('c2-die');
+  if (die2) {
+    let count = 0;
+    const anim = setInterval(() => {
+      die2.textContent = Math.floor(Math.random() * 20) + 1;
+      if (++count >= 10) {
+        clearInterval(anim);
+        die2.textContent = roll;
+        die2.classList.add('rolled');
+        addLog(`🎲 ${fromName} rolls: [${roll}]${roll===20?' — CRITICAL!!':roll===1?' — FUMBLE!':''}`, 'dice');
+        if (pendingContestData.p1Roll !== null) setTimeout(resolveContest, 600);
+      }
+    }, 60);
+  }
+}
+window.receiveContestRoll = receiveContestRoll;
+
+// The challenged player's roll in a real MP contest
+function rollContestTarget() {
+  const roll = Math.floor(Math.random() * 20) + 1;
+  const die2 = document.getElementById('c2-die');
+  const btn  = document.getElementById('c2-roll-btn');
+
+  let count = 0;
+  const interval = setInterval(() => {
+    die2.textContent = Math.floor(Math.random() * 20) + 1;
+    if (++count >= 15) {
+      clearInterval(interval);
+      die2.textContent = roll;
+      die2.classList.add('rolled');
+      btn.disabled = true;
+      if (roll === 20) die2.style.color = 'var(--holy)';
+      if (roll === 1)  die2.style.color = 'var(--hell)';
+
+      const myName = gameState.character?.name || 'You';
+      addLog(`🎲 ${myName} rolls: [${roll}]${roll===20?' — CRITICAL!!':roll===1?' — FUMBLE!':''}`, 'dice');
+
+      // Broadcast our roll back to the challenger
+      if (window.mpBroadcastStoryEvent) {
+        window.mpBroadcastStoryEvent('contest_roll', {
+          fromPlayerId: window.mp?.playerId,
+          targetPlayerId: pendingContestData.targetPlayerId,
+          roll,
+          playerName: myName,
+          isTargetReply: true,
+        });
+      }
+
+      // Set as p2 roll and resolve if challenger already rolled
+      pendingContestData.p2Roll = roll;
+      if (pendingContestData.p1Roll !== null) setTimeout(resolveContest, 600);
+    }
+  }, 60);
+}
+window.rollContestTarget = rollContestTarget;
+
 function resolveContest() {
-  const { p1Roll, p2Roll, actionText } = pendingContestData;
+  const { p1Roll, p2Roll, actionText, p1Name, targetName } = pendingContestData;
   const resultEl = document.getElementById('contest-result');
   resultEl.classList.remove('hidden');
 
-  const p1Name = gameState.character?.name || 'You';
-  const p2Name = 'Bresker';
+  let winner = p1Roll > p2Roll ? 1 : p2Roll > p1Roll ? 2 : 0;
 
-  let resultText = '';
-  let winner = null;
-
-  if (p1Roll > p2Roll) {
-    winner = 1;
-    resultEl.className = 'contest-result winner-1';
-    resultText = `✝ ${p1Name} WINS! [${p1Roll} vs ${p2Roll}]`;
-  } else if (p2Roll > p1Roll) {
-    winner = 2;
-    resultEl.className = 'contest-result winner-2';
-    resultText = `⛧ ${p2Name} WINS! [${p2Roll} vs ${p1Roll}]`;
-  } else {
+  if (winner === 0) {
     resultEl.className = 'contest-result';
-    resultText = `DEAD TIE! [${p1Roll} = ${p2Roll}] — Reroll required!`;
+    resultEl.textContent = `DEAD TIE! [${p1Roll} = ${p2Roll}] — Reroll!`;
+    addLog(`🎲 TIE [${p1Roll} = ${p2Roll}] — reroll required!`, 'system');
+    // Re-enable both rolls
+    setTimeout(() => {
+      pendingContestData.p1Roll = null;
+      pendingContestData.p2Roll = null;
+      document.getElementById('c1-die').textContent = '?';
+      document.getElementById('c2-die').textContent = '?';
+      document.getElementById('c1-die').classList.remove('rolled');
+      document.getElementById('c2-die').classList.remove('rolled');
+      document.getElementById('c1-roll-btn').disabled = false;
+      if (!pendingContestData.isRealMP) {
+        // Re-trigger NPC auto-roll
+        setTimeout(() => {
+          const npcRoll = Math.floor(Math.random() * 20) + 1;
+          pendingContestData.p2Roll = npcRoll;
+          const die2 = document.getElementById('c2-die');
+          die2.textContent = npcRoll;
+          die2.classList.add('rolled');
+          addLog(`🎲 ${targetName} rolls again: [${npcRoll}]`, 'dice');
+        }, 800);
+      }
+    }, 1500);
+    return;
   }
 
-  resultEl.textContent = resultText;
-  addLog(resultText, winner === 1 ? 'holy' : 'combat');
+  const p1Won = winner === 1;
+  resultEl.className = `contest-result ${p1Won ? 'winner-1' : 'winner-2'}`;
+  resultEl.textContent = p1Won
+    ? `✝ ${p1Name} WINS! [${p1Roll} vs ${p2Roll}]`
+    : `⛧ ${targetName} WINS! [${p2Roll} vs ${p1Roll}]`;
 
-  // Narrate outcome
-  setTimeout(() => {
-    if (winner === 1) {
-      narrate_contest_outcome(true, actionText, p1Name, p2Name, p1Roll, p2Roll);
-    } else if (winner === 2) {
-      narrate_contest_outcome(false, actionText, p1Name, p2Name, p1Roll, p2Roll);
-    }
-  }, 500);
+  addLog(resultEl.textContent, p1Won ? 'holy' : 'combat');
+
+  // Record strife if this was a real inter-party contest
+  if (pendingContestData.isRealMP || window._partyStrife) {
+    recordPartyStrife(p1Name, targetName, actionText, p1Won, p1Roll, p2Roll);
+  }
+
+  // Narrate outcome via Claude
+  setTimeout(() => narrate_contest_outcome(p1Won, actionText, p1Name, targetName, p1Roll, p2Roll), 500);
 }
 
 function narrate_contest_outcome(playerWon, action, p1, p2, r1, r2) {
+  const strife = window._partyStrife?.count || 0;
+  const tension = strife >= 6 ? 'The party is fracturing. ' : strife >= 3 ? 'Tension between them is unmistakable. ' : '';
   const outcomes_win = [
-    `With a roll of ${r1} against ${r2}, ${p1} succeeds spectacularly. ${p2} is left utterly defeated and considerably humiliated.`,
-    `The dice have spoken: ${p1} (${r1}) overcomes ${p2} (${r2}). The action is carried out with remarkable determination.`,
-    `A clear victory for ${p1}! Rolling ${r1} against ${p2}'s ${r2} — there was never any doubt who would prevail.`,
+    `${tension}With a roll of ${r1} against ${r2}, ${p1} succeeds. ${p2} is left defeated and humiliated — this will be remembered.`,
+    `${tension}The dice favor ${p1} [${r1} vs ${r2}]. The action is carried out. ${p2} has no choice but to yield.`,
+    `${tension}${p1} wins [${r1} vs ${r2}]. There was never much doubt.`,
   ];
   const outcomes_lose = [
-    `${p2} rolled ${r2} against ${p1}'s ${r1} — and retaliates viciously. This will not be forgotten.`,
-    `${p1}'s plan crumbles (${r1} vs ${r2}). ${p2} turns the tables with extreme prejudice.`,
-    `The dice are merciless. ${p2} (${r2}) crushes ${p1}'s attempt (${r1}). The consequences are immediate and painful.`,
+    `${tension}${p2} rolled ${r2} against ${p1}'s ${r1} — and retaliates. This will not be forgotten.`,
+    `${tension}${p1}'s attempt crumbles [${r1} vs ${r2}]. ${p2} turns the tables decisively.`,
+    `${tension}The dice are merciless. ${p2} [${r2}] crushes ${p1}'s attempt [${r1}].`,
   ];
-
   const text = playerWon
     ? outcomes_win[Math.floor(Math.random() * outcomes_win.length)]
     : outcomes_lose[Math.floor(Math.random() * outcomes_lose.length)];
-
   addLog(text, 'narrator');
 }
 

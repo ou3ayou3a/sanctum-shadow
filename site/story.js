@@ -382,6 +382,7 @@ STORY PROGRESSION:
 - Dead NPCs: ${deadNPCs}
 - All flags: ${flagList}
 - Recent path: ${history}
+${window.getPartyStrifeContext ? window.getPartyStrifeContext() : ''}
 
 DO NOT re-show an introduction to a character the player has already met. DO NOT suggest talking to a dead NPC. Build on what has already happened — the player is mid-story, not at the start.`.trim();
 
