@@ -1680,12 +1680,145 @@ document.addEventListener('keydown', (e) => {
     if (gameState.activeScreen === 'game') submitAction();
   }
   if (e.key === 'Escape') {
-    document.querySelectorAll('.overlay:not(.hidden)').forEach(o => o.classList.add('hidden'));
+    // Close overlays first
+    const openOverlay = document.querySelector('.overlay:not(.hidden)');
+    if (openOverlay) { openOverlay.classList.add('hidden'); return; }
+    // Close conv/combat/scene panels
+    if (document.getElementById('conv-panel')) { if (typeof closeConvPanel === 'function') closeConvPanel(); return; }
+    // Toggle ESC menu when in game
+    if (gameState.activeScreen === 'game') toggleEscMenu();
   }
 });
 
+// ─── ESC MENU ─────────────────────────────
+function toggleEscMenu() {
+  const existing = document.getElementById('esc-menu');
+  if (existing) { existing.remove(); return; }
+
+  // Autosave right now before showing menu
+  if (typeof autosave === 'function') autosave();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'esc-menu';
+  overlay.innerHTML = `
+    <div class="esc-backdrop" onclick="document.getElementById('esc-menu')?.remove()"></div>
+    <div class="esc-panel">
+      <div class="esc-title">⏸ PAUSED</div>
+      <div class="esc-char">${gameState.character?.name || ''} — ${gameState.character?.class || ''} Lv.${gameState.character?.level || 1}</div>
+
+      <button class="esc-btn resume" onclick="document.getElementById('esc-menu').remove()">
+        ▶ Resume
+      </button>
+
+      <button class="esc-btn save" onclick="showEscSaveForm()">
+        💾 Save Game
+      </button>
+
+      <div id="esc-save-form" style="display:none">
+        <input id="esc-save-name" class="esc-input" type="text"
+          placeholder="Name this save…"
+          value="${gameState.character?.name || 'Chronicle'} — Ch.${gameState.chapter || 1}"
+          maxlength="40" />
+        <button class="esc-btn save confirm" onclick="doEscSave()">✅ Confirm Save</button>
+      </div>
+
+      <div id="esc-save-feedback" class="esc-feedback"></div>
+
+      <button class="esc-btn leave" onclick="escLeaveGame()">
+        ✕ Leave Game
+      </button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Focus the name field when save form opens
+  setTimeout(() => {
+    document.getElementById('esc-save-name')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doEscSave();
+      if (e.key === 'Escape') document.getElementById('esc-menu')?.remove();
+    });
+  }, 50);
+}
+
+function showEscSaveForm() {
+  const form = document.getElementById('esc-save-form');
+  if (!form) return;
+  form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+  if (form.style.display === 'flex') {
+    setTimeout(() => document.getElementById('esc-save-name')?.focus(), 50);
+  }
+}
+
+function doEscSave() {
+  const nameInput = document.getElementById('esc-save-name');
+  const name = (nameInput?.value || '').trim() || `${gameState.character?.name} — Ch.${gameState.chapter || 1}`;
+  const feedback = document.getElementById('esc-save-feedback');
+
+  if (typeof saveGame === 'function') {
+    const slot = saveGame(name, null, true); // silent (no addLog)
+    if (slot) {
+      if (feedback) { feedback.textContent = `✅ Saved: "${slot.name}"`; feedback.className = 'esc-feedback success'; }
+      addLog(`💾 Game saved: "${slot.name}"`, 'system');
+      // Hide form, show feedback
+      document.getElementById('esc-save-form').style.display = 'none';
+      setTimeout(() => { if (feedback) feedback.textContent = ''; }, 3000);
+    } else {
+      if (feedback) { feedback.textContent = '❌ Save failed — start a game first.'; feedback.className = 'esc-feedback error'; }
+    }
+  }
+}
+
+function escLeaveGame() {
+  // Autosave before leaving
+  if (typeof autosave === 'function') autosave();
+  document.getElementById('esc-menu')?.remove();
+  // Clean up all game overlays
+  document.getElementById('conv-panel')?.remove();
+  document.getElementById('combat-panel')?.remove();
+  document.getElementById('scene-panel')?.remove();
+  document.getElementById('camp-panel')?.remove();
+  document.getElementById('shop-panel')?.remove();
+  document.getElementById('rep-panel')?.remove();
+  if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
+  if (window.combatState) window.combatState.active = false;
+  if (typeof stopAutosave === 'function') stopAutosave();
+  showScreen('splash');
+}
+
 // ─── INIT ─────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
+
+  // ── Refresh resume: autosave before page unloads ──
+  window.addEventListener('beforeunload', () => {
+    if (gameState.activeScreen === 'game' && gameState.character) {
+      if (typeof saveGame === 'function') {
+        // Save with a special 'session' type so we can find it on reload
+        saveGame('__session_resume__', 'session_resume', true);
+        localStorage.setItem('ss_resume_flag', '1');
+      }
+    }
+  });
+
+  // ── On load: check if we should resume last session ──
+  const shouldResume = localStorage.getItem('ss_resume_flag') === '1';
+  if (shouldResume) {
+    localStorage.removeItem('ss_resume_flag');
+    // Find the session_resume slot
+    const slots = typeof getAllSaves === 'function' ? getAllSaves() : [];
+    const resumeSlot = slots.find(s => s.type === 'session_resume') ||
+                       slots.find(s => s.name === '__session_resume__') ||
+                       slots[0]; // fallback: most recent save
+    if (resumeSlot && typeof loadSaveSlot === 'function') {
+      showScreen('splash');
+      // Small delay to let all scripts initialize
+      setTimeout(() => {
+        addLog('🔄 Resuming your last session...', 'system');
+        loadSaveSlot(resumeSlot.id);
+      }, 300);
+      return; // skip normal splash show
+    }
+  }
+
   showScreen('splash');
 
   // Check if returning to a session
