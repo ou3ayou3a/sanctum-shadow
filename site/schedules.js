@@ -260,6 +260,51 @@ const NPC_SCHEDULES = {
     },
   },
 
+  lyra_innkeeper: {
+    dawn:       { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'busy', moodDesc: 'Lyra is setting up for the day — bread out, ale tapped, fire stoked. She\'s moving fast and will give short answers unless you stop her.' },
+    morning:    { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'watchful', moodDesc: 'Morning regulars are in. Lyra is behind the bar watching everyone and missing nothing.' },
+    afternoon:  { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'neutral', moodDesc: 'Quiet hour. Lyra has a moment to actually talk.' },
+    dusk:       { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'busy', moodDesc: 'Evening rush. Lyra is pulling drinks and listening to five conversations at once.' },
+    night:      { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'tired', moodDesc: 'Late night. Half the bar has cleared. Lyra is willing to talk properly.' },
+    deep_night: { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'closed', moodDesc: 'Lyra is closing up. She\'ll let you stay if you\'re not trouble but she\'s done talking.' },
+  },
+
+  drunk_cartographer: {
+    dawn:       { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'asleep', moodDesc: 'Eron is asleep at the table. You can wake him but he won\'t be coherent for a few minutes.' },
+    morning:    { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'hungover', moodDesc: 'Eron is nursing his first ale of the day and drawing maps on napkins.' },
+    afternoon:  { location: 'vaelthar_city', locationName: 'wandering Vaelthar', mood: 'distracted', moodDesc: 'Eron wanders the city in the afternoon looking at building alignments and making notes.' },
+    dusk:       { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'drunk', moodDesc: 'Eron is back and properly drunk. Most talkative but least reliable.', bonus: 'Drunk Eron reveals things he wouldn\'t say sober.' },
+    night:      { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'very_drunk', moodDesc: 'Eron is very drunk and talking about the stone markers with unusual openness.' },
+    deep_night: { location: 'tarnished_cup', locationName: 'The Tarnished Cup', mood: 'passed_out', moodDesc: 'Eron has passed out. Wake him at your own risk.' },
+  },
+
+  heretic_preacher_aldran: {
+    dawn:       { location: 'mol_village', locationName: 'Mol Village — morning prayer', mood: 'serene', moodDesc: 'Aldran is leading the dawn prayer for whoever attends. He will finish before he speaks to you.' },
+    morning:    { location: 'mol_village', locationName: 'Mol Village', mood: 'open', moodDesc: 'Aldran is available. Morning is when he talks most freely about faith.' },
+    afternoon:  { location: 'mol_hearthfire', locationName: 'Mol Hearthfire', mood: 'resting', moodDesc: 'Aldran takes his afternoon at Breta\'s place. He\'s off-duty and at ease.' },
+    dusk:       { location: 'mol_village', locationName: 'Mol Village', mood: 'thoughtful', moodDesc: 'Aldran walks the village at dusk. He will walk and talk with you.' },
+    night:      { location: 'mol_village', locationName: 'Mol Village — his home', mood: 'private', moodDesc: 'Aldran is in for the night. He\'ll receive you but it\'s a private space.' },
+    deep_night: { location: 'mol_village', locationName: 'Mol Village', mood: 'praying', moodDesc: 'Aldran is in night prayer. He will speak to you but quietly and briefly.' },
+  },
+
+  sir_harren: {
+    dawn:       { location: 'fortress_harren', locationName: 'Fortress Harren — training yard', mood: 'focused', moodDesc: 'Harren trains alone at dawn. He will speak with you while training — he considers it efficient.' },
+    morning:    { location: 'fortress_harren', locationName: 'Fortress Harren', mood: 'direct', moodDesc: 'Harren is available for business in the morning. Best time to get a straight answer.' },
+    afternoon:  { location: 'fortress_harren', locationName: 'Fortress Harren — hall', mood: 'watchful', moodDesc: 'Harren is in the main hall, receiving reports from his garrison.' },
+    dusk:       { location: 'fortress_harren', locationName: 'Fortress Harren', mood: 'thoughtful', moodDesc: 'Harren at dusk is reflective. He may tell you things he wouldn\'t in the business of morning.' },
+    night:      { location: 'harren_hall', locationName: 'Harren Hall', mood: 'drinking', moodDesc: 'Harren drinks alone in the hall at night. Approachable. Less guarded.', bonus: 'Harren at night shares personal history and opinions he keeps private by day.' },
+    deep_night: { location: 'fortress_harren', locationName: 'Fortress Harren', mood: 'unavailable', moodDesc: 'Harren has retired. He won\'t be disturbed without a good reason.', absentText: 'Sir Harren has retired for the night.' },
+  },
+
+  gatewarden_pol: {
+    dawn:       { location: 'thornwood_gate', locationName: 'Thornwood Gate', mood: 'change_of_watch', moodDesc: 'Pol is doing the dawn changeover. Brief and distracted.' },
+    morning:    { location: 'thornwood_gate', locationName: 'Thornwood Gate', mood: 'routine', moodDesc: 'Pol is at the gate doing his job. He\'ll talk while processing travelers.' },
+    afternoon:  { location: 'thornwood_gate', locationName: 'Thornwood Gate', mood: 'bored', moodDesc: 'Quiet afternoon. Pol is most talkative when bored.', bonus: 'Pol is bored enough to tell you things he normally wouldn\'t.' },
+    dusk:       { location: 'thornwood_gate', locationName: 'Thornwood Gate', mood: 'busy', moodDesc: 'Gate busy at dusk with people returning. Pol is working.' },
+    night:      { location: 'gatehouse_ale', locationName: 'Gatehouse Ale House', mood: 'off_duty', moodDesc: 'Pol is off duty and at Donal\'s. More relaxed and direct.', bonus: 'Off-duty Pol speaks more freely about what he\'s seen at the gate.' },
+    deep_night: { location: 'gatehouse_ale', locationName: 'Gatehouse Ale House', mood: 'tired', moodDesc: 'Pol is tired and heading home. Last chance to catch him.' },
+  },
+
 };
 
 // ─── GET CURRENT NPC SCHEDULE STATE ──────────────────────
