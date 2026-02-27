@@ -249,7 +249,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
       <div class="game-panel left-panel">
         <div class="panel-section">
           <h3 class="panel-title">☩ Your Soul</h3>
-          <div id="player-card" class="player-card-mini"></div>
+          <div id="player-card" class="player-card-mini" onclick="openCharSheet()" style="cursor:pointer" title="Open Character Sheet"></div>
         </div>
         <div class="panel-section">
           <h3 class="panel-title">⚔ Your Party</h3>
@@ -304,6 +304,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
             <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
             <button class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
             <button class="qa-btn" style="border-color:rgba(130,100,200,0.4);color:#a07ad4" onclick="openLoadScreen()">📂 Runs</button>
+            <button class="qa-btn" style="border-color:rgba(201,168,76,0.5);color:#c9a84c;font-weight:600" onclick="openCharSheet()">📋 Character</button>
           </div>
         </div>
       </div>
@@ -474,5 +475,8 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch {}
 });
 </script>
+  <script src="classes.js?v=87"></script>
+  <script src="skilltree.js?v=87"></script>
+  <script src="charsheet.js?v=87"></script>
 </body>
 </html>

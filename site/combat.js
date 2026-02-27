@@ -273,6 +273,7 @@ function levelUp(char) {
   const hpGain = 8 + conMod;
   char.maxHp += hpGain;
   char.hp = Math.min(char.hp + hpGain, char.maxHp);
+  if (window.grantSkillPoint) grantSkillPoint(char);
   char.maxMp = (char.maxMp || 100) + 10;
   char.mp = Math.min((char.mp || 100) + 10, char.maxMp);
 
@@ -437,6 +438,8 @@ function startCombat(enemies) {
   if (!char) return;
 
   initPlayerSpells(char);
+  if (window.initClassResource) initClassResource(char);
+  window._rogueFirstStrikeDone = false;
 
   combatState.active = true;
   combatState.round = 1;
@@ -681,6 +684,8 @@ function updateCombatUI() {
     </div>
     ` : `<div class="cp-enemy-thinking">${current?.icon} ${current?.name} is acting...</div>`}
   `;
+  // Inject class resource bar
+  if (window.injectClassResourceBar) setTimeout(injectClassResourceBar, 0);
 }
 
 // ─── PLAYER ACTIONS ───────────────────────────
@@ -719,7 +724,13 @@ function combatAttack() {
   const hit = roll + atkBonus >= target.ac || roll === 20;
 
   if (hit) {
+    const isCrit = (roll === 20);
     let baseDmg = Math.floor(Math.random()*8)+1 + (player.atk||0);
+    // Class damage multipliers
+    const classMult = window.getClassDmgMult ? getClassDmgMult() : 1;
+    const firstStrikeMult = window.getRogueFirstStrikeBonus ? getRogueFirstStrikeBonus() : 1;
+    const effectiveMult = Math.max(classMult, firstStrikeMult);
+    if (effectiveMult > 1) baseDmg = Math.floor(baseDmg * effectiveMult);
 
     // Hunter's Mark bonus
     const mark = getStatusData('player', 'hunters_mark');
@@ -739,6 +750,7 @@ function combatAttack() {
     // applyDamage returns net damage after shields — apply it to target HP here (only once)
     if (finalDmg > 0) target.hp = Math.max(0, target.hp - finalDmg);
     addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage! (${target.hp}/${target.maxHp} HP)`, 'combat');
+    if (window.classOnHitDealt) classOnHitDealt(finalDmg, isCrit);
     if (gameState.character) { gameState.character.hp = player.hp; }
   } else {
     addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] MISS (AC ${target.ac})`, 'system');
@@ -780,6 +792,7 @@ function castSelectedSpell() {
   player.mp -= spell.mp;
   combatState.apRemaining -= spell.ap;
   if (gameState.character) gameState.character.mp = player.mp;
+  const _spellEmpowered = window.classOnSpellCast ? classOnSpellCast(spell.id) : false;
   if (spell.holy_cost) grantHolyPoints(-spell.holy_cost);
 
   // ── CLERIC ──────────────────────────────────
@@ -1037,6 +1050,7 @@ function rollDice(formula, statMod) {
 function combatMove() {
   if (combatState.apRemaining < 1) return;
   combatState.apRemaining--;
+  if (window.classOnMove) classOnMove();
   addLog('🏃 You reposition on the battlefield.', 'system');
   updateCombatUI();
 }
@@ -1088,7 +1102,7 @@ function advanceTurn() {
   if (!combatState.active) return; // combat ended — stop the turn loop
   do {
     combatState.currentTurnIndex = (combatState.currentTurnIndex + 1) % combatState.turnOrder.length;
-    if (combatState.currentTurnIndex === 0) combatState.round++;
+    if (combatState.currentTurnIndex === 0) { combatState.round++; if(window.classOnRoundEnd) classOnRoundEnd(); }
   } while (combatState.combatants[combatState.turnOrder[combatState.currentTurnIndex]]?.hp <= 0);
 
   combatState.apRemaining = MAX_AP;
@@ -1121,6 +1135,7 @@ function processTurn() {
     // bonus applied in combatAttack
   }
 
+  if (current.isPlayer && window.classOnTurnStart) classOnTurnStart();
   updateCombatUI();
 
   if (!current.isPlayer) {
@@ -1174,6 +1189,10 @@ function enemyAI(enemyId) {
       player.hp = Math.max(0, player.hp - finalDmg);
       if (gameState.character) gameState.character.hp = player.hp;
       addLog(`${enemy.icon} ${enemy.name} attacks! [${roll}${atkMod?`${atkMod>=0?'+':''}${atkMod}`:''}] — ${finalDmg} damage to ${player.name}!`, 'combat');
+      if (window.classOnHitTaken) classOnHitTaken(finalDmg);
+      // Paladin aura damage reduction
+      const paladinRed = window.getPaladinAuraReduction ? getPaladinAuraReduction() : 0;
+      if (paladinRed > 0 && finalDmg > 0) { player.hp = Math.min(player.maxHp, player.hp + paladinRed); if(gameState.character) gameState.character.hp = player.hp; }
     } else {
       addLog(`${enemy.icon} ${enemy.name} attacks but misses! [${roll}]`, 'system');
     }
