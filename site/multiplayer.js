@@ -366,23 +366,35 @@ function initMultiplayer() {
     }
 
     if (eventType === 'contest_roll') {
-      // Receive roll from the challenger — show it on target's screen
-      if (payload.targetPlayerId === window.mp?.playerId) {
-        if (typeof receiveContestRoll === 'function') {
+      if (payload.isTargetReply) {
+        // Target replied with their roll — only the CHALLENGER should receive this
+        if (payload.fromPlayerId !== window.mp?.playerId && typeof receiveContestRoll === 'function') {
+          // I am the challenger. Store the target's roll as p2Roll and animate die2.
           receiveContestRoll(payload.playerName, payload.roll);
         }
-        // Update the die display for the challenger
-        const die1 = document.getElementById('c1-die');
-        if (die1) {
-          let count = 0;
-          const anim = setInterval(() => {
-            die1.textContent = Math.floor(Math.random() * 20) + 1;
-            if (++count >= 8) {
-              clearInterval(anim);
-              die1.textContent = payload.roll;
-              die1.classList.add('rolled');
-            }
-          }, 60);
+      } else {
+        // Challenger sent their roll — only the TARGET should receive this
+        if (payload.targetPlayerId === window.mp?.playerId && typeof receiveContestRoll === 'function') {
+          // I am the target. Store challenger's roll as p1Roll (not p2Roll).
+          pendingContestData = pendingContestData || {};
+          pendingContestData.p1Roll = payload.roll;
+          pendingContestData.p1Name = payload.playerName;
+          // Animate die1 (challenger's die on target's screen)
+          const die1 = document.getElementById('c1-die');
+          if (die1) {
+            let count = 0;
+            const anim = setInterval(() => {
+              die1.textContent = Math.floor(Math.random() * 20) + 1;
+              if (++count >= 8) {
+                clearInterval(anim);
+                die1.textContent = payload.roll;
+                die1.classList.add('rolled');
+                addLog(`🎲 ${payload.playerName} rolls: [${payload.roll}]${payload.roll===20?' — CRITICAL!!':payload.roll===1?' — FUMBLE!':''}`, 'dice');
+                // If I already rolled (p2Roll set), resolve now
+                if (pendingContestData.p2Roll !== null) setTimeout(resolveContest, 600);
+              }
+            }, 60);
+          }
         }
       }
     }
@@ -718,7 +730,7 @@ function updateSessionUI() {
 function updatePartyPanel() {
   const panel = document.getElementById('party-members');
   if (!panel || !window.mp.session) return;
-  panel.innerHTML = Object.values(window.mp.session.players).map(p => {
+  panel.innerHTML = Object.values(window.mp.session.players || {}).map(p => {
     const pct = p.maxHp ? Math.max(0, Math.floor(p.hp / p.maxHp * 100)) : 100;
     const col = pct > 60 ? '#4a9a6a' : pct > 30 ? '#c9a84c' : '#c0392b';
     const cls = p.character ? CLASSES?.find(c => c.id === p.character.class) : null;

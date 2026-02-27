@@ -1306,6 +1306,7 @@ function rollContest(player) {
 
 // Handle incoming contest roll from another MP player
 function receiveContestRoll(fromName, roll) {
+  // Called on CHALLENGER's screen when target replies — store as p2Roll, animate die2
   pendingContestData.p2Roll = roll;
   const die2 = document.getElementById('c2-die');
   if (die2) {
@@ -1316,7 +1317,10 @@ function receiveContestRoll(fromName, roll) {
         clearInterval(anim);
         die2.textContent = roll;
         die2.classList.add('rolled');
+        if (roll === 20) die2.style.color = 'var(--holy)';
+        if (roll === 1)  die2.style.color = 'var(--hell)';
         addLog(`🎲 ${fromName} rolls: [${roll}]${roll===20?' — CRITICAL!!':roll===1?' — FUMBLE!':''}`, 'dice');
+        // Resolve if challenger already rolled their own (p1Roll set)
         if (pendingContestData.p1Roll !== null) setTimeout(resolveContest, 600);
       }
     }, 60);
@@ -1344,7 +1348,11 @@ function rollContestTarget() {
       const myName = gameState.character?.name || 'You';
       addLog(`🎲 ${myName} rolls: [${roll}]${roll===20?' — CRITICAL!!':roll===1?' — FUMBLE!':''}`, 'dice');
 
-      // Broadcast our roll back to the challenger
+      // On target's screen: I am p2. Store my roll as p2Roll.
+      pendingContestData.p2Roll = roll;
+      pendingContestData.p2Name = myName;
+
+      // Broadcast reply back to challenger — isTargetReply:true so challenger stores it as p2Roll
       if (window.mpBroadcastStoryEvent) {
         window.mpBroadcastStoryEvent('contest_roll', {
           fromPlayerId: window.mp?.playerId,
@@ -1355,8 +1363,7 @@ function rollContestTarget() {
         });
       }
 
-      // Set as p2 roll and resolve if challenger already rolled
-      pendingContestData.p2Roll = roll;
+      // Resolve locally on target's screen if challenger already rolled (p1Roll set)
       if (pendingContestData.p1Roll !== null) setTimeout(resolveContest, 600);
     }
   }, 60);

@@ -535,6 +535,7 @@ function updateCombatUI() {
   const isPlayerTurn = current?.isPlayer;
   const char = gameState.character;
   const player = combatState.combatants['player'];
+  if (!player) return;
 
   // Build enemy list with HP bars (no HP bar for bosses)
   const enemyHTML = Object.values(combatState.combatants)
@@ -690,6 +691,7 @@ function selectTarget(enemyId) {
 
 function selectSpell(spellId) {
   const player = combatState.combatants['player'];
+  if (!player) return;
   const spell = player?.spells?.find(s => s.id === spellId);
   if (!spell) return;
   combatState.selectedSpell = spell;
@@ -711,6 +713,7 @@ function combatAttack() {
   const target = getTarget();
   if (!target) { addLog('Select a target first!', 'system'); return; }
   const player = combatState.combatants['player'];
+  if (!player) return;
   const roll = Math.floor(Math.random()*20)+1;
   const atkBonus = (player.atk || 0) + getAtkMod('player');
   const hit = roll + atkBonus >= target.ac || roll === 20;
@@ -1044,6 +1047,7 @@ function combatItem() {
   const potions = (char?.inventory || []).filter(i => i.toLowerCase().includes('potion'));
   if (potions.length === 0) { addLog('No items to use!', 'system'); return; }
   const player = combatState.combatants['player'];
+  if (!player) return;
   player.hp = Math.min(player.maxHp, player.hp + 30);
   char.hp = player.hp;
   char.inventory = char.inventory.filter(i => i !== potions[0]);
@@ -1131,6 +1135,7 @@ function enemyAI(enemyId) {
   if (!enemy || enemy.hp <= 0) { advanceTurn(); return; }
 
   const player = combatState.combatants['player'];
+  if (!player) return;
   let ap = MAX_AP;
 
   // Rooted: skip turn
@@ -1297,6 +1302,7 @@ function castEnemySpell(enemy, spellId, player) {
 // ─── CHECK WIN/LOSE ───────────────────────────
 function checkCombatEnd() {
   const player = combatState.combatants['player'];
+  if (!player) return;
   const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
 
   if (player.hp <= 0) {
