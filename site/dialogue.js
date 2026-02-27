@@ -722,6 +722,9 @@ async function sendNPCMessage(playerText, isOpener = false) {
   const race = RACES.find(r => r.id === char?.race);
   const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
   const storyFlags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
+  // Define text/lower for use in checks below (playerText is the raw input)
+  const text = playerText || '';
+  const lower = text.toLowerCase();
 
   // ── Build rich world state for NPC awareness ──
   const flags = window.sceneState?.flags || {};
