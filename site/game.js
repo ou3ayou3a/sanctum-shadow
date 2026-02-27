@@ -1772,6 +1772,9 @@ function escLeaveGame() {
   // Autosave before leaving
   if (typeof autosave === 'function') autosave();
   document.getElementById('esc-menu')?.remove();
+  // Clear MP session — player is intentionally leaving, don't rejoin on next load
+  if (typeof clearMPSession === 'function') clearMPSession();
+  localStorage.removeItem('ss_resume_flag');
   // Clean up all game overlays
   document.getElementById('conv-panel')?.remove();
   document.getElementById('combat-panel')?.remove();

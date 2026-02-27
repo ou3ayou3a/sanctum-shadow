@@ -127,16 +127,27 @@ function initMultiplayer() {
     const nameEl = document.getElementById('wait-session-name');
     if (nameEl) nameEl.textContent = 'Joined session ' + code;
 
-    // If already in the game screen (reconnecting), stay there — don't go to lobby
+    // If already in the game screen (reconnecting after refresh), stay there
     if (gameState.activeScreen === 'game' && gameState.character) {
-      toast('🔄 Reconnected to session ' + code, 'holy');
+      toast(`🔄 Reconnected to session ${code}`, 'holy');
+      addLog(`🔗 Reconnected to multiplayer session ${code}. Your party is here.`, 'system');
+      // Re-send our character state to the server so party panel updates
+      setTimeout(() => {
+        if (gameState.character) {
+          socket.emit('character_ready', {
+            code,
+            character: gameState.character
+          });
+        }
+        updatePartyPanel();
+      }, 300);
     } else {
       toast('Joined session ' + code, 'holy');
     }
   });
 
   // ── Error ──
-  socket.on('join_error', ({ msg }) => { if (gameState.activeScreen === 'game' && gameState.character) { toast('⚠ ' + msg + ' — continuing solo.', 'error'); window.mp.sessionCode = null; gameState.sessionCode = null; return; }
+  socket.on('join_error', ({ msg }) => {
     // If already in-game, don't boot to lobby — just show a warning toast
     if (gameState.activeScreen === 'game' && gameState.character) {
       toast('⚠ ' + msg + ' — continuing solo.', 'error');
@@ -144,8 +155,10 @@ function initMultiplayer() {
       // Clear session code so further actions work solo
       window.mp.sessionCode = null;
       gameState.sessionCode = null;
+      localStorage.removeItem('ss_mp_session'); // session is gone — don't retry
     } else {
       toast(msg, 'error');
+      localStorage.removeItem('ss_mp_session');
       showScreen('join-session');
     }
   });
@@ -304,6 +317,10 @@ function initMultiplayer() {
       }
     }
     if (eventType === 'conv_player_action') {
+      // Swap portrait to show who is speaking
+      if (typeof updateConvPlayerPortrait === 'function') {
+        updateConvPlayerPortrait(payload.playerName, payload.character || null);
+      }
       // Show that the active player said something — show typing indicator
       const typingEl = document.getElementById('cp-typing');
       if (typingEl) typingEl.style.display = 'flex';

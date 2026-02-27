@@ -43,6 +43,17 @@ function buildSaveSlot(slotName, type) {
   const sessionStart = window._sessionStart || Date.now();
   const sessionDuration = Date.now() - sessionStart;
 
+  // Persist MP session info separately so rejoin works after refresh
+  const mpCode = window.mp?.sessionCode || gameState?.sessionCode || null;
+  const mpName = window.mp?._playerName || char.name;
+  if (mpCode) {
+    localStorage.setItem('ss_mp_session', JSON.stringify({
+      code: mpCode,
+      playerName: mpName,
+      timestamp: Date.now(),
+    }));
+  }
+
   return {
     id: prev?.id || `save_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
     name: slotName || `${char.name} — Chapter ${gameState.chapter || 1}`,
@@ -261,6 +272,10 @@ function loadSaveSlot(slotId) {
     if (window.renderStatsMini) renderStatsMini();
     if (window.updateXPBar) updateXPBar();
 
+    // ── Multiplayer rejoin after refresh ──
+    // If there's a saved MP session and socket is ready, attempt to rejoin
+    _attemptMPRejoin();
+
   }, 800);
 
   startAutosave();
@@ -273,6 +288,59 @@ function deleteSaveSlot(slotId) {
   renderSaveLoadScreen();
   toast('Save deleted.');
 }
+
+// ─── MULTIPLAYER REJOIN AFTER REFRESH ────────
+function _attemptMPRejoin() {
+  const raw = localStorage.getItem('ss_mp_session');
+  if (!raw) return;
+
+  let mpData;
+  try { mpData = JSON.parse(raw); } catch { localStorage.removeItem('ss_mp_session'); return; }
+
+  // Only attempt rejoin if saved within the last 30 minutes
+  if (!mpData?.code || Date.now() - mpData.timestamp > 30 * 60 * 1000) {
+    localStorage.removeItem('ss_mp_session');
+    return;
+  }
+
+  const code = mpData.code;
+  const playerName = mpData.playerName;
+  const char = gameState.character;
+
+  addLog(`🔄 Detected multiplayer session ${code} — attempting to rejoin...`, 'system');
+
+  // If socket is already connected, rejoin immediately
+  const tryRejoin = () => {
+    const socket = window.mp?.socket;
+    if (!socket) { addLog('⚠ MP socket not ready — playing solo.', 'system'); return; }
+
+    if (socket.connected) {
+      window.mp.sessionCode = code;
+      window.mp._playerName = playerName;
+      gameState.sessionCode = code;
+      socket.emit('rejoin_session', { code, playerName, character: char || null });
+      addLog(`📡 Rejoining session ${code} as ${playerName}...`, 'system');
+    } else {
+      // Socket not connected yet — wait for connect event then rejoin
+      // The existing socket.on('connect') handler in multiplayer.js already does this
+      // via window.mp.sessionCode check — just set the values
+      window.mp.sessionCode = code;
+      window.mp._playerName = playerName;
+      gameState.sessionCode = code;
+      addLog(`📡 Waiting for server connection to rejoin session ${code}...`, 'system');
+    }
+  };
+
+  // Small delay to let multiplayer.js initialize fully
+  setTimeout(tryRejoin, 600);
+}
+
+function clearMPSession() {
+  localStorage.removeItem('ss_mp_session');
+  if (window.mp) { window.mp.sessionCode = null; window.mp._playerName = null; }
+  if (gameState) gameState.sessionCode = null;
+}
+window.clearMPSession = clearMPSession;
 
 // ─── SAVE/LOAD UI ─────────────────────────
 function openSaveScreen() {
