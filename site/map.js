@@ -88,7 +88,7 @@ const WORLD_LOCATIONS = {
     description: `A small village that should be unremarkable. It isn't. A preacher here draws crowds with sermons naming the Church of the Eternal Flame as a demonic institution. The villagers listen with the focused attention of people who have been waiting their whole lives to hear something true. The Church wants him silenced. He might be right.`,
     quests: ['c1q5', 'c1q15'],
     npcs: ['The Heretic Preacher Aldran', 'Elder Mosswick', 'The Congregation'],
-    encounters: ['cultist', 'shadow'],
+    encounters: ['cultist', 'shadow_wraith'],
     music: 'village_uneasy',
   },
   monastery_aldric: {
@@ -101,11 +101,11 @@ const WORLD_LOCATIONS = {
     region: 'northern_highlands',
     danger: 3,
     discovered: false,
-    connections: ['vaelthar_city', 'ashen_fields', 'monastery_cellar'],
+    connections: ['vaelthar_city', 'ashen_fields', 'monastery_cellar', 'church_archive'],
     description: `The monastery sits on a hill that the locals call "the Listening Stone" because of how sound behaves strangely near it. The monks stopped responding to any communication three weeks ago. The gates are open. There are no bodies. There are no monks. There is writing on every interior wall — the same phrase, over and over, in at least six different handwriting styles: "It breathes below."`,
     quests: ['c1q2', 'c1q7'],
     npcs: ['The Last Monk (catatonic)', 'The Voice Below'],
-    encounters: ['skeleton', 'shadow', 'shadow'],
+    encounters: ['skeleton', 'shadow_wraith', 'shadow_wraith'],
     music: 'dungeon_horror',
   },
   merchant_road: {
@@ -156,7 +156,7 @@ const WORLD_LOCATIONS = {
     description: `A vast expanse of grey earth where nothing grows and fires burn without fuel — blue flames that give no heat. The locals refuse to come here. An ancient tower appears on the king's official map but no living person reports seeing it. Party members who sleep near the Fields report the same dream: a door, slightly open, and something breathing on the other side.`,
     quests: ['c1q13'],
     npcs: ['The Wandering Scholar (probably mad)', 'The Ash Spirits'],
-    encounters: ['shadow', 'shadow', 'demon_minor'],
+    encounters: ['shadow_wraith', 'shadow_wraith', 'demon_minor'],
     music: 'wastes_eerie',
   },
   tower_ash: {
@@ -175,7 +175,7 @@ const WORLD_LOCATIONS = {
     description: `You can see it now. The tower that no one was supposed to find. It is exactly as the maps show — but the maps are 400 years old, and the stones look freshly cut. The door at its base has no handle, no lock. Just a symbol carved in what appears to be dried blood. Someone with sufficient knowledge might recognize the symbol. Someone without that knowledge should run.`,
     quests: ['c1q13', 'c1q18'],
     npcs: ['The Voice That Knows Your Names'],
-    encounters: ['shadow', 'demon_minor', 'shattered_god'],
+    encounters: ['shadow_wraith', 'demon_minor', 'shattered_god'],
     music: 'boss_ancient',
     isBoss: true,
   },
@@ -193,7 +193,7 @@ const WORLD_LOCATIONS = {
     description: `The forest closes behind you within minutes of entering. The trees here are too tall, too old, and too quiet — no birds, no wind, yet the branches move. Your compass behaves strangely. The path you're on wasn't there when you arrived, and when you turn around, the way you came has closed. Something here is both very patient and very aware that you've arrived.`,
     quests: ['c1q3'],
     npcs: ['The Lost Cartographer (if you can find him)', 'The Thornwood Itself'],
-    encounters: ['wolf', 'shadow', 'bandit'],
+    encounters: ['wolf', 'shadow_wraith', 'bandit'],
     music: 'forest_dread',
   },
   lost_cartographer: {
@@ -210,7 +210,7 @@ const WORLD_LOCATIONS = {
     description: `You find him — or what remains of his camp. Maps cover every surface, pinned with thorns, some of them depicting places that don't exist, or places that haven't existed yet. The cartographer himself is here, sitting very still, staring at a blank page. He looks up when you enter. His eyes are the wrong color. "You're in the map," he says quietly. "You've been in the map the whole time."`,
     quests: ['c1q3'],
     npcs: ['The Changed Cartographer'],
-    encounters: ['shadow'],
+    encounters: ['shadow_wraith'],
     music: 'dungeon_horror',
   },
   church_archive: {
@@ -229,7 +229,7 @@ const WORLD_LOCATIONS = {
     description: `The Church's deepest archive — four levels underground, accessible only to the highest clergy. It contains the original Covenant document, centuries of correspondence with entities that should not exist, and something in the lowest level that the archivists have stopped going near. Getting in will require every skill your party has. Getting out may require more.`,
     quests: ['c1q17', 'c1q18', 'c1q19'],
     npcs: ['Head Archivist Theones', 'The Sealed-In Apprentice', 'The Voice Beneath the Archive'],
-    encounters: ['cultist', 'captain', 'shadow', 'demon_minor'],
+    encounters: ['cultist', 'captain', 'shadow_wraith', 'demon_minor'],
     music: 'dungeon_horror',
     isBoss: false,
   },
@@ -325,7 +325,7 @@ const WORLD_LOCATIONS = {
     discovered: false, connections: ['ashen_fields'],
     description: `Not a tavern — a fire that never goes out, ringed by stones, with crates of spirit bottles stacked beside it. Nobody owns it. Travelers passing through the Ashen Fields stop here, take a bottle, leave a coin or don't, and sit for a while watching the blue flames that shouldn't exist. The scholar who's been camped here for three weeks swears the fire shows you things if you stare long enough. He's not wrong. He's also not entirely sane anymore.`,
     npcs: ['The Mad Scholar', 'Passing Travelers', 'The Fire Itself (perception check)'],
-    quests: ['c1q13'], encounters: ['shadow'], music: 'tavern_low', lightLevel: 'dark',
+    quests: ['c1q13'], encounters: ['shadow_wraith'], music: 'tavern_low', lightLevel: 'dark',
   },
 
   // Ashen Tower — a crumbling ante-room with old wine
@@ -338,7 +338,7 @@ const WORLD_LOCATIONS = {
     discovered: false, connections: ['tower_ash'],
     description: `A crumbling ante-chamber outside the tower's sealed door. Previous visitors — whoever they were — left behind a case of black-bottled wine, a journal (water-damaged, only fragments readable), and a note that says: "You'll need this." The wine has no label and smells faintly of something burning. Drinking it makes your hands stop shaking. It also makes the symbols on the tower door easier to read. Make of that what you will.`,
     npcs: ['Nobody Alive'],
-    quests: ['c1q18'], encounters: ['shadow'], music: 'tavern_low', lightLevel: 'pitch_dark',
+    quests: ['c1q18'], encounters: ['shadow_wraith'], music: 'tavern_low', lightLevel: 'pitch_dark',
   },
 
   // Thornwood Passage — a ruined forester's hut
@@ -351,7 +351,7 @@ const WORLD_LOCATIONS = {
     discovered: false, connections: ['thornwood_passage'],
     description: `A forester's hut that the Thornwood has been slowly consuming for decades — roots through the floor, branches through the roof, ivy over the windows. Inside, someone has maintained a small barrel of forest-brewed spirit that never seems to empty. Drinking here has a side effect: your perception of the forest sharpens unnaturally, and you hear things in the trees that you couldn't quite make out before. You're not sure if that's better.`,
     npcs: ['Nobody — Just the Forest'],
-    quests: [], encounters: ['wolf', 'shadow'], music: 'tavern_low', lightLevel: 'dark',
+    quests: [], encounters: ['wolf', 'shadow_wraith'], music: 'tavern_low', lightLevel: 'dark',
   },
 
   // Lost Cartographer — maps and madness, with a flask
@@ -364,7 +364,7 @@ const WORLD_LOCATIONS = {
     discovered: false, connections: ['lost_cartographer'],
     description: `Among the cartographer's belongings — maps pinned everywhere, compass needles pointing in wrong directions — is a leather flask of something potent, and a crate that turns out to contain twelve more. He doesn't drink from them himself anymore. "It blurs the maps," he explains, staring at a map that depicts a city that doesn't exist yet. Travelers are welcome to help themselves. He'll charge nothing. He just wants someone to look at the maps and tell him if what he's drawn is real.`,
     npcs: ['The Changed Cartographer (host by accident)'],
-    quests: ['c1q3'], encounters: ['shadow'], music: 'tavern_low', lightLevel: 'dark',
+    quests: ['c1q3'], encounters: ['shadow_wraith'], music: 'tavern_low', lightLevel: 'dark',
   },
 
   // Church Archive — a secret scriptorium room
@@ -408,10 +408,33 @@ let mapState = {
   dragStart: null,
   zoom: 1,
 };
+// ─── #56: export map globals so other files' window.* guards work ──
+window.mapState = mapState;
+window.WORLD_LOCATIONS = WORLD_LOCATIONS;
+
+// ─── #1: mirror of discovered location ids for saving ──
+window.mapDiscovered = window.mapDiscovered || {};
+Object.values(WORLD_LOCATIONS).forEach(loc => {
+  if (loc && loc.id && loc.discovered) window.mapDiscovered[loc.id] = true;
+});
+
+// Apply a saved discovered map (called by the save/load system on load)
+window.applyDiscoveredLocations = function(obj) {
+  if (!obj) return;
+  Object.keys(obj).forEach(id => {
+    if (!obj[id]) return;
+    window.mapDiscovered[id] = true;
+    if (WORLD_LOCATIONS[id]) WORLD_LOCATIONS[id].discovered = true;
+  });
+};
 
 function buildWorldMap() {
   const container = document.getElementById('world-map-container');
   if (!container) return;
+
+  // #1: recompute progress-based unlocks before drawing so newly-eligible
+  // locations (church_archive, tower_ash) render as reachable, not locked.
+  unlockLocationsByProgress();
 
   container.innerHTML = '';
 
@@ -562,13 +585,18 @@ function buildWorldMap() {
   const fogLayer = svg.querySelector('#fog-layer');
 
   Object.values(WORLD_LOCATIONS).forEach(loc => {
+    // skip region metadata entries (no id/connections)
+    if (!loc || !loc.id) return;
     if (!loc.discovered) {
+      // #1: is this fogged location reachable — i.e. connected to a discovered one?
+      const reachable = isFogReachable(loc);
+
       // Fog of war circle
       const fog = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       fog.setAttribute('cx', loc.x);
       fog.setAttribute('cy', loc.y);
       fog.setAttribute('r', 35);
-      fog.setAttribute('fill', 'rgba(8,6,3,0.85)');
+      fog.setAttribute('fill', reachable ? 'rgba(8,6,3,0.7)' : 'rgba(8,6,3,0.85)');
       fog.setAttribute('filter', 'url(#fog)');
       fog.setAttribute('class', 'fog-circle');
       fog.setAttribute('data-loc-id', loc.id);
@@ -579,11 +607,28 @@ function buildWorldMap() {
       qmark.setAttribute('x', loc.x);
       qmark.setAttribute('y', loc.y + 4);
       qmark.setAttribute('text-anchor', 'middle');
-      qmark.setAttribute('font-size', '14');
-      qmark.setAttribute('fill', 'rgba(201,168,76,0.15)');
+      qmark.setAttribute('font-size', reachable ? '18' : '14');
+      qmark.setAttribute('fill', reachable ? 'rgba(201,168,76,0.55)' : 'rgba(201,168,76,0.15)');
       qmark.setAttribute('font-family', 'Cinzel, serif');
       qmark.textContent = '?';
       fogLayer.appendChild(qmark);
+
+      // Reachable fog is clickable — clicking travels there (which discovers it).
+      // Totally unconnected fog stays inert.
+      if (reachable) {
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hit.setAttribute('cx', loc.x);
+        hit.setAttribute('cy', loc.y);
+        hit.setAttribute('r', 20);
+        hit.setAttribute('fill', 'transparent');
+        hit.setAttribute('class', 'fog-node');
+        hit.setAttribute('data-loc-id', loc.id);
+        hit.style.cursor = 'pointer';
+        hit.addEventListener('mouseenter', () => showFogTooltip(loc));
+        hit.addEventListener('mouseleave', hideMapTooltip);
+        hit.addEventListener('click', () => handleMapLocationClick(loc));
+        fogLayer.appendChild(hit);
+      }
       return;
     }
 
@@ -592,11 +637,102 @@ function buildWorldMap() {
 
   container.appendChild(svg);
 
+  // Keyboard/mobile travel strip for directly connected destinations. The SVG
+  // remains the full visual map; these real buttons make travel accessible.
+  const currentLocation = WORLD_LOCATIONS[mapState.currentLocation];
+  const shortcuts = document.createElement('nav');
+  shortcuts.className = 'map-location-shortcuts';
+  shortcuts.setAttribute('aria-label', 'Connected travel destinations');
+  for (const id of currentLocation?.connections || []) {
+    const loc = WORLD_LOCATIONS[id];
+    if (!loc || (!loc.discovered && !isFogReachable(loc))) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.disabled = !!loc.locked;
+    button.setAttribute('aria-label', `${loc.locked ? 'Locked' : 'Travel to'} ${loc.name}`);
+    button.textContent = `${loc.icon || '◆'} ${loc.name}`;
+    button.addEventListener('click', () => handleMapLocationClick(loc));
+    shortcuts.appendChild(button);
+  }
+  container.appendChild(shortcuts);
+
   // Map tooltip
   const tooltip = document.createElement('div');
   tooltip.id = 'map-tooltip';
   tooltip.className = 'map-tooltip hidden';
   container.appendChild(tooltip);
+}
+
+// ─── #1: PROGRESS-BASED UNLOCKS ──────────────
+// Some locations ship `locked:true` and nothing in the codebase ever cleared
+// them, leaving the Chapter-1 endgame (tower_ash, with the shattered_god boss)
+// and the church_archive arc permanently unreachable. Recompute their locked
+// state from story flags every time the map is built / travelled, so they open
+// the moment their prerequisite is genuinely satisfied in normal play.
+//
+//   church_archive — lockHint points the player at Sister Mourne / access codes.
+//     The Mourne investigation arc (temple_quarter → mourne_observed /
+//     mourne_confrontation → mourne_becomes_ally) sets `mourne_ally`/`mourne_allied`,
+//     and learning where Elder Varek is hiding (`knows_varek_location`) means the
+//     player got the access they needed out of that same arc. Any of those opens it.
+//   tower_ash — lockHint requires "completing The Ashen Fields investigation".
+//     The tower only connects to ashen_fields, so once the Ashen Fields are
+//     discovered/visited (or its investigation flag is set) the tower opens.
+const PROGRESS_UNLOCKS = {
+  church_archive: () => {
+    const flags = window.sceneState?.flags || {};
+    return !!(flags.mourne_ally || flags.mourne_allied || flags.allied_sister_mourne
+      || flags.has_archive_access || flags.knows_varek_location);
+  },
+  tower_ash: () => {
+    const flags = window.sceneState?.flags || {};
+    const ashen = WORLD_LOCATIONS.ashen_fields;
+    return !!((ashen && ashen.discovered) || window.mapDiscovered?.ashen_fields
+      || flags.ashen_fields_investigated || flags.ashen_fields_complete);
+  },
+};
+
+function unlockLocationsByProgress() {
+  Object.keys(PROGRESS_UNLOCKS).forEach(id => {
+    const loc = WORLD_LOCATIONS[id];
+    if (!loc || !loc.locked) return;
+    try {
+      if (PROGRESS_UNLOCKS[id]()) {
+        loc.locked = false;
+        // Persist so it stays unlocked even if flags are later recomputed.
+        if (window.sceneState) {
+          window.sceneState.flags = window.sceneState.flags || {};
+          window.sceneState.flags['unlocked_' + id] = true;
+        }
+      }
+    } catch (e) { /* never let an unlock check break the map render */ }
+  });
+  // Honour any persisted unlock flags from a prior session/save.
+  Object.keys(PROGRESS_UNLOCKS).forEach(id => {
+    const loc = WORLD_LOCATIONS[id];
+    if (loc && loc.locked && window.sceneState?.flags?.['unlocked_' + id]) loc.locked = false;
+  });
+}
+window.unlockLocationsByProgress = unlockLocationsByProgress;
+
+// #1: A fogged location is reachable if any of its connections is a discovered location.
+function isFogReachable(loc) {
+  if (!loc || !loc.connections) return false;
+  return loc.connections.some(connId => {
+    const target = WORLD_LOCATIONS[connId];
+    return target && target.discovered;
+  });
+}
+
+function showFogTooltip(loc) {
+  const tooltip = document.getElementById('map-tooltip');
+  if (!tooltip) return;
+  tooltip.innerHTML = `
+    <div class="mtt-name">❓ Unknown Territory</div>
+    <div class="mtt-sub">Connected to a place you know</div>
+    <div class="mtt-hint">Click to travel into the unknown</div>
+  `;
+  tooltip.classList.remove('hidden');
 }
 
 function renderLocationNode(layer, loc) {
@@ -606,6 +742,9 @@ function renderLocationNode(layer, loc) {
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.setAttribute('class', 'loc-node');
   g.setAttribute('data-loc-id', loc.id);
+  g.setAttribute('role', 'button');
+  g.setAttribute('tabindex', '0');
+  g.setAttribute('aria-label', `${loc.name} — ${loc.subtitle}. Danger ${loc.danger} of 5${loc.locked ? '. Locked' : ''}`);
   g.style.cursor = 'pointer';
 
   // Pulse ring for current location
@@ -687,6 +826,12 @@ function renderLocationNode(layer, loc) {
   g.addEventListener('mouseenter', () => showMapTooltip(loc));
   g.addEventListener('mouseleave', hideMapTooltip);
   g.addEventListener('click', () => handleMapLocationClick(loc));
+  g.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleMapLocationClick(loc);
+    }
+  });
 
   layer.appendChild(g);
 }
@@ -740,14 +885,36 @@ function handleMapLocationClick(loc) {
 }
 
 function travelToLocation(loc) {
+  // #16: no travel during combat
+  if (window.combatState?.active) {
+    if (window.toast) toast('⚔ Not during combat!', 'error');
+    else if (window.addLog) addLog('⚔ Not during combat!', 'system');
+    return;
+  }
+  // #20: no travel while a narrative scene panel is open or a conversation is active
+  if (document.getElementById('scene-panel') || window.npcConvState?.active) {
+    if (window.toast) toast('Finish the current scene first', 'error');
+    else if (window.addLog) addLog('Finish the current scene first', 'system');
+    return;
+  }
+
   closeOverlay('map-overlay');
+
+  // #16: reset the per-trip encounter flag so exactly one system fires
+  window._travelEncounterFired = false;
 
   // Discover location
   WORLD_LOCATIONS[loc.id].discovered = true;
+  window.mapDiscovered = window.mapDiscovered || {};
+  window.mapDiscovered[loc.id] = true;
   const prev = mapState.currentLocation;
-  WORLD_LOCATIONS[prev].current = false;
+  if (WORLD_LOCATIONS[prev]) WORLD_LOCATIONS[prev].current = false;
   mapState.currentLocation = loc.id;
   WORLD_LOCATIONS[loc.id].current = true;
+
+  // #1: arriving somewhere may satisfy an unlock prerequisite (e.g. visiting
+  // ashen_fields opens tower_ash). Recompute now so the next map open shows it.
+  unlockLocationsByProgress();
 
   // Play travel music
   if (window.AudioEngine) AudioEngine.transition(loc.music || 'city_tense');
@@ -773,7 +940,12 @@ function travelToLocation(loc) {
       ? 0.85  // Dungeons — almost certain
       : Math.min(0.25 + loc.danger * 0.12, 0.75); // Roads/outposts — scales with danger
     if (Math.random() < encounterChance) {
-      setTimeout(() => triggerEncounter(loc), 2200);
+      setTimeout(() => {
+        // #16: if the travel.js encounter system already fired this trip, skip ours
+        if (window._travelEncounterFired) return;
+        window._travelEncounterFired = true;
+        triggerEncounter(loc);
+      }, 2200);
     }
   }
 }
@@ -836,8 +1008,14 @@ async function narrateLocation(loc) {
         window.runScene('monastery_dungeon_entry');
       }
     }
-    // Monastery — if knows Varek is here, go to finale
-    if (id === 'monastery_aldric' && flags.knows_varek_location && !flags.chapter1_complete && window.runScene) {
+    // Monastery — if knows Varek is here, go to finale.
+    // #13: block 1 above already fires monastery_arrival (which synchronously
+    // sets chapter1_finale) whenever knows_varek_location is set and the dungeon
+    // hasn't been entered. Guard on chapter1_finale — not chapter1_complete — so
+    // the two blocks are mutually exclusive and the finale runs exactly once.
+    // This block now only covers the case block 1 skipped (e.g. the player
+    // already entered the monastery dungeon, then returns knowing Varek's spot).
+    if (id === 'monastery_aldric' && flags.knows_varek_location && !flags.chapter1_finale && !flags.chapter1_complete && window.runScene) {
       setTimeout(() => window.runScene('monastery_arrival'), 1500);
     }
   }, 2000);
@@ -947,6 +1125,20 @@ const AMBUSH_TEMPLATES = {
       `The air smells of burning stone. The demon doesn't walk toward you — it flows, leaving scorched footprints that glow and fade.`,
     ],
     persuadeText: `"I am not what you were sent to destroy."`,
+  },
+  shattered_god: {
+    name: 'The Shattered God',
+    icon: '⚡',
+    enemies: () => [
+      // #29: Ashen Tower endgame boss. id kept as 'shattered_god' so BOSS_IDS
+      // detection (exact match in triggerEncounter) marks this fight unavoidable.
+      { ...generateEnemy('shattered_god', 10), id: 'shattered_god' },
+    ],
+    flavor: [
+      `The sealed door does not open — it simply ceases to be there. Beyond it, something vast and broken unfolds out of the dark. It has too many faces, and every one of them already knows your name.`,
+      `The air turns to ash in your lungs. The Shattered God rises from the tower's heart — divine and ruined in equal measure, a thing that was worshipped and then murdered, and has forgiven neither.`,
+    ],
+    persuadeText: null, // A god cannot be talked down — only fought
   },
   captain: {
     name: 'Deserter Captain',
@@ -1120,6 +1312,20 @@ function showLocationPanel(loc, cantTravel = false) {
 
 // ─── MAP OVERLAY ───────────────────────────
 function openWorldMap() {
+  // #16: no map travel during combat
+  if (window.combatState?.active) {
+    if (window.toast) toast('⚔ Not during combat!', 'error');
+    else if (window.addLog) addLog('⚔ Not during combat!', 'system');
+    return;
+  }
+  // #20: no map while a narrative scene panel is open or a conversation is active
+  if (document.getElementById('scene-panel') || window.npcConvState?.active) {
+    if (window.toast) toast('Finish the current scene first', 'error');
+    else if (window.addLog) addLog('Finish the current scene first', 'system');
+    return;
+  }
+  // #1: open church_archive / tower_ash if their prerequisites are now met
+  unlockLocationsByProgress();
   const overlay = document.getElementById('map-overlay');
   overlay.classList.remove('hidden');
   buildWorldMap();

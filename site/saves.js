@@ -25,12 +25,56 @@ function getAllSaves() {
     const raw = localStorage.getItem(SS_SAVES_KEY);
     if (!raw) return [];
     const data = JSON.parse(raw);
-    return Array.isArray(data.slots) ? data.slots : [];
+    const migrated = window.SanctumSchema?.migrateSaveEnvelope(data) || data;
+    return Array.isArray(migrated.slots) ? migrated.slots : [];
   } catch { return []; }
 }
 
-function writeSaves(slots) {
-  localStorage.setItem(SS_SAVES_KEY, JSON.stringify({ slots }));
+function writeSaves(slots, currentId) {
+  const envelope = window.SanctumSchema?.migrateSaveEnvelope({ slots }) || { slots };
+  try {
+    localStorage.setItem(SS_SAVES_KEY, JSON.stringify(envelope));
+  } catch (e) {
+    if (e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
+      // Quota hit — trim oldest OTHER auto/session slots to make room, but NEVER
+      // discard the slot currently being written and NEVER write an empty set (#27).
+      // The current write target (e.g. the autosave) is identified by currentId.
+      const sorted = slots.slice().sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)); // oldest first
+      let retrySet = sorted.slice();
+      // Drop oldest transient slots (autosave/session_resume) that are NOT the current target.
+      for (let i = 0; i < retrySet.length && retrySet.length > 1; i++) {
+        const s = retrySet[i];
+        if (currentId && s.id === currentId) continue;
+        if (s.type === 'autosave' || s.type === 'session_resume') {
+          retrySet.splice(i, 1);
+          i--;
+        }
+      }
+      // Still over? Drop the oldest remaining NON-current slots until just the current one is left.
+      while (retrySet.length > 1) {
+        const idx = retrySet.findIndex(s => !currentId || s.id !== currentId);
+        if (idx < 0) break; // only the current slot remains
+        retrySet.splice(idx, 1);
+        try {
+          localStorage.setItem(SS_SAVES_KEY, JSON.stringify(window.SanctumSchema?.migrateSaveEnvelope({ slots:retrySet }) || { slots:retrySet }));
+          if (typeof toast === 'function') toast('Storage full — trimmed old saves.', 'error');
+          return;
+        } catch (e2) { /* keep trimming */ }
+      }
+      // Final attempt with whatever remains (at least the current slot).
+      try {
+        if (retrySet.length < 1) retrySet = slots.slice(0, 1); // never wipe everything
+        localStorage.setItem(SS_SAVES_KEY, JSON.stringify(window.SanctumSchema?.migrateSaveEnvelope({ slots:retrySet }) || { slots:retrySet }));
+        if (typeof toast === 'function') toast('Storage full — trimmed old saves.', 'error');
+      } catch (e2) {
+        if (typeof toast === 'function') toast('⚠ Save failed — storage full.', 'error');
+        console.error('writeSaves quota retry failed', e2);
+      }
+    } else {
+      if (typeof toast === 'function') toast('⚠ Save failed.', 'error');
+      console.error('writeSaves error', e);
+    }
+  }
 }
 
 function buildSaveSlot(slotName, type) {
@@ -38,7 +82,10 @@ function buildSaveSlot(slotName, type) {
   if (!char) return null;
 
   const existing = getAllSaves();
-  const prev = existing.find(s => s.id && s.character?.name === char.name && s.type === type);
+  // Autosaves dedupe to ONE fixed slot regardless of character name (#7)
+  const prev = type === 'autosave'
+    ? existing.find(s => s.id === 'autosave_slot')
+    : existing.find(s => s.id && s.character?.name === char.name && s.type === type);
   const prevPlayTime = prev?.playTime || 0;
   const sessionStart = window._sessionStart || Date.now();
   const sessionDuration = Date.now() - sessionStart;
@@ -47,16 +94,23 @@ function buildSaveSlot(slotName, type) {
   const mpCode = window.mp?.sessionCode || gameState?.sessionCode || null;
   const mpName = window.mp?._playerName || char.name;
   if (mpCode) {
-    localStorage.setItem('ss_mp_session', JSON.stringify({
-      code: mpCode,
-      playerName: mpName,
-      timestamp: Date.now(),
-    }));
+    try {
+      localStorage.setItem('ss_mp_session', JSON.stringify({
+        code: mpCode,
+        playerName: mpName,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {
+      console.warn('Could not persist MP session (storage full?)', e);
+    }
   }
 
   return {
-    id: prev?.id || `save_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-    name: slotName || `${char.name} — Chapter ${gameState.chapter || 1}`,
+    schemaVersion: window.SanctumSchema?.SAVE_SCHEMA_VERSION || 4,
+    id: type === 'autosave' ? 'autosave_slot' : (prev?.id || `save_${Date.now()}_${Math.random().toString(36).slice(2,7)}`),
+    name: type === 'autosave'
+      ? `⟳ Autosave — ${char.name}`
+      : (slotName || `${char.name} — Chapter ${gameState.chapter || 1}`),
     type: type || (window.mp?.sessionCode ? 'multiplayer' : 'solo'),
     character: {
       name: char.name,
@@ -69,6 +123,11 @@ function buildSaveSlot(slotName, type) {
       maxHp: char.maxHp,
       mp: char.mp,
       maxMp: char.maxMp,
+      // Combat source-of-truth: AC/atk derive from these; persist or gear/skill bonuses vanish (#2)
+      ac: char.ac,
+      atkBonus: char.atkBonus,
+      _gearBonuses: char._gearBonuses || {},
+      upgradePoints: char.upgradePoints || 0, // granted spell-upgrade points (#21)
       holyPoints: char.holyPoints || 0,
       hellPoints: char.hellPoints || 0,
       gold: char.gold || 0,
@@ -79,6 +138,10 @@ function buildSaveSlot(slotName, type) {
       equipped: char.equipped || { weapon: null, armor: null, accessory: null },
       stats: char.stats || {},
       skills: char.skills || {},
+      proficiencies: char.proficiencies || [],
+      savingThrowProficiencies: char.savingThrowProficiencies || [],
+      questRewardsClaimed: char.questRewardsClaimed || [],
+      conditions: char.conditions || [],
       inventory: char.inventory || [],
       spells: char.spells || [],
       personalQuests: char.personalQuests || [],
@@ -93,11 +156,24 @@ function buildSaveSlot(slotName, type) {
       chapter: gameState.chapter || 1,
       activeQuests: gameState.activeQuests || [],
       completedQuests: gameState.completedQuests || [],
+      questProgress: gameState.questProgress || {},
+      world3dPositions: gameState.world3dPositions || {},
       log: (gameState.log || []).slice(-80),
     },
     sceneFlags: window.sceneState?.flags || {},
     sceneHistory: window.sceneState?.history || [],
+    knownFacts: window.sceneState?.knownFacts || {},
+    // Live continuity so a resumed run keeps NPC moods, last narration & threats (#23)
+    npcStates: window.sceneState?.npcStates || {},
+    lastNarration: window.sceneState?._lastNarration || '',
+    currentThreat: window.sceneState?.currentThreat || null,
+    inPersonalQuest: window.sceneState?.inPersonalQuest || false,
+    personalQuestContext: window.sceneState?.personalQuestContext || '',
+    currentScene: window.sceneState?.currentScene || 'arrival_vaelthar',
+    storyHistory: Array.isArray(window.storyHistory) ? window.storyHistory.slice() : [],
+    dead: (gameState.dead || localStorage.getItem('ss_run_dead') === '1'),
     mapState: { currentLocation: window.mapState?.currentLocation || 'vaelthar_city' },
+    mapDiscovered: window.mapDiscovered ? { ...window.mapDiscovered } : null,
     worldClock: window.worldClock || { hour: 8, day: 1 },
     reputation: window.reputation || {},
     sessionCode: window.mp?.sessionCode || null,
@@ -111,6 +187,10 @@ function buildSaveSlot(slotName, type) {
 }
 
 function saveGame(slotName, type, silent = false) {
+  // HARDCORE: never autosave/session-resume a dead run (would revive a corpse on resume).
+  if ((type === 'autosave' || type === 'session_resume') && (gameState.dead || localStorage.getItem('ss_run_dead') === '1')) {
+    return null;
+  }
   const slot = buildSaveSlot(slotName, type);
   if (!slot) { if (!silent) toast('Nothing to save — start a game first.', 'error'); return null; }
 
@@ -120,7 +200,7 @@ function saveGame(slotName, type, silent = false) {
   else slots.unshift(slot); // newest first
 
   // Keep max 20 saves total
-  writeSaves(slots.slice(0, 20));
+  writeSaves(slots.slice(0, 20), slot.id);
   _lastSaveTime = Date.now();
 
   if (!silent) {
@@ -132,8 +212,8 @@ function saveGame(slotName, type, silent = false) {
 
 function autosave() {
   if (gameState.activeScreen !== 'game' || !gameState.character) return;
-  saveGame(null, null, true); // silent autosave — no log, no scroll
-  showAutosaveFlash();        // just the corner flash
+  saveGame(null, 'autosave', true); // silent autosave → dedicated single autosave slot (#7)
+  showAutosaveFlash();              // just the corner flash
 }
 
 function showAutosaveFlash() {
@@ -175,8 +255,47 @@ function loadSaveSlot(slotId) {
   const slot = slots.find(s => s.id === slotId);
   if (!slot) { toast('Save not found.', 'error'); return; }
 
-  // Signal story engine to skip opening scene
+  // HARDCORE dead-run gate (#6): ss_run_dead must block only the AUTO-resume of the
+  // dead run (its autosave_slot / session_resume, or any slot flagged dead), NOT an
+  // explicit manual Load of a healthy save of any character.
+  const runDead = localStorage.getItem('ss_run_dead') === '1';
+  const isDeadRunSlot = slot.dead === true
+    || slotId === 'autosave_slot'
+    || slot.type === 'session_resume'
+    || slot.name === '__session_resume__';
+  if (runDead && isDeadRunSlot) {
+    if (typeof toast === 'function') toast('That Chronicle ended in death.', 'error');
+    return;
+  }
+  // Even with no active dead run, a slot explicitly marked dead is a corpse — refuse it.
+  if (slot.dead === true) {
+    if (typeof toast === 'function') toast('That Chronicle ended in death.', 'error');
+    return;
+  }
+
+  // A living save was chosen — the player has left the dead run behind.
+  // Clear the dead flags so the resumed run plays normally (#6).
+  try { localStorage.removeItem('ss_run_dead'); } catch (e) {}
+  gameState.dead = false;
+
+  // Signal story engine to skip opening scene + skip the fresh-game intro path (#6)
   window._loadingSave = true;
+  gameState._restoring = true;
+  // Persistent guard for the DEFERRED additions.js opening (#7). _restoring is cleared
+  // synchronously below, before additions.js's setTimeout(...,500) opening fires; this
+  // flag survives that callback so the hardcoded Vaelthar opening is skipped on load.
+  gameState._loadedThisSession = true;
+
+  // ── Clean the battlefield: remove any live overlays/panels left over (#70) ──
+  document.getElementById('combat-panel')?.remove();
+  document.getElementById('conv-panel')?.remove();
+  document.getElementById('scene-panel')?.remove();
+  document.getElementById('dm-strip')?.remove();
+  if (window.combatState) { window.combatState.active = false; }
+  if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
+  // Clear any pending scene queue so a stale scene doesn't fire over the load
+  if (window.sceneState) { window.sceneState._pendingScene = null; }
+  window._pendingScene = null;
 
   // Restore full character with all progression
   gameState.character = {
@@ -190,28 +309,62 @@ function loadSaveSlot(slotId) {
     unlockedSkills: slot.character.unlockedSkills || [],
     equipped: slot.character.equipped || { weapon: null, armor: null, accessory: null },
     skills: slot.character.skills || {},
+    proficiencies: slot.character.proficiencies || (window.CLASS_PROFICIENCIES?.[slot.character.class] || []),
+    conditions: slot.character.conditions || [],
     spells: slot.character.spells || [],
+    // MP fallbacks so renderPlayerCard never divides by undefined → NaN% bar (#28)
+    maxMp: (slot.character.maxMp != null ? slot.character.maxMp : 0),
+    mp: (slot.character.mp != null ? slot.character.mp : (slot.character.maxMp || 0)),
+    // Combat source-of-truth restored from save; missing on old saves → sane defaults (#2)
+    ac: (slot.character.ac != null ? slot.character.ac : 10),
+    atkBonus: (slot.character.atkBonus != null ? slot.character.atkBonus : 0),
+    _gearBonuses: slot.character._gearBonuses || {},
+    upgradePoints: slot.character.upgradePoints || 0,
   };
 
   // Restore game state
   gameState.chapter = slot.gameState.chapter || 1;
   gameState.activeQuests = slot.gameState.activeQuests || [];
   gameState.completedQuests = slot.gameState.completedQuests || [];
+  gameState.questProgress = slot.gameState.questProgress || {};
+  gameState.world3dPositions = slot.gameState.world3dPositions || {};
   gameState.log = slot.gameState.log || [];
 
   // Restore scene flags — this is what determines story progress
   if (window.sceneState) {
     window.sceneState.flags = slot.sceneFlags || {};
     window.sceneState.history = slot.sceneHistory || [];
+    window.sceneState.knownFacts = slot.knownFacts || {};
+    // Live continuity (#23): NPC moods, last narration, threats, personal-quest context.
+    window.sceneState.npcStates = slot.npcStates || {};
+    window.sceneState._lastNarration = slot.lastNarration || '';
+    window.sceneState.currentThreat = slot.currentThreat || null;
+    // inPersonalQuest defaults false on load (safest — don't trap a resumed run mid-PQ)
+    window.sceneState.inPersonalQuest = false;
+    window.sceneState.personalQuestContext = slot.personalQuestContext || '';
+    window.sceneState.currentScene = slot.currentScene || 'arrival_vaelthar';
   } else {
     // sceneState not yet initialized — will be set when story.js loads
     window._pendingSceneFlags = slot.sceneFlags || {};
     window._pendingSceneHistory = slot.sceneHistory || [];
+    window._pendingKnownFacts = slot.knownFacts || {};
+    window._pendingNpcStates = slot.npcStates || {};
+    window._pendingLastNarration = slot.lastNarration || '';
+    window._pendingCurrentThreat = slot.currentThreat || null;
+    window._pendingPersonalQuestContext = slot.personalQuestContext || '';
+  }
+  // Restore AI story history (last-N exchanges) for narration continuity (#23)
+  if (Array.isArray(slot.storyHistory)) {
+    window.storyHistory = slot.storyHistory.slice();
   }
 
   // Restore map position
   if (window.mapState && slot.mapState?.currentLocation) {
     window.mapState.currentLocation = slot.mapState.currentLocation;
+  }
+  // Restore discovered locations (fog-of-war progress)
+  if (slot.mapDiscovered && window.applyDiscoveredLocations) {
+    window.applyDiscoveredLocations(slot.mapDiscovered);
   }
 
   // Restore world clock
@@ -229,20 +382,44 @@ function loadSaveSlot(slotId) {
     window.romanceState = slot.romanceState;
   }
 
+  // Restore drunk state — senses.js reads window.drunkState.cups (#80)
+  if (slot.drunkState && window.drunkState) {
+    window.drunkState.cups = slot.drunkState.cups || 0;
+  }
+
   window._sessionStart = Date.now();
 
-  // Launch game screen
+  // Launch game screen — _restoring guards setupQuests/intro/popup/opening narration (#6)
   closeSaveLoadScreen();
   initGameScreen();
   showScreen('game');
+
+  // Re-apply the SAVED quest progress AFTER initGameScreen (in case anything reset it)
+  gameState.activeQuests = slot.gameState.activeQuests || [];
+  gameState.completedQuests = slot.gameState.completedQuests || [];
+  gameState.questProgress = slot.gameState.questProgress || {};
+  gameState.world3dPositions = slot.gameState.world3dPositions || {};
+  if (window.renderQuestList) renderQuestList();
+  gameState._restoring = false;
 
   setTimeout(() => {
     // Apply any pending scene state if sceneState wasn't ready before
     if (window._pendingSceneFlags && window.sceneState) {
       window.sceneState.flags = window._pendingSceneFlags;
       window.sceneState.history = window._pendingSceneHistory || [];
+      window.sceneState.knownFacts = window._pendingKnownFacts || {};
+      window.sceneState.npcStates = window._pendingNpcStates || {};
+      window.sceneState._lastNarration = window._pendingLastNarration || '';
+      window.sceneState.currentThreat = window._pendingCurrentThreat || null;
+      window.sceneState.inPersonalQuest = false;
+      window.sceneState.personalQuestContext = window._pendingPersonalQuestContext || '';
       delete window._pendingSceneFlags;
       delete window._pendingSceneHistory;
+      delete window._pendingKnownFacts;
+      delete window._pendingNpcStates;
+      delete window._pendingLastNarration;
+      delete window._pendingCurrentThreat;
+      delete window._pendingPersonalQuestContext;
     }
 
     // Restore map visuals
@@ -254,9 +431,14 @@ function loadSaveSlot(slotId) {
       if (window.AudioEngine) AudioEngine.transition(locData.music || 'city_dread', 1000);
     }
 
-    // Replay saved log to game-log element so players see their history
+    // Replay saved log to game-log element so players see their history.
+    // Guard against MP re-broadcast and double-pushing into gameState.log (#80).
     const gameLog = document.getElementById('game-log');
     if (gameLog && slot.gameState.log?.length) {
+      const _savedLog = (gameState.log || []).slice();   // snapshot to restore after replay
+      const _prevReceiving = window.mp?._receiving;
+      if (window.mp) window.mp._receiving = true;         // suppress re-broadcast of replayed lines
+
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
       addLog(`💾 Chronicle resumed — ${slot.name}`, 'system');
       addLog(`📍 ${slot.location} — Chapter ${slot.chapter} — Lv.${slot.character.level}`, 'system');
@@ -274,6 +456,11 @@ function loadSaveSlot(slotId) {
         });
         addLog('── End of history — story continues ───', 'system');
       }
+
+      // Restore the log array to the saved state — replay was display-only,
+      // don't duplicate every line back into gameState.log.
+      gameState.log = _savedLog;
+      if (window.mp) window.mp._receiving = _prevReceiving;
     }
 
     // Update all UI panels with restored data
@@ -287,6 +474,10 @@ function loadSaveSlot(slotId) {
     // If there's a saved MP session and socket is ready, attempt to rejoin
     _attemptMPRejoin();
 
+    // The additions.js opening (fires ~500ms after initGameScreen) has already run and
+    // skipped itself via this flag — safe to clear now so a later fresh game isn't gated (#7).
+    gameState._loadedThisSession = false;
+
   }, 800);
 
   startAutosave();
@@ -294,9 +485,11 @@ function loadSaveSlot(slotId) {
 }
 
 function deleteSaveSlot(slotId) {
+  if (!confirm('Delete this save? This cannot be undone.')) return;
   const slots = getAllSaves().filter(s => s.id !== slotId);
   writeSaves(slots);
-  renderSaveLoadScreen();
+  // Re-render in the same mode (save vs load) it was opened in
+  renderSaveLoadScreen(window._saveLoadMode || 'load');
   toast('Save deleted.');
 }
 
@@ -367,12 +560,13 @@ function closeSaveLoadScreen() {
 }
 
 function renderSaveLoadScreen(mode = 'load') {
+  window._saveLoadMode = mode;
   document.getElementById('save-load-screen')?.remove();
 
   const overlay = document.createElement('div');
   overlay.id = 'save-load-screen';
   overlay.style.cssText = `
-    position:fixed; inset:0; z-index:5000;
+    position:fixed; inset:0; z-index:2000;
     background:rgba(4,2,1,0.96); backdrop-filter:blur(4px);
     display:flex; align-items:center; justify-content:center;
     padding:20px; animation:sceneFadeIn 0.2s ease;
@@ -380,6 +574,7 @@ function renderSaveLoadScreen(mode = 'load') {
 
   const slots = getAllSaves();
   const inGame = gameState.activeScreen === 'game' && gameState.character;
+  const esc = window.escapeHtml || (s => s); // escape user-controlled text (#60)
 
   const slotsHTML = slots.length === 0
     ? `<div style="text-align:center;padding:40px;color:var(--text-dim);font-family:'IM Fell English',serif;font-size:0.9rem;">
@@ -408,18 +603,18 @@ function renderSaveLoadScreen(mode = 'load') {
         " onmouseover="this.style.borderLeftColor='var(--gold)'" onmouseout="this.style.borderLeftColor='rgba(201,168,76,0.4)'">
           <div style="flex-shrink:0;width:48px;height:60px;border:1px solid rgba(201,168,76,0.2);border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center">
             ${s.character.portrait
-              ? `<img src="${s.character.portrait}" alt="${s.character.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top">`
+              ? `<img src="${encodeURI(s.character.portrait)}" alt="${esc(s.character.name)}" style="width:100%;height:100%;object-fit:cover;object-position:center top">`
               : `<span style="font-size:1.8rem">${s.character.race === 'elf' ? '🧝' : s.character.race === 'dwarf' ? '⛏' : s.character.race === 'orc' ? '🗡' : s.character.race === 'undead' ? '💀' : s.character.race === 'demon' ? '😈' : '⚔'}</span>`
             }
           </div>
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-              <span style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--gold)">${s.character.name}</span>
+              <span style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--gold)">${esc(s.character.name)}</span>
               <span style="font-size:0.6rem;color:var(--text-dim);background:rgba(201,168,76,0.08);padding:2px 6px;border:1px solid rgba(201,168,76,0.15)">${typeIcon} ${typeLabel}</span>
-              ${s.sessionCode ? `<span style="font-size:0.6rem;color:var(--text-dim)">${s.sessionCode}</span>` : ''}
+              ${s.sessionCode ? `<span style="font-size:0.6rem;color:var(--text-dim)">${esc(String(s.sessionCode))}</span>` : ''}
             </div>
             <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px">
-              ${race?.name || ''} ${cls?.name || ''} · Lv ${s.character.level} · Chapter ${s.chapter} · ${s.location}
+              ${race?.name || ''} ${cls?.name || ''} · Lv ${s.character.level} · Chapter ${s.chapter} · ${esc(String(s.location || ''))}
             </div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
               <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;max-width:100px">
@@ -451,7 +646,7 @@ function renderSaveLoadScreen(mode = 'load') {
               background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);
               color:rgba(192,57,43,0.7);font-family:'Cinzel',serif;font-size:0.6rem;
               padding:4px 10px;cursor:pointer;
-            " onclick="if(!confirm('Delete this save?'))event.stopPropagation()">✕ DELETE</button>
+            ">✕ DELETE</button>
           </div>
         </div>`;
       }).join('');
@@ -461,7 +656,7 @@ function renderSaveLoadScreen(mode = 'load') {
       <div style="font-family:'Cinzel',serif;font-size:0.72rem;color:var(--gold);margin-bottom:8px">CREATE NEW SAVE</div>
       <div style="display:flex;gap:8px">
         <input id="new-save-name" type="text" placeholder="Name this run... (optional)"
-          value="${gameState.character?.name} — Chapter ${gameState.chapter || 1}"
+          value="${esc(String(gameState.character?.name || ''))} — Chapter ${gameState.chapter || 1}"
           style="flex:1;background:rgba(10,5,2,0.9);border:1px solid rgba(201,168,76,0.3);
           color:var(--text-primary);font-family:'Crimson Text',serif;font-size:0.85rem;padding:6px 10px">
         <button onclick="saveNewSlot()" style="
@@ -548,7 +743,7 @@ window.showScreen = function(name) {
 const _origExecForSave = window.executeSceneOption;
 window.executeSceneOption = function(index) {
   if (_origExecForSave) _origExecForSave(index);
-  setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 500);
+  setTimeout(() => { if (gameState.character) saveGame(null, 'autosave', true); }, 500);
 };
 
 // Trigger save after combat victory (endCombat is in combat.js — hook via window)
@@ -556,16 +751,18 @@ const _origEndCombatForSave = window.endCombat;
 if (_origEndCombatForSave) {
   window.endCombat = function(victory) {
     _origEndCombatForSave(victory);
-    if (victory) setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 3000);
+    if (victory) setTimeout(() => { if (gameState.character) saveGame(null, 'autosave', true); }, 3000);
   };
 }
 
 // Trigger save after NPC conversation closes
 const _origCloseConvForSave = window.closeConvPanel;
 if (_origCloseConvForSave) {
-  window.closeConvPanel = function() {
-    _origCloseConvForSave();
-    setTimeout(() => { if (gameState.character) saveGame(null, null, true); }, 300);
+  window.closeConvPanel = function(...args) {
+    // Forward the `graceful` (and any other) arg so callers like closeConvPanel(false)
+    // don't accidentally fire pending scenes mid-combat (#80)
+    _origCloseConvForSave(...args);
+    setTimeout(() => { if (gameState.character) saveGame(null, 'autosave', true); }, 300);
   };
 }
 

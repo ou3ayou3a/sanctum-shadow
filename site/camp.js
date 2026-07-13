@@ -79,7 +79,7 @@ const SLEEP_EVENTS = [
   {
     id: 'thief_in_night',
     weight: 10,
-    condition: (loc) => ['tavern','urban','city'].includes(loc?.type) || loc?.restType === 'urban',
+    condition: (loc, config) => ['tavern','urban','city'].includes(loc?.type) || config?.restType === 'urban',
     title: 'A Thief in the Night',
     text: 'You wake and something is wrong. Your pack has been moved. A careful count reveals gold is missing — someone knew what they were doing.',
     effect: (char) => {
@@ -128,7 +128,7 @@ const SLEEP_EVENTS = [
   {
     id: 'good_dreams',
     weight: 18,
-    condition: (loc) => (char) => (char?.holyPoints || 0) >= 5,
+    condition: (loc) => (gameState.character?.holyPoints || 0) >= 5,
     title: 'Restful Sleep',
     text: 'You dream of nothing in particular. Light. Warmth. Something like peace. You wake feeling genuinely rested — a rare thing in this city.',
     effect: (char) => {
@@ -139,7 +139,7 @@ const SLEEP_EVENTS = [
   {
     id: 'ambush_at_camp',
     weight: 10,
-    condition: (loc) => ['dangerous','exposed'].includes(loc?.restType) && (loc?.danger || 0) >= 3,
+    condition: (loc, config) => ['dangerous','exposed'].includes(config?.restType) && (loc?.danger || 0) >= 3,
     title: 'Attacked in Your Sleep',
     text: 'You wake to cold steel near your throat and figures moving in the dark. You weren\'t careful enough about who saw you make camp.',
     effect: (char) => {
@@ -192,6 +192,12 @@ const SLEEP_EVENTS = [
 
 // ─── OPEN CAMP PANEL ─────────────────────────────────────
 function openCampPanel() {
+  // #16: no camping during combat
+  if (window.combatState?.active) {
+    if (window.toast) toast('⚔ Not during combat!', 'error');
+    else if (window.addLog) addLog('⚔ Not during combat!', 'system');
+    return;
+  }
   const locId  = window.mapState?.currentLocation || 'vaelthar_city';
   const loc    = window.WORLD_LOCATIONS?.[locId] || {};
   const config = CAMP_CONFIGS[loc.type] || CAMP_CONFIGS.road;
@@ -213,6 +219,14 @@ function openCampPanel() {
   const mpLong  = char.maxMp - char.mp;
   const isFullHp = char.hp >= char.maxHp;
   const isFullMp = char.mp >= char.maxMp;
+
+  // #32: compute the ACTUAL long-rest HP recovery the same way doLongRest does — base
+  // recovery PLUS the +15 ration bonus when a ration is carried and it would help —
+  // so the displayed number matches what the player really gets.
+  const baseLongHp   = Math.floor(hpLong * recovery.longHp);
+  const carriesRation = (char.inventory || []).some(i => i.toLowerCase().includes('ration'));
+  const longRationBonus = (carriesRation && Math.min(hpLong, baseLongHp + 15) > Math.min(hpLong, baseLongHp)) ? 15 : 0;
+  const hpLongActual = Math.min(hpLong, baseLongHp + longRationBonus);
 
   const bedCost = config.bedCost;
   const canAffordBed = (char.gold || 0) >= bedCost;
@@ -277,7 +291,7 @@ function openCampPanel() {
             </div>
           </div>
           <div class="camp-opt-gains">
-            ${hpLong > 0 ? `<span class="camp-gain hp">+${hpLong > 0 ? Math.floor(hpLong * recovery.longHp) : 0} HP</span>` : '<span class="camp-gain full">HP full</span>'}
+            ${hpLong > 0 ? `<span class="camp-gain hp">+${hpLongActual} HP${longRationBonus ? ' <span class="camp-ration-tag">(incl. 🥩 +15)</span>' : ''}</span>` : '<span class="camp-gain full">HP full</span>'}
             ${mpLong > 0 ? `<span class="camp-gain mp">+${mpLong > 0 ? Math.floor(mpLong * recovery.longMp) : 0} MP</span>` : '<span class="camp-gain full">MP full</span>'}
           </div>
           <div class="camp-opt-cost">
@@ -336,9 +350,12 @@ function doShortRest() {
   const hpGain = Math.floor((char.maxHp - char.hp) * recovery.shortHp);
   const mpGain = Math.floor((char.maxMp - char.mp) * recovery.shortMp);
 
-  // Bonus if carrying rations
+  // #32: only eat a ration if it will actually restore HP. At (or effectively at) full
+  // HP the ration bonus heals 0, so don't waste the food.
+  const missingHp = char.maxHp - char.hp;
   const rationIdx = (char.inventory || []).findIndex(i => i.toLowerCase().includes('ration'));
-  const hasRation = rationIdx !== -1;
+  const wouldHeal = Math.min(missingHp, hpGain + 10) - Math.min(missingHp, hpGain); // marginal HP from the ration
+  const hasRation = rationIdx !== -1 && wouldHeal > 0;
   const rationBonus = hasRation ? 10 : 0;
   if (hasRation) char.inventory.splice(rationIdx, 1);
 
@@ -387,14 +404,19 @@ function doLongRest() {
     addLog(`🪙 Paid ${config.bedCost} gold for lodging.`, 'system');
   }
 
-  // Ration bonus
+  // #32: only eat a ration if it will actually restore HP. The ration's +15 only counts
+  // if the base recovery doesn't already top the player off, so a full-HP rest (or one
+  // already capped by maxHp) won't waste the food.
+  const missingHp = char.maxHp - char.hp;
+  const baseLongHp = Math.floor(missingHp * recovery.longHp);
   const rationIdx = (char.inventory || []).findIndex(i => i.toLowerCase().includes('ration'));
-  const hasRation = rationIdx !== -1;
+  const wouldHeal = Math.min(missingHp, baseLongHp + 15) - Math.min(missingHp, baseLongHp); // marginal HP from the ration
+  const hasRation = rationIdx !== -1 && wouldHeal > 0;
   const rationBonus = hasRation ? 15 : 0;
   if (hasRation) char.inventory.splice(rationIdx, 1);
 
   // Calculate recovery
-  const hpGain = Math.min(char.maxHp - char.hp, Math.floor((char.maxHp - char.hp) * recovery.longHp) + rationBonus);
+  const hpGain = Math.min(missingHp, baseLongHp + rationBonus);
   const mpGain = Math.min(char.maxMp - char.mp, Math.floor((char.maxMp - char.mp) * recovery.longMp));
 
   char.hp = Math.min(char.maxHp, char.hp + hpGain);
@@ -491,6 +513,8 @@ function injectClockHUD() {
 function _injectCampButton() {
   const qa = document.querySelector('.quick-actions');
   if (!qa || document.getElementById('camp-qa-btn')) return;
+  // #81: also bail if a Camp button (labeled ⛺) already exists in the bar.
+  if ([...qa.querySelectorAll('.qa-btn')].some(b => b.textContent.includes('⛺'))) return;
   const btn = document.createElement('button');
   btn.id = 'camp-qa-btn';
   btn.className = 'qa-btn';
@@ -599,6 +623,7 @@ function _injectCampButton() {
     margin-top:4px;
   }
   .camp-rations-note { font-size:0.67rem; color:rgba(255,255,255,0.3); font-style:italic; }
+  .camp-ration-tag { font-size:0.6rem; color:rgba(220,160,80,0.85); font-style:normal; }
   `;
   document.head.appendChild(s);
 })();

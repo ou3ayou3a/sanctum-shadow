@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sanctum & Shadow — Seven Races</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="world3d/race-roster.css">
+  <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+  <canvas id="roster-canvas" aria-label="Animated three-dimensional race roster"></canvas>
+  <header><span>CHARACTER PRODUCTION · MILESTONE 2</span><h1>THE SEVEN RACES</h1><p>Fixed male roster · shared animation skeleton · customization deferred</p></header>
+  <nav id="race-controls" aria-label="Inspect a race"></nav>
+  <aside id="race-details" aria-live="polite"><span>SELECTED RACE</span><strong>ALL RACES</strong><p>Drag to orbit · Scroll to zoom · Select a race to focus</p></aside>
+  <div id="roster-loading"><i></i><strong>ASSEMBLING THE ROSTER</strong><span>Loading seven animated characters…</span></div>
+  <div id="roster-error" hidden></div>
+  <script type="module" src="world3d/race-roster-preview.js"></script>
+</body>
+</html>

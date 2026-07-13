@@ -209,7 +209,7 @@ function screenFlash(color = '#c0392b', duration = 300) {
     flash = document.createElement('div');
     flash.id = 'screen-flash';
     flash.style.cssText = `
-      position:fixed; inset:0; z-index:9999; pointer-events:none;
+      position:fixed; inset:0; z-index:2700; pointer-events:none;
       opacity:0; transition:opacity 0.1s;
     `;
     document.body.appendChild(flash);
@@ -238,17 +238,17 @@ window.castSelectedSpell = function() {
 const _origAttackForVFX = window.combatAttack;
 window.combatAttack = function() {
   if (_origAttackForVFX) _origAttackForVFX();
-  // Listen for combat log to detect hit/miss/crit — simple timing
+  // Listen for combat log to detect hit/miss/crit — case-insensitive so it also
+  // matches the server's combat strings ("attacks … — N damage!", "misses") (#81)
   setTimeout(() => {
     const lastLog = document.querySelector('#game-log .log-entry:last-child');
     if (!lastLog) return;
-    const txt = lastLog.textContent;
-    if (txt.includes('CRITICAL')) { playVFX('crit'); screenFlash('#ff0000', 500); }
-    else if (txt.includes('HIT')) { playVFX('hit'); }
-    else if (txt.includes('MISS')) { playVFX('miss'); }
+    const txt = (lastLog.textContent || '').toLowerCase();
+    if (txt.includes('critical')) { playVFX('crit'); screenFlash('#ff0000', 500); }
+    else if (txt.includes('miss')) { playVFX('miss'); }            // "misses", "MISS"
+    else if (/\bhit\b/.test(txt) || /\d+\s*damage/.test(txt) || txt.includes('attacks')) { playVFX('hit'); }
   }, 150);
 };
-window.combatAttack = window.combatAttack;
 
 window.playVFX = playVFX;
 

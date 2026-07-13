@@ -26,6 +26,14 @@ const DRUNK_THRESHOLDS = [
   { cups: 6, severity: 3, label: 'Wasted', chaBonus: 2,  dexPen: 6,  perPen: 4 },
 ];
 
+// Proper English ordinal — 'first', 'second', 'third', then '4th', '5th', '21st'...
+function ordinal(n) {
+  const words = ['zeroth','first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth'];
+  if (n >= 0 && n < words.length) return words[n];
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 const DRUNK_VISUALS = {
   0: { filter: 'none',                               msg: '' },
   1: { filter: 'blur(0.3px) brightness(1.05)',       msg: '🍺 You feel warm. The world has a pleasant glow to it.' },
@@ -56,7 +64,7 @@ function drinkAle(quantity = 1, drinkName = 'ale') {
   applyDrunkVisual(level.severity);
 
   // Log message
-  const cupWord = cups === 1 ? 'first cup' : cups === 2 ? 'second cup' : `${cups}th cup`;
+  const cupWord = `${ordinal(cups)} cup`;
   addLog(`🍺 You drink your ${cupWord} of ${drinkName}.`, 'system');
 
   if (level.severity > prevSeverity) {
@@ -215,70 +223,15 @@ async function rollPerception(locationOverride) {
   if (!char) return;
 
   const locId = locationOverride || window.mapState?.currentLocation || 'vaelthar_city';
-  const loc = WORLD_LOCATIONS[locId];
   const lightLevel = LIGHT_LEVELS[locId] || 'dim';
   const dc = LIGHT_DC[lightLevel];
   const lightLabel = LIGHT_LABEL[lightLevel];
-
-  // Stat: WIS (Perception), modified by drunk state
-  const baseWis = getEffectiveStat('wis');
-  const wisMod = Math.floor((baseWis - 10) / 2);
-  // Drunk penalty on perception
-  const drunkPenalty = window.drunkState.tempPerPenalty || 0;
-
-  const roll = Math.floor(Math.random() * 20) + 1;
-  const total = roll + wisMod - drunkPenalty;
-  const success = total >= dc || roll === 20;
-  const crit = roll === 20;
-  const fumble = roll === 1;
-
   addLog(`👁 PERCEPTION CHECK — ${lightLabel} (DC ${dc})`, 'system');
-  addLog(`🎲 WIS: [${roll}] + ${wisMod >= 0 ? '+' : ''}${wisMod}${drunkPenalty > 0 ? ` - ${drunkPenalty} (drunk)` : ''} = ${total} vs DC ${dc} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Noticed!' : '❌ Nothing.'}`, 'dice');
-
-  if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-  // Ask Claude what the character finds (or misses)
-  try {
-    const prompt = `You are DMing "Sanctum & Shadow". 
-Location: ${loc?.name || locId} — ${loc?.description?.substring(0, 200) || ''}
-Light: ${lightLabel}. DC was ${dc}.
-Perception roll: ${total} (${success ? 'SUCCESS' : 'FAILURE'}${crit ? ', critical' : fumble ? ', fumble' : ''}).
-Active quests: ${(gameState.activeQuests || []).map(q => q.title).join(', ') || 'none'}
-Recent story flags: ${JSON.stringify(window.storyFlags || {}).substring(0, 150)}
-
-${success
-  ? `The character NOTICES something. Describe 1-3 specific, atmospheric details they perceive — a hidden clue, an out-of-place object, a shadow that moved, a smell, a sound, a secret door, graffiti, a dropped item. Make it relevant to the current situation or add mystery. Be specific and evocative. 2-3 sentences.`
-  : fumble
-  ? `The character fumbles their perception check. Describe what they THINK they saw that turns out to be nothing — a trick of the light, a shadow that was a coat, a noise that was a rat. 1-2 sentences, mildly comic.`
-  : `The character fails perception. Describe what they fail to notice — hint that something IS there but they missed it. 1-2 atmospheric sentences.`
-}`;
-
-    const res = await fetch('/api/npc', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
+  if (typeof window.resolveActionRequest === 'function') {
+    return window.resolveActionRequest(`Search ${locId} carefully for hidden details`, {
+      skill:'perception', ability:'wis', dc,
+      disadvantage: !!window.drunkState?.isDrunk,
     });
-    const data = await res.json();
-    const narration = data.content?.map(b => b.text || '').join('').trim();
-    if (narration) {
-      addLog(`👁 ${narration}`, 'narrator');
-      if (typeof showDMStrip === 'function') showDMStrip(narration, true);
-
-      // Reward critical perception
-      if (crit) grantHolyPoints(1);
-    }
-  } catch(e) {
-    // Fallback narration
-    const fallbacks = {
-      success: {
-        dim: `Your eyes adjust. A faint scratch mark on the wall — too deliberate to be accidental. Someone left this.`,
-        dark: `Something glints in the darkness. A coin, a button, or — no. A tooth. Human. Recent.`,
-        pitch_dark: `You hear breathing that isn't yours. It stops when you stop moving. It started again.`,
-        bright: `In the daylight you notice footprints in the dust leading toward the east wall, stopping at nothing visible.`,
-      },
-      fail: `The shadows offer nothing. Whatever is here, if anything, stays hidden.`,
-    };
-    const msg = success ? (fallbacks.success[lightLevel] || fallbacks.success.dim) : fallbacks.fail;
-    addLog(`👁 ${msg}`, 'narrator');
   }
 }
 
@@ -435,23 +388,51 @@ window.initGameScreen = function() {
 };
 
 // ─── DRUNK MODIFIER ON COMBAT ROLLS ───────────
-// Patch combatAttack to apply drunk DEX penalty to AC
+// Apply the drunk AC penalty ONCE per drunk state, not per attack click.
+// We track how much we've currently subtracted (combatState._drunkAcApplied)
+// and only adjust by the delta when the drunk state changes.
+function syncDrunkAcPenalty() {
+  const cs = window.combatState;
+  if (!cs) return;
+  const player = cs.combatants?.['player'];
+  if (!player) return;
+  const desired = window.drunkState.isDrunk ? (window.drunkState.tempDexPenalty || 0) : 0;
+  const applied = cs._drunkAcApplied || 0;
+  if (desired === applied) return;
+  // Restore previously applied penalty, then apply the new one
+  player.ac = (player.ac || 0) + applied - desired;
+  cs._drunkAcApplied = desired;
+  if (desired > applied && window.drunkState.severity >= 2) {
+    addLog(`🌀 Drunk penalty: -${desired} AC — the drink affects your coordination.`, 'system');
+  }
+}
+window.syncDrunkAcPenalty = syncDrunkAcPenalty;
+
 const _origCombatAttack_senses = window.combatAttack;
 window.combatAttack = function() {
-  if (window.drunkState.isDrunk) {
-    const penalty = window.drunkState.tempDexPenalty;
-    const player = combatState.combatants?.['player'];
-    if (player) {
-      player.ac = Math.max(8, player.ac - penalty);
-      // Also messier attacks — lower bonus
-      player.atk = (player.atk || 0);
-    }
-    if (window.drunkState.severity >= 2) {
-      addLog(`🌀 Drunk penalty: -${penalty} DEX affects your coordination.`, 'system');
-    }
-  }
+  syncDrunkAcPenalty();
   if (_origCombatAttack_senses) _origCombatAttack_senses();
 };
+
+// Restore the AC penalty when combat ends so it never lingers between fights.
+function _wrapEndCombatForDrunk() {
+  if (!window.endCombat || window.endCombat._drunkWrapped) {
+    if (!window.endCombat) { setTimeout(_wrapEndCombatForDrunk, 400); }
+    return;
+  }
+  const _origEndCombat_senses = window.endCombat;
+  window.endCombat = function(...args) {
+    const cs = window.combatState;
+    if (cs && cs._drunkAcApplied) {
+      const player = cs.combatants?.['player'];
+      if (player) player.ac = (player.ac || 0) + cs._drunkAcApplied;
+      cs._drunkAcApplied = 0;
+    }
+    return _origEndCombat_senses(...args);
+  };
+  window.endCombat._drunkWrapped = true;
+}
+_wrapEndCombatForDrunk();
 
 // ─── CSS ──────────────────────────────────────
 const sensesCSS = `

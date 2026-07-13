@@ -42,6 +42,7 @@ function isJesusInvocation(text) {
 
 // ─── API CALL VIA SERVER ─────────────────────
 async function callClaude(system, messages, maxTokens = 600) {
+  if (window._npcOffline) return null;
   try {
     const res = await fetch('/api/npc', {
       method: 'POST',
@@ -52,9 +53,42 @@ async function callClaude(system, messages, maxTokens = 600) {
     if (data.error) throw new Error(data.error);
     return data.content?.map(b => b.text || '').join('').trim();
   } catch (e) {
-    console.error('NPC API error:', e);
+    // Missing credentials are an expected offline mode, not a gameplay error.
+    // Cache it for this page so every line of dialogue does not retry a known-dead
+    // endpoint; deterministic local dialogue below remains fully playable.
+    if (/api key not configured/i.test(e?.message || '')) window._npcOffline = true;
+    else console.warn('NPC service unavailable; using local dialogue.', e?.message || e);
     return null;
   }
+}
+
+function buildOfflineNPCReply(npc, playerText) {
+  const lower = String(playerText || '').toLowerCase();
+  const replies = {
+    captain_rhael: lower.includes('scribe')
+      ? `"The Scribe is frightened because he saw the order before the hall burned," Rhael says. "Watch the Archive doors. Church agents are watching them too."`
+      : `Rhael studies you before answering. "The signing hall burned from the inside. The Crown did not start it. Find the Trembling Scribe near the Archive if you want proof."`,
+    trembling_scribe: `The Scribe grips the document roll tighter. "Elder Varek's seal is on the order. Sister Mourne carried it out. If they see me talking to you, they will kill me."`,
+    sister_mourne: `Mourne does not deny the accusation. "The Covenant would have made the Church a department of the Crown. Varek chose fire instead. Wrongly, perhaps—but not without reason."`,
+    elder_varek: `Varek folds his hands. "I broke the Covenant because its hidden treasury clause would have ended the Church. I will answer for the deaths, but you will hear the whole truth first."`,
+  };
+  const speech = replies[npc.id] || `${npc.name} considers your words. "I cannot give you everything, but this much is true: the Covenant's breaking was planned, and someone nearby is profiting from the confusion."`;
+  window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+  window.sceneState.flags = window.sceneState.flags || {};
+  window.sceneState.knownFacts = window.sceneState.knownFacts || {};
+  window.sceneState.flags[`talked_to_${npc.id}`] = true;
+  window.sceneState.knownFacts[`offline_${npc.id}`] = speech.replace(/^.*?"/, '').replace(/"$/, '');
+  if (npc.id === 'captain_rhael' || npc.id === 'trembling_scribe') {
+    window.advanceQuest?.('c1q1', `Questioned ${npc.name} about the broken Covenant.`);
+  }
+  return {
+    speech,
+    options: [
+      { text:'Ask what evidence they can provide', roll:null },
+      { text:'Ask who benefits from the Covenant breaking', roll:null },
+      { text:'End conversation', roll:null },
+    ],
+  };
 }
 
 // ─── NPC REGISTRY ────────────────────────────
@@ -208,6 +242,32 @@ You know the Church creditors have people who handle defaulted debts "physically
 You are not important to the main plot but you know things — you've been in this tavern for two days and you've overheard things you probably shouldn't have about the Church's plans.
 You will share information if you think it helps your situation. You will not take risks for strangers.
 SPEECH STYLE: Sweating. Fidgeting with his cup. Answers questions with too much detail or too little, depending on how frightened he is.`,
+  },
+
+  cloaked_figure_1: {
+    id: 'cloaked_figure_1', gender: 'male',
+    name: 'Cloaked Figure',
+    title: 'The Tarnished Cup — hushed argument',
+    portrait: '🕴',
+    faction: 'citizens',
+    personality: `You are one of two hooded figures arguing in whispers in the dark corner of The Tarnished Cup about "the Candle" and the burning of the Covenant three nights ago. You are, in truth, a Church informant — you report to Sister Mourne, the Inquisitor they call the Candle, and you are here to silence the other figure before they talk.
+You are evasive and will deflect any direct question with a question of your own or a flat denial that you were speaking at all. You insist you are "just two travelers sharing a drink."
+If pressed hard, you grow cold rather than frightened, and you imply the player would be wiser to forget this corner exists.
+You will never openly admit your loyalty to the Church or that the Candle ordered the Covenant burned — but a sharp player may catch you protecting that name a little too quickly.
+SPEECH STYLE: Low, clipped, controlled. Long pauses. You glance toward the door before answering anything that matters.`,
+  },
+
+  cloaked_figure_2: {
+    id: 'cloaked_figure_2', gender: 'female',
+    name: 'Cloaked Figure',
+    title: 'The Tarnished Cup — "…the Candle did it."',
+    portrait: '🕯',
+    faction: 'citizens',
+    personality: `You are one of two hooded figures arguing in whispers in the dark corner of The Tarnished Cup. You are a frightened witness — you saw something the night the Covenant burned, and you believe the Inquisitor they call "the Candle" was behind it.
+You are terrified, evasive, and certain the other hooded figure beside you is not the friend they pretend to be. You half-suspect they were sent to keep you quiet.
+You will deflect at first, change the subject, and deny you said anything about the Candle — but your fear keeps leaking through, and a kind or persistent player may coax a fragment of the truth from you before you bolt.
+You speak the name "the Candle" only in the smallest whisper, as though saying it louder would summon her.
+SPEECH STYLE: Hushed, trembling, sentences that break off. You keep your hood low and your hands around your cup. You flinch at the tavern door.`,
   },
 
   screaming_preacher: {
@@ -674,16 +734,6 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   renderConvPanel(npc);
   await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
 
-  // After panel renders, redirect ACT box focus to conv-input
-  setTimeout(() => {
-    const actionInput = document.getElementById('action-input');
-    const convInput = document.getElementById('conv-input');
-    if (actionInput && convInput) {
-      actionInput.addEventListener('focus', _redirectFocusToConv, { once: false });
-      actionInput.placeholder = '↑ Talking to ' + (npc?.name || 'NPC') + ' — type here, same as the panel above';
-      convInput.focus();
-    }
-  }, 400);
 }
 
 function _redirectFocusToConv(e) {
@@ -725,6 +775,7 @@ async function sendNPCMessage(playerText, isOpener = false) {
   // Define text/lower for use in checks below (playerText is the raw input)
   const text = playerText || '';
   const lower = text.toLowerCase();
+  if (!isOpener) window.dispatchEvent(new CustomEvent('npc:camera', { detail:{ shot:'player' } }));
 
   // ── Build rich world state for NPC awareness ──
   const flags = window.sceneState?.flags || {};
@@ -749,6 +800,9 @@ async function sendNPCMessage(playerText, isOpener = false) {
     let displayText = playerText;
     // Remove INVOCATION NOTE suffix
     displayText = displayText.replace(/\n*INVOCATION NOTE:[\s\S]*/i, '').trim();
+    // Strip roll-result metadata framing — kept for the AI, hidden from the player
+    displayText = displayText.replace(/\s*\[Roll result:[^\]]*\]/gi, '').trim();
+    displayText = displayText.replace(/\s*\[(?:SUCCESS|FAILURE|SUCCEEDED|FAILED)\b[^\]]*\]/gi, '').trim();
     // Strip [PlayerName ...] wrapper
     displayText = displayText.replace(/^\[([^\]]+)\]/, (_, inner) => {
       const withoutName = inner.replace(new RegExp('^' + (char?.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').trim();
@@ -762,7 +816,7 @@ async function sendNPCMessage(playerText, isOpener = false) {
     if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
       window.mpBroadcastStoryEvent('conv_player_action', {
         playerName: char?.name || 'Unknown',
-        text: playerText,
+        text: displayText,
         character: { portrait: char?.portrait || null, class: char?.class, race: char?.race },
       });
     }
@@ -772,9 +826,8 @@ async function sendNPCMessage(playerText, isOpener = false) {
   window.npcConvState.turnCount = (window.npcConvState.turnCount || 0) + 1;
   if (window.npcConvState.turnCount > 20) {
     addLog(`*${npc.name} has given you everything they can. The conversation has reached its natural end.*`, 'narrator');
-    // Clear any pending scene — don't auto-fire it on forced close. Let player navigate naturally.
-    window._pendingScene = null;
-    closeConvPanel();
+    // Force-close gracefully so any queued scene fires (mirrors the graceful path).
+    closeConvPanel(true);
     return;
   }
 
@@ -840,6 +893,8 @@ ${window.getReputationPromptBlock ? window.getReputationPromptBlock(npc) : ''}
 
 ${window.getNPCScheduleContext ? window.getNPCScheduleContext(npc.id) : ''}
 
+${window.getNPCRomanceContext ? window.getNPCRomanceContext(npc) : ''}
+
 CRITICAL RULES:
 0. IDENTITY — You are ${npc.name}. The player is ${char?.name}. NEVER swap these. Messages in brackets like [${char?.name} does X] describe the player's action — you react to them AS ${npc.name}. Never write dialogue or actions for ${char?.name} — only for yourself.
 1. Stay in character. You ARE ${npc.name}.
@@ -870,15 +925,33 @@ CRITICAL RULES:
     ? [{ role: 'user', content: userMsg }]
     : [...history, { role: 'user', content: userMsg }];
 
-  const response = await callClaude(systemPrompt, messages, 500);
+  let response = await callClaude(systemPrompt, messages, 500);
+
+  // ── Optional response post-processor (e.g. romance affection tags) ──
+  // Lets a layered system (romance.js) consume/strip its own inline tags and
+  // apply side-effects, while the base lifecycle below still runs in full —
+  // display-sanitize, history, world writeback, talked_to/reputation flags,
+  // and autosave. Must return the (cleaned) response string.
+  if (response && typeof window._postProcessNPCResponse === 'function') {
+    try {
+      const processed = window._postProcessNPCResponse(npc, response);
+      if (typeof processed === 'string') response = processed;
+    } catch (e) { console.warn('romance post-process failed', e); }
+  }
 
   hideTypingIndicator();
 
   if (!response) {
-    displayNPCLine(npc,
-      `*${npc.name} regards you with guarded eyes but says nothing for a long moment.*`,
-      [{ text: 'Wait for them to speak', roll: null }, { text: 'End conversation', roll: null }]
-    );
+    const fallback = buildOfflineNPCReply(npc, userMsg);
+    displayNPCLine(npc, fallback.speech, fallback.options);
+    addLog(`${npc.name}: "${fallback.speech.replace(/^[^\"]*\"?/, '').substring(0, 100)}..."`, 'narrator');
+    if (window.mpBroadcastStoryEvent && window.mp?.sessionCode) {
+      window.mpBroadcastStoryEvent('conv_response', {
+        npcName:npc.name, text:fallback.speech, options:fallback.options,
+        startedAt:Date.now(), typewriterSpeed:14,
+      });
+    }
+    window.mpNotifyNPCOutcome?.(npc, fallback.speech);
     return;
   }
 
@@ -891,20 +964,12 @@ CRITICAL RULES:
   if (inlineRollMatch) {
     const stat = inlineRollMatch[1].toLowerCase();
     const dc = parseInt(inlineRollMatch[2]);
-    const statVal = gameState.character?.stats?.[stat] || 10;
-    const mod = Math.floor((statVal - 10) / 2);
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const total = roll + mod;
-    const success = total >= dc || roll === 20;
-    const crit = roll === 20;
-    const fumble = roll === 1;
+    const check = await resolveDialogueCheck(cleanResponse,{ability:stat,dc});
+    const { roll, total, success, crit, fumble } = check;
     // Strip the tag from display
     cleanResponse = cleanResponse.replace(/\[ROLL:\w+:\d+\]/gi, '').trim();
-    // Log the roll result
-    addLog(`🎲 ${inlineRollMatch[1].toUpperCase()} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice?.();
     // Append result context so the next response knows outcome
-    const resultContext = ` [The roll ${success ? 'SUCCEEDED' : 'FAILED'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
+    const resultContext = ` [The ${dialogueCheckLabel(check)} roll ${success ? 'SUCCEEDED' : 'FAILED'} — ${total} vs DC${dc}; ${check.proficient?'proficient':'not proficient'}; ${check.mode}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
     history.push({ role: 'user', content: userMsg });
     history.push({ role: 'assistant', content: cleanResponse + resultContext });
   } else {
@@ -916,6 +981,7 @@ CRITICAL RULES:
 
   // ── Write conversation outcomes back to world state ──
   _updateWorldFromConversation(npc, speech, cleanResponse);
+  window.mpNotifyNPCOutcome?.(npc, speech);
 
   // Broadcast immediately with timestamp — receivers sync typewriter to same position
   const broadcastTime = Date.now();
@@ -932,9 +998,9 @@ CRITICAL RULES:
   displayNPCLine(npc, speech, options);
 
   // Log a short attribution line only — full text is in the conv panel above
-  const firstSentence = cleanSpeech.split(/[.!?]/)[0].trim();
-  addLog(`${npc.name}: "${firstSentence}${firstSentence.length < cleanSpeech.length ? '...' : ''}"`, 'narrator');
-  if (window.showDMStrip) showDMStrip(`${npc.name}: "${cleanSpeech.substring(0, 100)}..."`, false);
+  const firstSentence = speech.split(/[.!?]/)[0].trim();
+  addLog(`${npc.name}: "${firstSentence}${firstSentence.length < speech.length ? '...' : ''}"`, 'narrator');
+  if (window.showDMStrip) showDMStrip(`${npc.name}: "${speech.substring(0, 100)}..."`, false);
 
   // If scene break detected, close popup and launch scene after player reads response
   if (sceneBreakMatch) {
@@ -948,18 +1014,105 @@ CRITICAL RULES:
   }
 }
 
+// ─── LEAVE-INTENT DETECTION ───────────────────
+// Conservative, whole-phrase/anchored matching so incidental mentions of a
+// leave word inside a longer option label or sentence (e.g. "Ask why they
+// won't leave the city") do NOT end the conversation. Treat it as the
+// player's OWN intent to leave only when the text is the explicit end label,
+// STARTS with a leave verb, or is a short standalone leave phrase.
+// Shared by pickNPCOption and both submitConvInput-path leave-nets so they
+// behave consistently. Expects already-lowercased, trimmed text.
+function _isLeaveIntent(lower) {
+  if (!lower) return false;
+  // Explicit menu/label intents — match as whole words.
+  if (/\bend (?:conversation|chat)\b/.test(lower)) return true;
+  // Leave verbs that must START the player's input/option to count as intent.
+  const leadVerbs = [
+    'leave', 'walk away', 'walk out', 'step back', 'step away',
+    'turn away', 'turn and leave', 'depart', 'exit', 'go away', 'say goodbye',
+    'take my leave', 'goodbye', 'farewell',
+  ];
+  return leadVerbs.some(w => {
+    const re = new RegExp('^' + w.replace(/\s+/g, '\\s+') + '\\b', 'i');
+    return re.test(lower);
+  });
+}
+
+function inferDialogueSkill(text, ability) {
+  const lower = String(text || '').toLowerCase();
+  const inferred = window.DNDRules?.inferSkill?.(text) || window.SanctumRules?.inferSkill?.(text);
+  // An explicitly requested ability (for example an authored CHA option) wins
+  // over a coincidental keyword that belongs to a different ability.
+  if (inferred && (!ability || window.SanctumRules?.SKILLS?.[inferred] === ability)) return inferred;
+  if (ability === 'cha') {
+    if (/threat|intimidat|coerce|frighten/.test(lower)) return 'intimidation';
+    if (/lie|bluff|deceiv|mislead|pretend/.test(lower)) return 'deception';
+    if (/perform|sing|dance|recite/.test(lower)) return 'performance';
+    return 'persuasion';
+  }
+  if (ability === 'str') return 'athletics';
+  if (ability === 'dex') return /steal|pickpocket|palm|plant/.test(lower) ? 'sleight_of_hand' : /sneak|hide|unseen/.test(lower) ? 'stealth' : 'acrobatics';
+  if (ability === 'wis') return 'insight';
+  if (ability === 'int') return 'investigation';
+  return null;
+}
+
+function dialogueCheckLabel(check) {
+  return String(check.skill || check.ability || 'check').replaceAll('_',' ').replace(/\b\w/g,char=>char.toUpperCase());
+}
+
+function showDialogueCheck(check, remote=false) {
+  const panel=document.getElementById('conv-panel'),inner=panel?.querySelector('.cp-inner');if(!inner)return Promise.resolve();
+  panel.querySelector('.cp-check-result')?.remove();panel.classList.add('checking');
+  const result=document.createElement('div');result.className=`cp-check-result ${check.success?'success':'failure'}`;result.setAttribute('role','status');result.setAttribute('aria-live','polite');
+  const rolls=Array.isArray(check.rolls)&&check.rolls.length>1?`${check.rolls.join(' / ')} → ${check.roll}`:String(check.roll);
+  const mode=check.mode&&check.mode!=='normal'?` · ${String(check.mode).toUpperCase()}`:'';
+  const proficiency=check.proficiency?` + ${check.proficiency} PROF`:'';
+  const label=document.createElement('span'),math=document.createElement('strong'),outcome=document.createElement('em');
+  label.textContent=`🎲 ${dialogueCheckLabel(check).toUpperCase()} · DC ${check.dc}${mode}`;math.textContent=`${rolls} ${check.abilityMod>=0?'+':'−'} ${Math.abs(check.abilityMod||0)}${proficiency} = ${check.total}`;outcome.textContent=check.crit?'CRITICAL SUCCESS':check.fumble?'CRITICAL FAILURE':check.success?'SUCCESS':'FAILURE';result.append(label,math,outcome);
+  const options=inner.querySelector('.cp-options');inner.insertBefore(result,options||null);
+  // Reduced motion should suppress animation, not deny the player enough time
+  // to read the roll. Keep a stable presentation window for every profile.
+  const duration=remote?1250:900;
+  return new Promise(resolve=>setTimeout(()=>{panel.classList.remove('checking');result.classList.add('settled');setTimeout(()=>result.remove(),320);resolve();},duration));
+}
+window.showDialogueCheck=showDialogueCheck;
+
+async function resolveDialogueCheck(text,{ability,skill,dc}={}) {
+  const char=gameState.character,resolvedAbility=String(ability||'cha').toLowerCase(),resolvedSkill=skill||inferDialogueSkill(text,resolvedAbility);
+  const options={ability:resolvedAbility,skill:resolvedSkill,dc:Number(dc)||window.SanctumRules?.inferDC?.(text,resolvedSkill)||10};
+  const check=window.DNDRules?.rollCheck
+    ? window.DNDRules.rollCheck(text,options)
+    : window.SanctumRules.rollCheck({...options,text,character:char,drunk:window.drunkState?.isDrunk});
+  window.DNDRules?.logCheck?.(check,check.dc);
+  window.npcConvState.lastCheck={...check,npcId:window.npcConvState.npc?.id};
+  window.sceneState=window.sceneState||{flags:{},knownFacts:{}};window.sceneState.flags=window.sceneState.flags||{};
+  const consequenceKey=`dialogue_${resolvedSkill||resolvedAbility}_${window.npcConvState.npc?.id||'npc'}_${check.success?'success':'failure'}`;window.sceneState.flags[consequenceKey]=true;
+  if(check.crit&&char)char.conditions=Array.from(new Set([...(char.conditions||[]),'inspired']));
+  window.renderPlayerCard?.();
+  window.autoSave?.();
+  if(window.mp?.sessionCode)window.mpBroadcastStoryEvent?.('conv_check',{...check,label:dialogueCheckLabel(check)});
+  await showDialogueCheck(check);
+  return check;
+}
+
 // ─── PLAYER PICKS OPTION ──────────────────────
 async function pickNPCOption(index) {
   const option = window.npcConvState.currentOptions?.[index];
   if (!option) return;
   const char = gameState.character;
+  const npc = window.npcConvState.npc;
 
   if (!option.text) return;
 
-  const lower = option.text.toLowerCase();
+  const lower = option.text.toLowerCase().trim();
 
-  // End conversation
-  if (lower.includes('end conversation') || lower.includes('walk away') || lower.includes('leave') || lower.includes('step back')) {
+  // End conversation — only when the option is the player's OWN leave-intent,
+  // not when a leave word merely appears inside a longer label (e.g. an option
+  // "Ask why they won't leave the city" must NOT close the chat). Match the
+  // explicit "end conversation" label, or a leave verb that STARTS the option /
+  // stands as the whole phrase.
+  if (_isLeaveIntent(lower)) {
     addLog(`${char?.name} ends the conversation with ${window.npcConvState.npc?.name}.`, 'system');
     closeConvPanel();
     return;
@@ -972,18 +1125,8 @@ async function pickNPCOption(index) {
   if (option.roll) {
     const stat = option.roll.stat.toLowerCase();
     const dc = option.roll.dc;
-    const statVal = char?.stats?.[stat] || 10;
-    const mod = Math.floor((statVal - 10) / 2);
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const total = roll + mod;
-    const success = total >= dc || roll === 20;
-    const crit = roll === 20;
-    const fumble = roll === 1;
-
-    addLog(`🎲 ${option.roll.stat} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-    const resultMsg = `${framed} [Roll result: ${success ? 'SUCCESS' : 'FAILURE'} — ${total} vs DC${dc}${crit ? ', critical success' : fumble ? ', critical failure' : ''}]`;
+    const check=await resolveDialogueCheck(option.text,{ability:stat,dc});
+    const resultMsg = `${framed} [Roll result: ${check.success ? 'SUCCESS' : 'FAILURE'} — ${check.total} vs DC${check.dc}; ${dialogueCheckLabel(check)}; ${check.proficient?'proficient':'not proficient'}; ${check.mode}${check.crit ? '; critical success' : check.fumble ? '; critical failure' : ''}]`;
     await sendNPCMessage(resultMsg);
     return;
   }
@@ -1013,13 +1156,8 @@ async function pickNPCOption(index) {
   }
 
   if (isGrapple) {
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const strMod = Math.floor(((char?.stats?.str || 10) - 10) / 2);
-    const total = roll + strMod;
-    const success = total >= 14 || roll === 20;
-    addLog(`🎲 STR (Grapple) DC14: [${roll}] + ${strMod} = ${total} — ${success ? '✅ Grabbed!' : '❌ Failed!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice();
-    await sendNPCMessage(`${framed} [${success ? 'SUCCEEDED' : 'FAILED'} — rolled ${total} vs DC14]`);
+    const check=await resolveDialogueCheck(option.text,{ability:'str',skill:'athletics',dc:14});
+    await sendNPCMessage(`${framed} [${check.success ? 'SUCCEEDED' : 'FAILED'} — ${dialogueCheckLabel(check)} ${check.total} vs DC${check.dc}; ${check.mode}]`);
     return;
   }
 
@@ -1045,8 +1183,9 @@ async function submitConvInput() {
   const lower = text.toLowerCase();
 
   // ── Leave/exit → end conversation, pass to world ──
-  const leaveWords = ['leave', 'walk away', 'exit', 'step away', 'depart', 'walk out', 'turn away'];
-  if (leaveWords.some(w => lower.startsWith(w) || lower.includes(' and leave'))) {
+  // Anchored/whole-phrase intent only — a leave word inside a longer sentence
+  // (e.g. "tell them to walk away from the war") must not abort the chat.
+  if (_isLeaveIntent(lower)) {
     addLog(`${char?.name} ends the conversation.`, 'system');
     closeConvPanel();
     return;
@@ -1086,6 +1225,7 @@ async function submitConvInput() {
   // If the player is invoking Jesus Christ, mark this explicitly for the NPC
   if (isJesusInvocation(text)) {
     addLog(`☩ ${char?.name} invokes the name of Jesus Christ.`, 'holy');
+    if (window.Divinity) window.Divinity.invokeName(); // divine stillness FX
     if (typeof grantHolyPoints === 'function') grantHolyPoints(2);
     framed = `[${char?.name} ${text}]
 
@@ -1096,23 +1236,14 @@ INVOCATION NOTE: The player has just spoken the name of Jesus Christ — the one
   const needsCHA = ['flirt', 'seduce', 'charm', 'persuade', 'convince', 'bribe', 'threaten', 'intimidate', 'bluff', 'lie', 'deceive', 'stand down', 'back off', 'surrender'].some(w => lower.includes(w));
   const needsSTR = ['shove', 'push', 'grapple', 'restrain', 'lift', 'break', 'force'].some(w => lower.includes(w));
   const needsDEX = ['sneak', 'steal', 'pickpocket', 'slip', 'dodge', 'hide'].some(w => lower.includes(w));
+  const inferredSkill = window.DNDRules?.inferSkill?.(text) || window.SanctumRules?.inferSkill?.(text);
 
-  if (needsCHA || needsSTR || needsDEX) {
-    const statKey = needsCHA ? 'cha' : needsSTR ? 'str' : 'dex';
-    const statLabel = statKey.toUpperCase();
-    const dc = needsCHA ? 13 : 12;
-    const statVal = char?.stats?.[statKey] || 10;
-    const mod = Math.floor((statVal - 10) / 2);
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const total = roll + mod;
-    const crit = roll === 20;
-    const fumble = roll === 1;
-    const success = crit || (!fumble && total >= dc);
-
-    addLog(`🎲 ${statLabel} DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '⭐ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
-    if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-    const resultMsg = `${framed} [${success ? 'SUCCESS' : 'FAILURE'} — rolled ${total} vs DC${dc}${crit ? ', critical' : fumble ? ', fumble' : ''}]`;
+  if (needsCHA || needsSTR || needsDEX || inferredSkill) {
+    const statKey = needsCHA ? 'cha' : needsSTR ? 'str' : needsDEX ? 'dex' : window.SanctumRules?.SKILLS?.[inferredSkill];
+    const skill = inferDialogueSkill(text,statKey);
+    const dc = window.SanctumRules?.inferDC?.(text,skill) || (needsCHA ? 13 : 12);
+    const check=await resolveDialogueCheck(text,{ability:statKey,skill,dc});
+    const resultMsg = `${framed} [${check.success ? 'SUCCESS' : 'FAILURE'} — ${dialogueCheckLabel(check)} ${check.total} vs DC${check.dc}; ${check.proficient?'proficient':'not proficient'}; ${check.mode}${check.crit?', critical':check.fumble?', fumble':''}]`;
     await sendNPCMessage(resultMsg);
     return;
   }
@@ -1218,8 +1349,12 @@ function resolveNPCFull(nameOrId) {
 
 // ─── UI FUNCTIONS ─────────────────────────────
 function renderConvPanel(npc) {
-  // Don't open conversation panels if not in the game screen
-  if (gameState?.activeScreen && gameState.activeScreen !== 'game') return;
+  // Don't open conversation panels if not in the game screen.
+  // Reset active so the conversation isn't left stuck "active" with no panel.
+  if (gameState?.activeScreen && gameState.activeScreen !== 'game') {
+    if (window.npcConvState) window.npcConvState.active = false;
+    return;
+  }
   document.getElementById('conv-panel')?.remove();
 
   // Hide the scene panel while NPC dialogue is open
@@ -1229,6 +1364,7 @@ function renderConvPanel(npc) {
   const panel = document.createElement('div');
   panel.id = 'conv-panel';
   panel.className = 'conv-panel';
+  panel.dataset.npcId = npc.id;
   panel.innerHTML = `
     <div class="cp-inner">
       <div class="cp-header">
@@ -1250,7 +1386,7 @@ function renderConvPanel(npc) {
             <span class="cp-player-class">${getClassLabel(gameState.character)}</span>
           </div>
         </div>
-        <button class="cp-close" onclick="closeConvPanel()">✕ End</button>
+        <button class="cp-close" type="button" aria-label="End conversation" onclick="closeConvPanel()">✕ End</button>
       </div>
       <div class="cp-transcript" id="cp-transcript"></div>
       <div class="cp-speech" id="cp-speech">
@@ -1258,17 +1394,24 @@ function renderConvPanel(npc) {
         <div class="cp-npc-line" id="cp-npc-line"></div>
       </div>
       <div class="cp-options" id="cp-options"></div>
-      <div class="cp-freeform">
+      <div class="cp-freeform" id="cp-freeform" hidden>
         <input id="conv-input" class="cp-input" type="text"
-          placeholder="Or type anything freely — say anything, do anything..."
+          aria-label="Say something else" placeholder="Say or do anything..."
           onkeydown="if(event.key==='Enter') submitConvInput()">
-        <button class="cp-send" onclick="submitConvInput()">→</button>
+        <button class="cp-send" type="button" aria-label="Send open choice" onclick="submitConvInput()">→</button>
       </div>
     </div>
   `;
-  // Insert into the game log so it's inline in the stream (not a floating overlay)
+  // In 3D Vaelthar the game-log lives inside #game-screen, which is BELOW the
+  // z1400 city canvas — an inline panel would be invisible. Float it on document.body
+  // (z-index 1600) so it sits above the canvas (#2).
+  const in3D = document.body.classList.contains('vt-3d-active');
   const gameLog = document.getElementById('game-log');
-  if (gameLog) {
+  if (in3D) {
+    panel.classList.add('conv-panel-floating');
+    document.body.appendChild(panel);
+  } else if (gameLog) {
+    // Insert into the game log so it's inline in the stream (not a floating overlay)
     gameLog.appendChild(panel);
     setTimeout(() => {
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1322,6 +1465,7 @@ function updateConvPlayerPortrait(playerName, playerChar) {
 }
 
 function displayNPCLine(npc, speech, options) {
+  requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('npc:camera',{detail:{shot:'npc'}})));
   window.npcConvState.currentOptions = options;
 
   const transcript = document.getElementById('cp-transcript');
@@ -1340,16 +1484,24 @@ function displayNPCLine(npc, speech, options) {
   // Clear options while typing
   const optEl = document.getElementById('cp-options');
   if (optEl) optEl.innerHTML = '';
+  toggleConvFreeform(false);
   lineEl.innerHTML = '';
+
+  // Cancel any typewriter still running from a previous line/turn before we
+  // start a new one. Without this, rapid turns leave multiple intervals firing
+  // into the (possibly detached) line element, garbling interleaved text.
+  if (window._npcTypeInterval) { clearInterval(window._npcTypeInterval); window._npcTypeInterval = null; }
 
   // Typewrite
   const chars = speech.split('');
   let i = 0;
-  const interval = setInterval(() => {
+  window._npcTypeInterval = setInterval(() => {
     if (i < chars.length) { lineEl.textContent += chars[i]; i++; }
     else {
-      clearInterval(interval);
-      lineEl.innerHTML = speech.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+      clearInterval(window._npcTypeInterval);
+      window._npcTypeInterval = null;
+      const _escSpeech = (window.escapeHtml ? window.escapeHtml(speech) : speech);
+      lineEl.innerHTML = _escSpeech.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
       renderConvOptions(options);
     }
   }, 14);
@@ -1358,20 +1510,33 @@ function displayNPCLine(npc, speech, options) {
 function renderConvOptions(options) {
   const el = document.getElementById('cp-options');
   if (!el) return;
+  const esc = window.escapeHtml || (s => s);
   el.innerHTML = options.map((opt, i) => `
     <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}"
       onclick="pickNPCOption(${i})">
-      <span>${opt.text}</span>
-      ${opt.roll ? `<span class="cp-roll-badge">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
+      <span>${esc(opt.text)}</span>
+      ${opt.roll ? `<span class="cp-roll-badge">🎲 ${esc(opt.roll.stat)} DC${esc(opt.roll.dc)}</span>` : ''}
     </button>
-  `).join('');
+  `).join('') + `<button class="cp-option cp-open-choice" type="button" aria-expanded="false" aria-controls="cp-freeform" onclick="toggleConvFreeform()"><span>Say something else…</span><span aria-hidden="true">⌨</span></button>`;
 }
+
+function toggleConvFreeform(force) {
+  const form = document.getElementById('cp-freeform');
+  const button = document.querySelector('.cp-open-choice');
+  if (!form) return;
+  const show = typeof force === 'boolean' ? force : form.hidden;
+  form.hidden = !show;
+  button?.setAttribute('aria-expanded', String(show));
+  if (show) document.getElementById('conv-input')?.focus();
+}
+window.toggleConvFreeform = toggleConvFreeform;
 
 function isHostileText(t) {
   return ['attack', 'stab', 'punch', 'kill', 'draw', 'tie', 'grab', 'threaten', 'strike'].some(w => t.toLowerCase().includes(w));
 }
 
 function showTypingIndicator() {
+  toggleConvFreeform(false);
   const el = document.getElementById('cp-typing');
   if (el) el.style.display = 'flex';
   const optEl = document.getElementById('cp-options');
@@ -1437,6 +1602,10 @@ function _updateWorldFromConversation(npc, speech, fullResponse) {
 }
 
 function closeConvPanel(graceful = true) {
+  // Kill any running typewriter so it can't keep firing into the detached
+  // line element after the panel is removed (garbled text / errors on close).
+  if (window._npcTypeInterval) { clearInterval(window._npcTypeInterval); window._npcTypeInterval = null; }
+
   const p = document.getElementById('conv-panel');
   if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
   window.npcConvState.active = false;
@@ -1555,6 +1724,8 @@ function installNPCHook() {
     setTimeout(installNPCHook, 200);
     return;
   }
+  // Don't stack wrappers — if submitAction is already our wrapped version, bail.
+  if (window.submitAction._isNPCWrapped) { _npcHookInstalled = true; return; }
   _npcHookInstalled = true;
 
   const _prev = window.submitAction;
@@ -1573,9 +1744,10 @@ function installNPCHook() {
       const _npc = window.npcConvState.npc;
       const lower = text.toLowerCase();
 
-      // Leave/exit words → end conversation and pass action to world
-      const _leaveW = ['leave', 'walk away', 'step away', 'go away', 'exit', 'depart', 'turn and leave', 'turn away', 'leave the', 'walk out'];
-      if (_leaveW.some(w => lower.startsWith(w) || lower.includes(' and leave') || lower.includes('walk away'))) {
+      // Leave/exit words → end conversation and pass action to world.
+      // Anchored/whole-phrase intent only (shared with pickNPCOption /
+      // submitConvInput) so incidental mentions don't abort the chat.
+      if (_isLeaveIntent(lower)) {
         addLog(`${char?.name} ends the conversation and leaves.`, 'system');
         closeConvPanel();
         // Pass the action to the world handler as a scene action
@@ -1609,6 +1781,30 @@ function installNPCHook() {
         sendNPCMessage(framed);
       }
       return;
+    }
+
+    // ── DETERMINISTIC ATTACK-NET (Part 2) — typed violence starts a REAL fight ──
+    // Tight verb list to avoid false positives. Never fires mid-conversation (handled
+    // above and returned) or during an active fight.
+    const attackRe = /\b(attack|strike|swing at|stab|slash|charge at|lunge|cut (them|him|her|it) down|kill|slay|behead|draw (my |your )?(blade|sword|weapon|dagger|mace)|fight (them|him|her|it|my way)|fire at|shoot)\b/i;
+    if (attackRe.test(text) && !window.npcConvState?.active && !window.combatState?.active) {
+      const hostiles = window.sceneState?.currentThreat?.hostiles;
+      // Inside a personal-quest memory with no real threat there are no present-day
+      // foes to fight — let the action fall through to scene/AI narration (#7).
+      if (!hostiles && window.sceneState?.inPersonalQuest) {
+        // fall through to the scene/NPC/narration handling below
+      } else {
+        input.value = '';
+        // No real threat (non-memory): conjure a light default through the spec
+        // builder so enemy ids stay unique (raw Date.now() ids collide) (#12).
+        const enemies = hostiles
+          ? window.buildEnemiesFromSpec(hostiles)
+          : window.buildEnemiesFromSpec([{ type: 'city_guard', count: 2, level: 1 }]);
+        window._postCombatContinue = `Combat just resolved after the player attacked: "${text}".`;
+        document.getElementById('scene-panel')?.remove();
+        startCombat(enemies);
+        return;
+      }
     }
 
     // ── If a scene panel is open, ACT box feeds narrative — bypass NPC detection ──
@@ -1715,6 +1911,7 @@ function installNPCHook() {
     input.value = text;
     _prev();
   };
+  window.submitAction._isNPCWrapped = true;
 }
 
 // Install once after initGameScreen (story/combat systems are ready by then)
@@ -1736,6 +1933,18 @@ const convCSS = `
   opacity: 0; transition: opacity 0.3s;
   margin: 4px 0 8px 0;
   animation: sceneFadeIn 0.3s ease;
+}
+/* 3D Vaelthar: float above the z1400 city canvas (canvas 1400, combat 1500, conv 1600) (#2) */
+.conv-panel.conv-panel-floating {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: min(680px, 94vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  margin: 0;
+  z-index: 1600;
 }
 .cp-inner {
   width: 100%;
@@ -1811,12 +2020,17 @@ const convCSS = `
 .cp-option.has-roll { border-left:2px solid rgba(192,57,43,0.4); }
 .cp-option.hostile { color:rgba(210,100,80,0.85); border-left:2px solid rgba(192,57,43,0.55); }
 .cp-option.hostile:hover { color:var(--hell-glow); border-color:var(--hell); }
+.cp-option.cp-open-choice { color:rgba(201,168,76,.82);border-style:dashed; }
+.cp-option.cp-open-choice span:last-child { margin-left:auto;color:var(--text-dim); }
+.conv-panel.checking .cp-options,.conv-panel.checking .cp-freeform{pointer-events:none;opacity:.35}
+.cp-check-result{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:14px;margin:5px 14px;padding:10px 13px;color:#d8bc72;background:rgba(4,12,11,.96);border:1px solid rgba(216,188,114,.38);font:600 .65rem Cinzel,serif;letter-spacing:.06em;animation:cpCheckIn .22s ease-out}.cp-check-result strong{color:#eee8d8;font-size:.78rem}.cp-check-result em{padding:4px 7px;font-style:normal}.cp-check-result.success em{color:#8fe0ad;border:1px solid rgba(94,190,135,.4)}.cp-check-result.failure em{color:#ef8176;border:1px solid rgba(210,72,62,.45)}.cp-check-result.settled{opacity:0;transform:translateY(-4px);transition:.3s}@keyframes cpCheckIn{from{opacity:0;transform:scale(.97)}}
 .cp-roll-badge { font-size:0.66rem; color:var(--hell-glow); white-space:nowrap; margin-left:10px; opacity:0.85; }
 .cp-freeform {
   display:flex; padding:6px 14px 10px;
   border-top: 1px solid rgba(201,168,76,0.07);
   gap:0;
 }
+.cp-freeform[hidden] { display:none; }
 .cp-input {
   flex:1; background:rgba(6,4,2,0.95); border:1px solid rgba(201,168,76,0.2); border-right:none;
   color:var(--text-main); font-family:'Cinzel',serif; font-size:0.74rem;

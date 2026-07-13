@@ -5,7 +5,7 @@
 //   relationships, reputation
 // ============================================
 
-function openCharSheet() {
+function openCharSheet(section = 'character') {
   document.getElementById('char-sheet-overlay')?.remove();
 
   const char = gameState.character;
@@ -13,6 +13,9 @@ function openCharSheet() {
 
   const cls   = (window.CLASSES||[]).find(c => c.id === char.class);
   const race  = (window.RACES||[]).find(r => r.id === char.race);
+  // #81: outside active combat, refresh the class resource from a sensible default
+  // so the sheet doesn't show a stale/empty bar between fights.
+  if (!window.combatState?.active && window.initClassResource) initClassResource(char);
   const cr    = window.classResource || {};
   const stats = char.stats || {};
 
@@ -22,9 +25,10 @@ function openCharSheet() {
 
   const lvl   = char.level || 1;
   const xpTbl = window.XP_TABLE || [0,100,250,450,700,1000,1400,1900,2500,3200,4000];
-  const prev  = xpTbl[lvl] || 0;
-  const next  = xpTbl[lvl+1] || prev + 1000;
-  const xpPct = Math.min(100, Math.round(((char.xp-prev)/(next-prev))*100));
+  // Progress within level L: (xp - XP_TABLE[L-1]) / (XP_TABLE[L] - XP_TABLE[L-1])
+  const prev  = xpTbl[lvl-1] || 0;
+  const next  = xpTbl[lvl] || prev + 1000;
+  const xpPct = Math.max(0, Math.min(100, Math.round(((char.xp-prev)/(next-prev))*100)));
 
   const hpPct = Math.min(100, Math.round((char.hp/char.maxHp)*100));
   const mpPct = Math.min(100, Math.round((char.mp/char.maxMp)*100));
@@ -32,6 +36,13 @@ function openCharSheet() {
 
   // Equipped items
   const equipped = char.equipped || { weapon: null, armor: null, accessory: null };
+  const esc = window.escapeHtml || (s => s);
+  const slotLabel = (v) => v ? esc(v) : '<span style="opacity:0.4">Empty</span>';
+  const inventoryItems = Array.isArray(char.inventory) ? char.inventory : [];
+  const inventoryIcons = { sword:'⚔',mace:'🔨',staff:'🔮',bow:'🏹',dagger:'🗡',armor:'🛡',robe:'🧥',cloak:'🧥',potion:'🧪',water:'💧',book:'📜',scripture:'📖',kit:'💊',candle:'🕯',crystal:'💎',quiver:'🏹',lockpick:'🔑',salve:'🧪',bandage:'🩹',ration:'🥩',draught:'⚗',essence:'💧',antidote:'🌿',smoke:'💨',draft:'🍺',oil:'🌑' };
+  const consumableKeywords = ['potion','salve','bandage','ration','draught','essence','antidote','smoke bomb','draft','oil','holy water','healing kit','vial','mending','focus','might','shadow'];
+  const inventoryIcon = item => Object.entries(inventoryIcons).find(([key])=>item.toLowerCase().includes(key))?.[1] || '📦';
+  const isConsumable = item => consumableKeywords.some(key=>item.toLowerCase().includes(key));
 
   // Reputation summary
   const rep = window.reputation || {};
@@ -50,11 +61,11 @@ function openCharSheet() {
   <!-- HEADER -->
   <div class="cs-header">
     <div class="cs-title-block">
-      <div class="cs-name">${char.name}</div>
+      <div class="cs-name">${esc(char.name)}</div>
       <div class="cs-subtitle">${race?.name||''} ${cls?.name||''} · Level ${lvl}</div>
       <div class="cs-tree-tag">${char.tree ? `☩ ${char.tree.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())} Path` : ''}</div>
     </div>
-    <button class="cs-close" onclick="closeCharSheet()">✕</button>
+    <button class="cs-close" aria-label="Close character sheet" onclick="closeCharSheet()">✕</button>
   </div>
 
   <!-- BODY: two-column -->
@@ -120,6 +131,15 @@ function openCharSheet() {
           </div>`;
         }).join('')}
       </div>
+      <div style="margin:8px 0 14px;padding:10px;border:1px solid rgba(201,168,76,.16);background:rgba(0,0,0,.18)">
+        <div style="font-family:'Cinzel',serif;font-size:.68rem;color:var(--gold);margin-bottom:6px">
+          Proficiency Bonus +${2 + Math.floor((lvl - 1) / 4)}
+        </div>
+        <div style="font-size:.72rem;color:var(--text-dim);line-height:1.5">
+          ${(char.proficiencies || window.CLASS_PROFICIENCIES?.[char.class] || [])
+            .map(s => s.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())).join(' · ') || 'Perception'}
+        </div>
+      </div>
 
       <!-- EQUIPMENT -->
       <div class="cs-section-title">Equipment</div>
@@ -127,18 +147,23 @@ function openCharSheet() {
         <div class="cs-slot" onclick="csEquipFromInventory('weapon')">
           <span class="cs-slot-icon">⚔</span>
           <span class="cs-slot-label">Weapon</span>
-          <span class="cs-slot-item">${equipped.weapon || '<span style="opacity:0.4">Empty</span>'}</span>
+          <span class="cs-slot-item">${slotLabel(equipped.weapon)}</span>
         </div>
         <div class="cs-slot" onclick="csEquipFromInventory('armor')">
           <span class="cs-slot-icon">🛡</span>
           <span class="cs-slot-label">Armor</span>
-          <span class="cs-slot-item">${equipped.armor || '<span style="opacity:0.4">Empty</span>'}</span>
+          <span class="cs-slot-item">${slotLabel(equipped.armor)}</span>
         </div>
         <div class="cs-slot" onclick="csEquipFromInventory('accessory')">
           <span class="cs-slot-icon">💍</span>
           <span class="cs-slot-label">Accessory</span>
-          <span class="cs-slot-item">${equipped.accessory || '<span style="opacity:0.4">Empty</span>'}</span>
+          <span class="cs-slot-item">${slotLabel(equipped.accessory)}</span>
         </div>
+      </div>
+
+      <div class="cs-section-title" id="cs-inventory">Inventory <span class="cs-inventory-count">${inventoryItems.length}</span></div>
+      <div class="cs-inventory-list">
+        ${inventoryItems.map((item,index)=>`<div class="cs-inventory-item"><span class="cs-inventory-icon">${inventoryIcon(item)}</span><span>${esc(item)}</span>${isConsumable(item)?`<button type="button" onclick="csUseInventoryItem(${index})">USE</button>`:''}</div>`).join('') || '<div class="cs-inventory-empty">Nothing in your pack.</div>'}
       </div>
     </div>
 
@@ -157,7 +182,8 @@ function openCharSheet() {
       <div class="cs-rep-grid">
         ${Object.entries(factionNames).map(([id, name]) => {
           const val = rep[id] || 0;
-          const label = val >= 60 ? 'Allied' : val >= 30 ? 'Friendly' : val <= -30 ? 'Hostile' : val <= -60 ? 'Enemy' : 'Neutral';
+          // #81: check 'Enemy' (<= -60) BEFORE 'Hostile' (<= -30) so the worst tier is reachable
+          const label = val >= 60 ? 'Allied' : val >= 30 ? 'Friendly' : val <= -60 ? 'Enemy' : val <= -30 ? 'Hostile' : 'Neutral';
           const color = val >= 30 ? '#8bc87a' : val <= -30 ? '#c0392b' : '#888';
           const barW = Math.min(100, Math.abs(val));
           return `<div class="cs-rep-row">
@@ -201,7 +227,10 @@ function openCharSheet() {
   if (typeof renderSkillTreeSheet === 'function') renderSkillTreeSheet();
 
   // Animate in
-  requestAnimationFrame(() => overlay.classList.add('visible'));
+  requestAnimationFrame(() => {
+    overlay.classList.add('visible');
+    if (section === 'inventory') document.getElementById('cs-inventory')?.scrollIntoView({block:'start'});
+  });
 }
 window.openCharSheet = openCharSheet;
 
@@ -212,6 +241,14 @@ function closeCharSheet() {
   setTimeout(() => o.remove(), 300);
 }
 window.closeCharSheet = closeCharSheet;
+
+function csUseInventoryItem(index) {
+  const item = gameState.character?.inventory?.[index];
+  if (!item || typeof window.useConsumable !== 'function') return;
+  window.useConsumable(item);
+  openCharSheet('inventory');
+}
+window.csUseInventoryItem = csUseInventoryItem;
 
 // ─── STAT ALLOCATION from Character Sheet ───
 function csAssignStat(key) {
@@ -245,26 +282,55 @@ function csEquipFromInventory(slot) {
     toast('No equippable items for this slot!', 'error'); return;
   }
 
-  // Simple cycle: equip first available, or show quick picker
+  // #81: cycle through items AND an "Unequip" (null) option so a slot can be emptied.
+  const cycle = [...equippable, null];
   const current = char.equipped[slot];
-  const idx = current ? equippable.indexOf(current) : -1;
-  const next = equippable[(idx+1) % equippable.length];
+  const idx = current ? cycle.indexOf(current) : cycle.length - 1; // start before first item
+  const next = cycle[(idx + 1) % cycle.length];
 
-  // Remove old bonuses
-  if (current) {
-    const oldItem = Object.values(window.SHOP_ITEMS||{}).find(i => i.name === current);
-    if (oldItem?.atk) char.atkBonus = Math.max(0,(char.atkBonus||0)-oldItem.atk);
-    if (oldItem?.ac)  char.ac = Math.max(10,(char.ac||10)-oldItem.ac);
-  }
+  // #3: the character sheet is the authority for equipped-gear stats, and it shares ONE
+  // bookkeeping model with the shop via window.applyGearBonus / removeGearBonus. Each
+  // item's atk/ac is tracked in char._gearBonuses[name] and applied EXACTLY ONCE, so
+  // equipping an item that was already bought (already counted) won't double it, and
+  // unequipping deducts only what was actually applied.
+  const removeGear = window.removeGearBonus || ((c, name) => {
+    // Fallback if shop.js helpers aren't loaded: deduct from a per-name record.
+    c._gearBonuses = c._gearBonuses || {};
+    const t = c._gearBonuses[name];
+    if (!t) return;
+    if (t.atk) c.atkBonus = Math.max(0, (c.atkBonus||0) - t.atk);
+    if (t.ac)  c.ac = Math.max(10, (c.ac||10) - t.ac);
+    delete c._gearBonuses[name];
+  });
+  const applyGear = window.applyGearBonus || ((c, name) => {
+    c._gearBonuses = c._gearBonuses || {};
+    if (c._gearBonuses[name]) return;
+    const ci = Object.values(window.SHOP_ITEMS||{}).find(i => i.name === name);
+    let atk = 0, ac = 0;
+    if (ci) { atk = ci.atk||0; ac = ci.ac||0; }
+    else {
+      const lower = name.toLowerCase();
+      if (slot==='weapon' || weaponKeywords.some(k=>lower.includes(k))) atk = 2;
+      else if (slot==='armor' || armorKeywords.some(k=>lower.includes(k))) ac = 1;
+    }
+    if (!atk && !ac) return;
+    if (atk) c.atkBonus = (c.atkBonus||0) + atk;
+    if (ac)  c.ac = (c.ac||10) + ac;
+    c._gearBonuses[name] = { atk, ac };
+  });
 
-  // Apply new bonuses
+  // Remove the outgoing item's bonus (if it was applied), then equip and apply the new one.
+  if (current) removeGear(char, current);
   char.equipped[slot] = next;
-  const newItem = Object.values(window.SHOP_ITEMS||{}).find(i => i.name === next);
-  if (newItem?.atk) char.atkBonus = (char.atkBonus||0) + newItem.atk;
-  if (newItem?.ac)  char.ac = (char.ac||10) + newItem.ac;
+  if (next) applyGear(char, next, slot);
 
-  toast(`Equipped: ${next}`, 'success');
-  addLog(`⚔ Equipped ${next} in ${slot} slot.`, 'system');
+  if (next) {
+    toast(`Equipped: ${next}`, 'success');
+    addLog(`⚔ Equipped ${next} in ${slot} slot.`, 'system');
+  } else {
+    toast(`${slot.charAt(0).toUpperCase()+slot.slice(1)} slot emptied.`, 'success');
+    addLog(`Unequipped ${slot} slot.`, 'system');
+  }
   if (window.autoSave) autoSave();
   openCharSheet();
 }
@@ -403,6 +469,13 @@ const charSheetCSS = `
 .cs-slot-icon { font-size:0.9rem; flex-shrink:0; }
 .cs-slot-label { font-family:'Cinzel',serif; font-size:0.58rem; color:var(--text-dim); width:52px; flex-shrink:0; }
 .cs-slot-item { font-family:'IM Fell English','Palatino',serif; font-size:0.72rem; color:var(--text-secondary); flex:1; }
+.cs-inventory-count { margin-left:auto;padding:1px 6px;border-radius:10px;color:var(--text-secondary);background:rgba(201,168,76,.1);font-size:.58rem; }
+.cs-inventory-list { display:flex;flex-direction:column;gap:4px;scroll-margin-top:8px; }
+.cs-inventory-item { display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:6px;padding:6px 7px;color:var(--text-secondary);background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.1);font-size:.72rem; }
+.cs-inventory-icon { text-align:center;font-size:.9rem; }
+.cs-inventory-item button { padding:3px 6px;color:var(--gold);background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.28);font:600 .55rem Cinzel,serif;cursor:pointer; }
+.cs-inventory-item button:hover { color:#16130c;background:var(--gold); }
+.cs-inventory-empty { padding:8px;color:var(--text-dim);font-size:.72rem;font-style:italic; }
 
 /* RIGHT COLUMN */
 .cs-col-right { padding:16px; display:flex; flex-direction:column; gap:14px; }
@@ -434,4 +507,3 @@ const charSheetCSS = `
 const csStyle = document.createElement('style');
 csStyle.textContent = charSheetCSS;
 document.head.appendChild(csStyle);
-

@@ -300,9 +300,13 @@ function onBribeGuard() {
 
 // ─── AUTO-DETECT REP EVENTS FROM COMBAT ─────────────────
 // Hook into endCombat to auto-fire rep changes based on who died
+let _repCombatHookInstalled = false;
 function _hookCombatForRep() {
+  // Install guard — only wrap endCombat once (mirrors dialogue.js _npcHookInstalled) (#80)
+  if (_repCombatHookInstalled) return;
   const _origEnd = window.endCombat;
   if (!_origEnd) { setTimeout(_hookCombatForRep, 600); return; }
+  _repCombatHookInstalled = true;
 
   window.endCombat = function(victory) {
     if (victory && window.combatState) {
@@ -397,9 +401,24 @@ function openRepPanel() {
   requestAnimationFrame(() => panel.style.opacity = '1');
 }
 
+function _ensureRepBadge() {
+  // Create the small sidebar rep badge if it doesn't exist yet (#81)
+  if (document.getElementById('rep-hud-badge')) return document.getElementById('rep-hud-badge');
+  const repBtn = document.getElementById('rep-qa-btn');
+  const host = repBtn || document.querySelector('.quick-actions');
+  if (!host) return null;
+  const badge = document.createElement('span');
+  badge.id = 'rep-hud-badge';
+  badge.title = 'Watch / Church standing';
+  badge.style.cssText = 'font-size:0.7rem;margin-left:4px;opacity:0.85;';
+  if (repBtn) repBtn.appendChild(badge);
+  else host.appendChild(badge);
+  return badge;
+}
+
 function _updateRepHUD() {
-  // Update the small rep badge in the sidebar if it exists
-  const badge = document.getElementById('rep-hud-badge');
+  // Update the small rep badge in the sidebar (create it if missing) (#81)
+  const badge = _ensureRepBadge();
   if (!badge) return;
   const watchTier = getRepTier('city_watch');
   const churchTier = getRepTier('church');

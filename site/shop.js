@@ -55,7 +55,8 @@ const MERCHANTS = {
     stock: ['health_potion_sm','health_potion_lg','bandage','rations','iron_dagger','leather_armor','shield','torch','rope','city_pass'],
     sellMultiplier: 0.5,
   },
-  thornwood_forest: {
+  // #28: re-keyed to real WORLD_LOCATIONS ids so all 7 merchants are reachable.
+  thornwood_passage: {
     name: 'The Wanderer\'s Pack',
     keeper: 'Sylva',
     keeperIcon: '🧝',
@@ -63,7 +64,7 @@ const MERCHANTS = {
     stock: ['bandage','antidote','rations','smoke_bomb','shadow_knife','void_cloak','rope','thieves_tools','shadow_oil'],
     sellMultiplier: 0.45,
   },
-  cathedral_district: {
+  temple_quarter: {
     name: 'The Church Armory',
     keeper: 'Brother Edric',
     keeperIcon: '⛪',
@@ -71,31 +72,31 @@ const MERCHANTS = {
     stock: ['holy_water','health_potion_lg','mp_potion','holy_blade','church_vestments','shield','bandage','strength_draft'],
     sellMultiplier: 0.55,
   },
-  old_quarter: {
+  tarnished_cup: {
     name: 'The Black Shelf',
     keeper: 'Mira (no last name)',
     keeperIcon: '🕵️',
-    desc: 'Unmarked door. Third knock, pause, two more. She sells what others won\'t.',
+    desc: 'A back room behind the tavern. Third knock, pause, two more. She sells what others won\'t.',
     stock: ['poison_vial','false_identity','thieves_tools','shadow_oil','shadow_knife','smoke_bomb','mp_potion','staff_of_ruin'],
     sellMultiplier: 0.6,
   },
-  docklands: {
+  merchant_road: {
     name: 'Harbormaster\'s Surplus',
     keeper: 'Big Kes',
     keeperIcon: '⚓',
-    desc: 'Surplus from ships. No questions asked. Prices reflect that.',
+    desc: 'A wagon of surplus goods parked along the trade road. No questions asked. Prices reflect that.',
     stock: ['rations','rope','crossbow','iron_dagger','leather_armor','chain_shirt','antidote','health_potion_sm','torch'],
     sellMultiplier: 0.4,
   },
-  catacombs: {
+  church_archive: {
     name: 'The Bone Trader',
     keeper: 'Osric the Gray',
     keeperIcon: '💀',
-    desc: 'He\'s been here longer than anyone remembers. He\'ll be here after everyone else is gone.',
+    desc: 'He\'s been here longer than anyone remembers, down among the sealed shelves. He\'ll be here after everyone else is gone.',
     stock: ['health_potion_lg','mp_potion','holy_water','staff_of_ruin','void_cloak','poison_vial','antidote','shadow_oil'],
     sellMultiplier: 0.65,
   },
-  monastery: {
+  monastery_aldric: {
     name: 'The Pilgrim\'s Store',
     keeper: 'Novice Tael',
     keeperIcon: '🧎',
@@ -118,8 +119,67 @@ const DEFAULT_MERCHANT = {
 // ─── SHOP STATE ───────────────────────────────────────────
 window.shopState = { open: false, tab: 'buy' };
 
+// ─── UNIFIED GEAR-BONUS BOOKKEEPING (#3) ──────────────────
+// ONE source of truth for equipped-gear stat bonuses.
+//
+//   char.atkBonus / char.ac  — the live, persisted totals (saves.js persists these).
+//   char._gearBonuses[name]  — { atk, ac } actually applied to those totals for that
+//                              item NAME. Presence of an entry means "this item's bonus
+//                              is currently counted exactly once".
+//
+// Both the shop (buy) and the character sheet (equip) route through these helpers, so a
+// given item's atk/ac is applied EXACTLY ONCE no matter how many code paths touch it:
+//   • applyGearBonus is a no-op if the name is already counted (idempotent).
+//   • removeGearBonus deducts only what was actually applied, then clears the entry.
+
+function gearStatsFor(name, slotHint) {
+  // Resolve an item's atk/ac — from SHOP_ITEMS, or a keyword fallback for starting gear
+  // that has no catalogue entry so it still grants stats.
+  if (!name) return { atk: 0, ac: 0 };
+  const ci = Object.values(window.SHOP_ITEMS || {}).find(i => i.name === name);
+  if (ci) return { atk: ci.atk || 0, ac: ci.ac || 0 };
+  const lower = name.toLowerCase();
+  const weaponKeywords = ['sword','dagger','axe','mace','staff','bow','blade','knife','lance','spear','crossbow','wand','hammer'];
+  const armorKeywords  = ['armor','mail','plate','robe','cloak','leather','shield','vest','coat'];
+  if (slotHint === 'weapon' || weaponKeywords.some(k => lower.includes(k))) return { atk: 2, ac: 0 };
+  if (slotHint === 'armor'  || armorKeywords.some(k => lower.includes(k)))  return { atk: 0, ac: 1 };
+  return { atk: 0, ac: 0 };
+}
+window.gearStatsFor = gearStatsFor;
+
+// Apply an item's bonus to the live totals exactly once. Idempotent per item name.
+function applyGearBonus(char, name, slotHint) {
+  if (!char || !name) return;
+  char._gearBonuses = char._gearBonuses || {};
+  if (char._gearBonuses[name]) return; // already counted — never apply twice
+  const { atk, ac } = gearStatsFor(name, slotHint);
+  if (!atk && !ac) return; // nothing to track
+  if (atk) char.atkBonus = (char.atkBonus || 0) + atk;
+  if (ac)  char.ac = (char.ac || 10) + ac;
+  char._gearBonuses[name] = { atk, ac };
+}
+window.applyGearBonus = applyGearBonus;
+
+// Remove exactly what was applied for an item name, then clear the entry.
+function removeGearBonus(char, name) {
+  if (!char || !name) return;
+  char._gearBonuses = char._gearBonuses || {};
+  const tracked = char._gearBonuses[name];
+  if (!tracked) return; // nothing was applied for this name
+  if (tracked.atk) char.atkBonus = Math.max(0, (char.atkBonus || 0) - tracked.atk);
+  if (tracked.ac)  char.ac = Math.max(10, (char.ac || 10) - tracked.ac);
+  delete char._gearBonuses[name];
+}
+window.removeGearBonus = removeGearBonus;
+
 // ─── OPEN SHOP ────────────────────────────────────────────
 function openShop() {
+  // #16: no shopping during combat
+  if (window.combatState?.active) {
+    if (window.toast) toast('⚔ Not during combat!', 'error');
+    else if (window.addLog) addLog('⚔ Not during combat!', 'system');
+    return;
+  }
   const location = window.mapState?.currentLocation || 'vaelthar_city';
   const merchant = MERCHANTS[location] || DEFAULT_MERCHANT;
   window.shopState.open = true;
@@ -171,8 +231,15 @@ function renderShop(merchant) {
     </div>
   `;
 
+  // #9: in 3D Vaelthar the #game-log lives inside #game-screen, BELOW the z1400 city
+  // canvas, so an inline panel is occluded. Float it on document.body (position:fixed,
+  // z-index 1600) — the same pattern dialogue.js conv-panel and story.js scene-panel use.
+  const in3D = document.body.classList.contains('vt-3d-active');
   const gameLog = document.getElementById('game-log');
-  if (gameLog) {
+  if (in3D) {
+    panel.classList.add('shop-panel-floating');
+    document.body.appendChild(panel);
+  } else if (gameLog) {
     gameLog.appendChild(panel);
     setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
   } else {
@@ -223,7 +290,10 @@ function renderSellTab(merchant) {
     grouped[name] = (grouped[name] || 0) + 1;
   });
 
-  return Object.entries(grouped).map(([name, qty]) => {
+  // #31: don't interpolate the item name into an inline onclick — names like
+  // "Thieves' Tools" break the JS string. Use data attributes + delegated listener.
+  const esc = window.escapeHtml || (s => String(s));
+  const html = Object.entries(grouped).map(([name, qty]) => {
     // Find item in catalogue or estimate value
     const catalogItem = Object.values(SHOP_ITEMS).find(i => i.name === name);
     const sellPrice = catalogItem ? Math.floor(catalogItem.price * merchant.sellMultiplier) : 5;
@@ -231,11 +301,11 @@ function renderSellTab(merchant) {
     const desc = catalogItem?.desc || 'An item from your travels.';
 
     return `
-      <div class="shop-item sellable" onclick="sellItem('${name}', ${sellPrice})">
+      <div class="shop-item sellable" data-sell-name="${esc(name)}" data-sell-price="${sellPrice}">
         <span class="si-icon">${icon}</span>
         <div class="si-info">
-          <span class="si-name">${name} ${qty > 1 ? `<span class="si-qty">×${qty}</span>` : ''}</span>
-          <span class="si-desc">${desc}</span>
+          <span class="si-name">${esc(name)} ${qty > 1 ? `<span class="si-qty">×${qty}</span>` : ''}</span>
+          <span class="si-desc">${esc(desc)}</span>
         </div>
         <div class="si-right">
           <span class="si-price">🪙 ${sellPrice}</span>
@@ -243,6 +313,22 @@ function renderSellTab(merchant) {
         </div>
       </div>`;
   }).join('');
+  // Wire listeners after the markup lands in the DOM.
+  setTimeout(_wireSellButtons, 0);
+  return html;
+}
+
+// #31: attach click handlers to sell rows using their data attributes.
+function _wireSellButtons() {
+  document.querySelectorAll('#shop-body .shop-item.sellable').forEach(el => {
+    if (el._sellWired) return;
+    el._sellWired = true;
+    el.addEventListener('click', () => {
+      const name = el.getAttribute('data-sell-name');
+      const price = parseInt(el.getAttribute('data-sell-price'), 10) || 0;
+      sellItem(name, price);
+    });
+  });
 }
 
 function formatEffect(effect) {
@@ -272,12 +358,12 @@ function buyItem(itemId) {
   char.inventory = char.inventory || [];
   char.inventory.push(item.name);
 
-  // Apply passive bonuses immediately
-  if (item.type === 'weapon' && item.atk) {
-    char.atkBonus = (char.atkBonus || 0) + item.atk;
-  }
-  if (item.type === 'armor' && item.ac) {
-    char.ac = (char.ac || 10) + item.ac;
+  // #3: route gear stats through the unified bookkeeping so an item's atk/ac is applied
+  // EXACTLY ONCE — whether granted here on purchase or later via the character sheet's
+  // equip. applyGearBonus is idempotent per item name, so buying a second copy (or
+  // equipping the same item) won't double-count.
+  if (item.type === 'weapon' || item.type === 'armor') {
+    applyGearBonus(char, item.name, item.type);
   }
 
   addLog(`🪙 Purchased ${item.icon} ${item.name} for ${item.price} gold.`, 'system');
@@ -302,13 +388,17 @@ function sellItem(itemName, price) {
   char.inventory.splice(idx, 1);
   char.gold = (char.gold || 0) + price;
 
-  // Remove passive bonuses if selling equipped weapon/armor
-  const catalogItem = Object.values(SHOP_ITEMS).find(i => i.name === itemName);
-  if (catalogItem?.type === 'weapon' && catalogItem.atk) {
-    char.atkBonus = Math.max(0, (char.atkBonus || 0) - catalogItem.atk);
-  }
-  if (catalogItem?.type === 'armor' && catalogItem.ac) {
-    char.ac = Math.max(10, (char.ac || 10) - catalogItem.ac);
+  // #3: the gear bonus is applied exactly once per item NAME while owned. Only deduct it
+  // when the LAST copy of that name leaves the pack — and clear any orphaned equipped
+  // pointer so nothing points at a sold item.
+  const stillOwned = (char.inventory || []).includes(itemName);
+  if (!stillOwned) {
+    removeGearBonus(char, itemName);
+    if (char.equipped) {
+      for (const slot of Object.keys(char.equipped)) {
+        if (char.equipped[slot] === itemName) char.equipped[slot] = null;
+      }
+    }
   }
 
   addLog(`🪙 Sold ${itemName} for ${price} gold.`, 'system');
@@ -374,7 +464,9 @@ function useConsumable(itemName) {
   } else if (effect === 'escape') {
     if (window.combatState?.active) {
       addLog(`💨 Smoke fills the air — you escape combat!`, 'system');
-      if (window.endCombat) endCombat(false);
+      // #15: use the clean flee path when available, else fall back.
+      if (window.fleeCombat) fleeCombat();
+      else if (window.endCombat) endCombat(false);
     } else {
       addLog(`💨 You deploy the smoke bomb but there\'s nothing to escape.`, 'system');
     }
@@ -404,6 +496,19 @@ function useConsumable(itemName) {
     flex-direction: column;
   }
   .shop-inner { display:flex; flex-direction:column; height:100%; }
+
+  /* #9: floating placement for 3D Vaelthar (above the z1400 city canvas). */
+  .shop-panel.shop-panel-floating {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    width: min(680px, 94vw);
+    max-height: 82vh;
+    margin: 0;
+    z-index: 1600;
+    box-shadow: 0 4px 28px rgba(0,0,0,0.7);
+  }
 
   .shop-header {
     display: flex;

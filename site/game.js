@@ -19,6 +19,8 @@ let gameState = {
   questIndex: 1,
   activeQuests: [],
   completedQuests: [],
+  questProgress: {},
+  world3dPositions: {},
   enemies: [],
   combat: false,
   log: [],
@@ -35,19 +37,50 @@ function showScreen(name) {
     screen.classList.add('active');
     gameState.activeScreen = name;
   }
-  // Always clean up floating game overlays when navigating away from game
+  // Always clean up floating game overlays when navigating away from game.
+  // NOTE: the #dm-strip is STATIC HTML — hide it instead of removing it, so it
+  // isn't permanently destroyed on the first menu click (#71).
   if (name !== 'game') {
     document.getElementById('conv-panel')?.remove();
     document.getElementById('combat-panel')?.remove();
     document.getElementById('scene-panel')?.remove();
-    document.getElementById('dm-strip')?.remove();
+    const dmStrip = document.getElementById('dm-strip');
+    if (dmStrip) dmStrip.style.display = 'none';
     if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
     if (window.combatState) window.combatState.active = false;
+  } else {
+    // Entering the game screen — make sure the DM strip exists; rebuild if missing.
+    ensureDMStrip();
   }
 }
 
+// Recreate the static #dm-strip if a prior bug removed it from the DOM (#71)
+function ensureDMStrip() {
+  if (document.getElementById('dm-strip')) return;
+  const log = document.getElementById('game-log');
+  if (!log || !log.parentNode) return;
+  const strip = document.createElement('div');
+  strip.id = 'dm-strip';
+  strip.className = 'dm-strip';
+  strip.style.display = 'none';
+  strip.innerHTML = `
+    <div class="dm-strip-icon">📖 DM</div>
+    <div id="dm-strip-text" class="dm-strip-text"></div>
+    <button onclick="document.getElementById('dm-strip').style.display='none'" class="dm-strip-close">✕</button>`;
+  // Insert just before the game-log (its original position)
+  log.parentNode.insertBefore(strip, log);
+}
+window.ensureDMStrip = ensureDMStrip;
+
 function startSoloMode() {
   // Skip lobby/session entirely — go straight to character creation
+  // A fresh chronicle clears any prior death state (Part 3 / HARDCORE).
+  try { localStorage.removeItem('ss_run_dead'); } catch (e) {}
+  gameState.dead = false;
+  // Fresh solo chronicle — wipe any prior run's world singletons so a new character
+  // doesn't inherit the previous run's clock/reputation/romance/map/drunk state (#5).
+  // finalizeCharacter() resets again once stats are locked; this clears it up front too.
+  if (typeof resetWorldState === 'function') resetWorldState();
   gameState.soloMode = true;
   gameState.sessionCode = null;
   if (window.mp) { window.mp.sessionCode = null; window.mp.isHost = false; }
@@ -147,7 +180,9 @@ function showSessionWaiting() {
 
   document.querySelectorAll('.screen:not(#wait-screen)').forEach(s => s.classList.remove('active'));
   updateWaitingPlayers();
-  setInterval(updateWaitingPlayers, 2000);
+  // Store the legacy lobby poll handle and clear any prior one to avoid leaks (#78)
+  if (window._lobbyPollInterval) clearInterval(window._lobbyPollInterval);
+  window._lobbyPollInterval = setInterval(updateWaitingPlayers, 2000);
 }
 
 function updateWaitingPlayers() {
@@ -190,9 +225,21 @@ function buildRaceGrid() {
     card.dataset.raceId = r.id;
     card.innerHTML = `<span class="race-icon">${r.icon}</span><span class="race-name">${r.name}</span><span class="race-bonus">${r.bonus}</span>`;
     card.onclick = () => {
+      const changed = gameState.selectedRace && gameState.selectedRace !== r.id;
       document.querySelectorAll('.race-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       gameState.selectedRace = r.id;
+      // If the race changed AFTER stats were rolled, the old race bonuses are baked
+      // into rolledStats. Force a clean re-roll so the new race's bonuses apply (#79).
+      if (changed && gameState.statsRolled) {
+        gameState.statsRolled = false;
+        gameState.rolledStats = null;
+        const rollBtn = document.getElementById('roll-btn');
+        if (rollBtn) { rollBtn.style.display = 'inline-block'; rollBtn.disabled = false; rollBtn.style.opacity = '1'; }
+        const next6 = document.getElementById('to-step-6-btn');
+        if (next6) next6.style.display = 'none';
+        toast('Race changed — roll your stats again.', 'info');
+      }
     };
     grid.appendChild(card);
   });
@@ -467,6 +514,68 @@ async function _autoGeneratePortrait() {
   }
 }
 
+// ─── FRESH-RUN WORLD RESET (#5) ───────────────
+// worldClock / reputation / romanceState / mapDiscovered / drunkState are module
+// singletons (window.X = window.X || {...}) created once at load. A second character
+// in the same browser session inherits the first run's values unless we reset them.
+// Call ONLY when a brand-new chronicle begins — NEVER on save-load (loads restore
+// their own persisted world state). Exposed on window so combat.js's death-screen
+// "New Chronicle" can wipe the dead run's world before a fresh start.
+function resetWorldState() {
+  gameState.world3dPositions = {};
+  // World clock → 08:00, day 1 (canonical initial shape from camp.js)
+  window.worldClock = { hour: 8, day: 1 };
+
+  // Reputation → fresh faction defaults (from reputation.js)
+  window.reputation = {
+    city_watch:  0,
+    church:      0,
+    covenant:    0,
+    underworld:  0,
+    citizens:    0,
+    party:       20, // start with some party trust
+  };
+
+  // Romance → empty fresh state (from romance.js)
+  window.romanceState = {
+    relationships: {},
+    marriedTo: null,
+    marriedToName: null,
+    cheated: false,
+    family: { children: 0, homeEstablished: false },
+  };
+
+  // Map discovery → only the starting location is known (from map.js: vaelthar_city).
+  // Also reset each WORLD_LOCATIONS.discovered to its canonical start (only the
+  // starting city begins discovered) so fog-of-war is fresh.
+  window.mapDiscovered = { vaelthar_city: true };
+  if (window.WORLD_LOCATIONS) {
+    Object.values(window.WORLD_LOCATIONS).forEach(loc => {
+      if (loc && loc.id) loc.discovered = (loc.id === 'vaelthar_city');
+    });
+  }
+  if (window.mapState) window.mapState.currentLocation = 'vaelthar_city';
+
+  // Drunk state → sober (from senses.js)
+  window.drunkState = {
+    cups: 0,
+    isDrunk: false,
+    severity: 0,
+    soberAt: null,
+    tempChaBonus: 0,
+    tempDexPenalty: 0,
+    tempPerPenalty: 0,
+    vomited: false,
+  };
+
+  // AI story history (additions.js) → empty for a fresh narrative
+  window.storyHistory = [];
+
+  // Scene state (flags/knownFacts/history/personal-quest) — already handled by story.js
+  if (typeof window.resetSceneState === 'function') window.resetSceneState();
+}
+window.resetWorldState = resetWorldState;
+
 function finalizeCharacter() {
   if (!gameState.statsRolled) { toast('Roll your stats first!', 'error'); return; }
 
@@ -497,6 +606,9 @@ function finalizeCharacter() {
     hellPoints: 0,
     inventory: [...cls.inventory],
     skills: { ...cls.skills },
+    proficiencies: getClassProficiencies(gameState.selectedClass),
+    savingThrowProficiencies: DND_RULES.getClassSavingThrows(gameState.selectedClass),
+    questRewardsClaimed: [],
     personalQuests: originData ? originData.quests.map((q, i) => ({ ...q, id: 'pq_' + i, status: 'active', chapter: 1 })) : [],
     revealChoice: null,
     skillPoints: 1,
@@ -506,6 +618,10 @@ function finalizeCharacter() {
   };
 
   gameState.character = character;
+
+  // Fresh run: wipe ALL inherited world singletons — clock, reputation, romance, map
+  // fog, drunk state, story history, AND scene flags/knownFacts/personal-quest (#5).
+  resetWorldState();
 
   // Show backstory reveal
   buildBackstoryScroll(character, originData, race, cls);
@@ -604,7 +720,8 @@ function showReadyRoom() {
               <span id="ready-count" style="font-size:0.7rem;margin-left:8px">(0/? ready)</span>
             </button>
             <p class="step-hint" style="margin-top:8px">Wait for all players to be ready, then start.</p>`
-          : `<p class="step-hint">Waiting for the host to start the chronicle...</p>`
+          : `<p class="step-hint">Waiting for the host to start the chronicle...</p>
+             <button class="btn-ghost" id="leave-ready-room-btn" onclick="leaveReadyRoom()" style="margin-top:12px">✕ Leave Session</button>`
         }
       </div>
     </div>`;
@@ -612,11 +729,23 @@ function showReadyRoom() {
   updateReadyRoom();
 }
 
+// Non-host exit from the MP ready room — disconnects and clears the session (#75)
+function leaveReadyRoom() {
+  document.getElementById('ready-room')?.remove();
+  if (typeof clearMPSession === 'function') clearMPSession();
+  // Use the existing disconnect path from multiplayer.js
+  if (window.mp?.socket && typeof window.mp.socket.disconnect === 'function') {
+    try { window.mp.socket.disconnect(); } catch (e) {}
+  }
+  showScreen('splash');
+}
+window.leaveReadyRoom = leaveReadyRoom;
+
 function updateReadyRoom() {
   const list = document.getElementById('ready-player-list');
   if (!list || !window.mp?.session) return;
 
-  const players = Object.values(window.mp.session.players);
+  const players = Object.values(window.mp.session.players).filter(p => p && p.connected !== false);
   const readyCount = players.filter(p => p.ready).length;
   const total = players.length;
   const allReady = readyCount === total && total > 0;
@@ -628,7 +757,7 @@ function updateReadyRoom() {
       <span style="font-size:1.2rem">${p.ready ? '✅' : '⏳'}</span>
       <div style="flex:1">
         <div style="font-family:'Cinzel',serif;font-size:0.8rem;color:${p.ready ? '#c9a84c' : 'var(--text-dim)'}">
-          ${p.name}${p.id === window.mp.playerId ? ' (You)' : ''}
+          ${(window.escapeHtml || (value => String(value)))(p.name)}${p.id === window.mp.playerId ? ' (You)' : ''}
         </div>
         ${p.character ? `<div style="font-size:0.7rem;color:var(--text-dim)">
           ${p.character.race ? (window.RACES?.find(r=>r.id===p.character.race)?.name || '') : ''} 
@@ -653,7 +782,7 @@ function updateReadyRoom() {
 
 function hostStartChronicle() {
   if (!window.mp?.isHost) return;
-  const players = Object.values(window.mp.session?.players || {});
+  const players = Object.values(window.mp.session?.players || {}).filter(p => p && p.connected !== false);
   if (!players.every(p => p.ready)) { toast('Not all players are ready!', 'error'); return; }
   // Tell server to start the game for everyone
   window.mp.socket.emit('start_game', { code: window.mp.sessionCode });
@@ -679,26 +808,128 @@ function initGameScreen() {
   setupQuests();
   renderQuestList();
 
-  // Start game log
-  addLog(`☩ The Chronicle begins. Welcome, ${char.name}.`, 'system');
-  addLog(`You are a ${RACES.find(r=>r.id===char.race)?.name || 'Unknown'} ${CLASSES.find(c=>c.id===char.class)?.name || 'Unknown'}, bearer of ${char.holyPoints} holy points and ${char.hellPoints} hell points.`, 'system');
-  addLog(`Chapter I begins: "The Shattered Covenant." A treaty is broken. The world holds its breath.`, 'narrator');
+  // When restoring a save, skip the fresh-game intro logs / quest popup (#6)
+  if (!gameState._restoring) {
+    // Start game log
+    addLog(`☩ The Chronicle begins. Welcome, ${char.name}.`, 'system');
+    addLog(`You are a ${RACES.find(r=>r.id===char.race)?.name || 'Unknown'} ${CLASSES.find(c=>c.id===char.class)?.name || 'Unknown'}, bearer of ${char.holyPoints} holy points and ${char.hellPoints} hell points.`, 'system');
+    addLog(`Chapter I begins: "The Shattered Covenant." A treaty is broken. The world holds its breath.`, 'narrator');
 
-  setTimeout(() => {
-    showQuestIntro();
-  }, 1200);
+    setTimeout(() => {
+      showQuestIntro();
+    }, 1200);
+  }
 
-  // Poll for party updates
-  setInterval(pollPartyUpdates, 3000);
+  // Poll for party updates — clear any prior interval first to avoid leaks (#78)
+  if (window._partyPollInterval) clearInterval(window._partyPollInterval);
+  window._partyPollInterval = setInterval(pollPartyUpdates, 3000);
 }
 
 function setupQuests() {
+  // Don't reset quests when restoring a save — keep the loaded progress (#6)
+  if (gameState._restoring) return;
   gameState.activeQuests = [
     CHAPTER_1_QUESTS[0],
-    CHAPTER_1_QUESTS[1],
     ...gameState.character.personalQuests.slice(0, 2)
   ];
+  gameState.questProgress = gameState.questProgress || {};
 }
+
+function getQuestById(questId) {
+  return CHAPTER_1_QUESTS.find(q => q.id === questId)
+    || gameState.character?.personalQuests?.find(q => q.id === questId)
+    || gameState.activeQuests?.find(q => q.id === questId);
+}
+
+function activateQuest(questId, announce = true) {
+  const quest = getQuestById(questId);
+  if (!quest) return false;
+  if (gameState.completedQuests.some(q => q.id === questId) || gameState.activeQuests.some(q => q.id === questId)) return false;
+  gameState.activeQuests.push({ ...quest, status:'active' });
+  if (announce) addLog(`📜 QUEST ADDED: "${quest.title}" — ${quest.desc}`, 'system');
+  renderQuestList();
+  return true;
+}
+
+function advanceQuest(questId, milestone, data = {}) {
+  const quest = getQuestById(questId);
+  if (!quest || gameState.completedQuests.some(q => q.id === questId)) return false;
+  activateQuest(questId, false);
+  gameState.questProgress = gameState.questProgress || {};
+  const progress = gameState.questProgress[questId] || { stages:[], facts:{}, objectives:{} };
+  progress.stages = progress.stages || [];
+  progress.facts = progress.facts || {};
+  progress.objectives = progress.objectives || {};
+  const objectiveId = data.objectiveId || null;
+  if ((objectiveId && progress.objectives[objectiveId]) || (!objectiveId && progress.stages.includes(milestone))) return false;
+  progress.stages.push(milestone);
+  if (objectiveId) {
+    progress.objectives[objectiveId] = { label:milestone, eventKey:data.eventKey || '', completedAt:Date.now() };
+  }
+  Object.assign(progress.facts, Object.fromEntries(Object.entries(data).filter(([key]) => !['objectiveId','eventKey'].includes(key))));
+  progress.updatedAt = Date.now();
+  gameState.questProgress[questId] = progress;
+  addLog(`📜 QUEST UPDATED: "${quest.title}" — ${milestone}`, 'system');
+  renderQuestList();
+  return true;
+}
+
+function completeQuest(questId, options = {}) {
+  const quest = getQuestById(questId);
+  if (!quest || gameState.completedQuests.some(q => q.id === questId)) return false;
+  gameState.activeQuests = gameState.activeQuests.filter(q => q.id !== questId);
+  gameState.completedQuests.push({ ...quest, status:'completed', completedAt:Date.now() });
+  gameState.questProgress = gameState.questProgress || {};
+  gameState.questProgress[questId] = { ...(gameState.questProgress[questId] || {}), completed:true, completedAt:Date.now(), rewardGranted:options.reward !== false };
+  addLog(`✅ QUEST COMPLETE: "${quest.title}"`, 'holy');
+  if (options.reward !== false && quest.xp) {
+    grantQuestReward(questId, quest.xp);
+  }
+  if (options.activateNext !== false && quest.chapter === 1) {
+    const next = CHAPTER_1_QUESTS.find(q => q.order === quest.order + 1);
+    if (next) activateQuest(next.id, true);
+  }
+  renderQuestList();
+  if (window.mp?.isHost) window.mpBroadcastStoryEvent?.('quest_completed', { questId, xp:quest.xp || 0 });
+  return true;
+}
+
+function grantQuestReward(questId, xp) {
+  const character = gameState.character;
+  if (!character || !questId) return false;
+  character.questRewardsClaimed = Array.isArray(character.questRewardsClaimed) ? character.questRewardsClaimed : [];
+  if (character.questRewardsClaimed.includes(questId)) return false;
+  character.questRewardsClaimed.push(questId);
+  const amount = Math.max(0, Number(xp) || 0);
+  if (amount && typeof window.grantXP === 'function') window.grantXP(amount);
+  else character.xp = (character.xp || 0) + amount;
+  return true;
+}
+
+window.activateQuest = activateQuest;
+window.advanceQuest = advanceQuest;
+window.completeQuest = completeQuest;
+
+function recordQuestEvent(eventKey, payload = {}) {
+  const engine = window.SanctumQuests;
+  if (!engine || !eventKey) return { updates:[], completions:[] };
+  const result = engine.reduceQuestEvent({
+    activeQuestIds:(gameState.activeQuests || []).map(quest => quest.id),
+    completedQuestIds:(gameState.completedQuests || []).map(quest => quest.id),
+    progress:gameState.questProgress || {},
+  }, eventKey);
+  result.updates.forEach(update => advanceQuest(update.questId, update.label, {
+    objectiveId:update.objectiveId, eventKey:update.eventKey, ...payload,
+  }));
+  result.completions.forEach(questId => completeQuest(questId));
+  if ((result.updates.length || result.completions.length) && window.mp?.isHost) {
+    window.mpBroadcastCampaignState?.(`quest:${eventKey}`);
+  }
+  return result;
+}
+
+window.recordQuestEvent = recordQuestEvent;
+window.grantQuestReward = grantQuestReward;
 
 function showQuestIntro() {
   const q = CHAPTER_1_QUESTS[0];
@@ -716,10 +947,19 @@ function renderPlayerCard() {
   const mpPct = (char.mp / char.maxMp * 100).toFixed(0);
   const holyPct = Math.min(100, char.holyPoints);
   const hellPct = Math.min(100, char.hellPoints);
+  const conditionLabels = {
+    inspired:'Inspired — advantage on your next check', poisoned:'Poisoned — disadvantage on checks and attacks',
+    frightened:'Frightened — social checks may suffer disadvantage', exhausted:'Exhausted — disadvantage on checks',
+  };
+  const conditionHTML = (char.conditions || []).length
+    ? `<div class="character-conditions" aria-label="Active conditions">${char.conditions.map(condition =>
+        `<span class="condition-chip" title="${conditionLabels[condition] || condition}">${condition.replaceAll('_',' ')}</span>`
+      ).join('')}</div>` : '';
 
   document.getElementById('player-card').innerHTML = `
     <div class="pcm-name">${char.name}</div>
     <div class="pcm-class">${race?.name || ''} ${cls?.name || ''} — Lv.${char.level}</div>
+    ${conditionHTML}
     <div class="health-bar-wrap">
       <div class="bar-label"><span>HP</span><span>${char.hp}/${char.maxHp}</span></div>
       <div class="bar-track"><div class="bar-fill hp" style="width:${hpPct}%"></div></div>
@@ -739,14 +979,16 @@ function renderPlayerCard() {
     <div class="health-bar-wrap">
       <div class="bar-label">
         <span>⭐ XP  Lv.${char.level}</span>
-        <span id="xp-bar-label">${char.xp} / ${(window.XP_TABLE||[])[( char.level||1)+1] || '∞'}</span>
+        <span id="xp-bar-label">${char.xp} / ${(window.XP_TABLE||[])[(char.level||1)] || '∞'}</span>
       </div>
       <div class="bar-track">
         <div id="xp-bar-fill" class="bar-fill xp" style="width:${(()=>{
+          // Level-up at XP_TABLE[L]; bar at level L = (xp-XP_TABLE[L-1])/(XP_TABLE[L]-XP_TABLE[L-1]) (#12)
           const tbl=window.XP_TABLE||[0,100,250,450,700,1000,1400,1900,2500,3200,4000];
           const lvl=char.level||1, cur=char.xp||0;
-          const prev=tbl[lvl]||0, next=tbl[lvl+1]||prev+1000;
-          return Math.min(100,Math.round((cur-prev)/(next-prev)*100));
+          const prev=tbl[lvl-1]||0, next=tbl[lvl]||(prev+1000);
+          const span=Math.max(1,next-prev);
+          return Math.max(0,Math.min(100,Math.round((cur-prev)/span*100)));
         })()}%"></div>
       </div>
     </div>
@@ -760,6 +1002,9 @@ function renderPlayerCard() {
     </div>
   `;
 }
+// Alias — many modules call updateCharacterPanel() (real fn is renderPlayerCard) (#76)
+window.updateCharacterPanel = renderPlayerCard;
+window.renderPlayerCard = renderPlayerCard;
 
 function renderStatsMini() {
   const stats = gameState.character?.stats;
@@ -800,6 +1045,7 @@ function renderInventory() {
     return `<div class="inv-item">${useBtn}<span class="inv-icon">${icon}</span><span class="inv-name">${item}</span></div>`;
   }).join('') || '<div style="color:var(--text-dim);font-size:0.85rem;padding:8px">Nothing in your pack.</div>';
 }
+window.renderInventory = renderInventory;
 
 function renderPartyList() {
   const container = document.getElementById('party-list'); if (!container) return;
@@ -838,16 +1084,32 @@ function renderPartyList() {
   }).join('');
 }
 
+function updateQuestCounter() {
+  // Keep the "Quest N/20" header in sync with gameState (#81)
+  const el = document.getElementById('quest-counter');
+  if (!el) return;
+  const done = (gameState.completedQuests || []).length;
+  const total = (typeof CHAPTER_1_QUESTS !== 'undefined' ? CHAPTER_1_QUESTS.length : 20) || 20;
+  const current = Math.min(total, done + 1);
+  el.textContent = `Quest ${current}/${total}`;
+}
+window.updateQuestCounter = updateQuestCounter;
+
 function renderQuestList() {
+  updateQuestCounter();
   const container = document.getElementById('quest-list'); if (!container) return;
   const quests = [...(gameState.activeQuests || [])].slice(0, 4);
-  container.innerHTML = quests.map(q => `
+  container.innerHTML = quests.map(q => {
+    const stages = gameState.questProgress?.[q.id]?.stages || [];
+    const current = stages[stages.length - 1];
+    return `
     <div class="quest-item ${q.id?.startsWith('pq') ? 'personal' : ''}">
       <span class="qi-title">${q.title}</span>
-      <span class="qi-desc">${q.desc?.substring(0, 60)}...</span>
+      <span class="qi-desc">${(current || q.desc || '').substring(0, 72)}${(current || q.desc || '').length > 72 ? '...' : ''}</span>
     </div>
-  `).join('') || '<div style="color:var(--text-dim);font-size:0.85rem;font-style:italic">No active quests.</div>';
+  `; }).join('') || '<div style="color:var(--text-dim);font-size:0.85rem;font-style:italic">No active quests.</div>';
 }
+window.renderQuestList = renderQuestList;
 
 // ─── GAME LOG ─────────────────────────────
 function addLog(text, type = 'system', playerName = null) {
@@ -857,7 +1119,9 @@ function addLog(text, type = 'system', playerName = null) {
   const entry = document.createElement('div');
   entry.className = `log-entry ${type}`;
   if (playerName) {
-    entry.innerHTML = `<span class="log-player">${playerName}</span>${text}`;
+    // Escape user-controlled player name AND text before innerHTML (#60)
+    const esc = window.escapeHtml || (s => s);
+    entry.innerHTML = `<span class="log-player">${esc(String(playerName))}</span>${esc(String(text))}`;
   } else {
     entry.textContent = text;
   }
@@ -883,12 +1147,170 @@ function addLog(text, type = 'system', playerName = null) {
 
 // ─── ACTION SUBMISSION ────────────────────
 // ─── ACTION CLASSIFICATION ────────────────────
+const DND_RULES = window.SanctumRules;
+if (!DND_RULES) throw new Error('SanctumRules must load before game.js');
+const DND_SKILLS = DND_RULES.SKILLS;
+const CLASS_PROFICIENCIES = DND_RULES.CLASS_PROFICIENCIES;
+window.CLASS_PROFICIENCIES = CLASS_PROFICIENCIES;
+
+function getClassProficiencies(classId) {
+  return DND_RULES.getClassProficiencies(classId);
+}
+
+function inferActionSkill(text) {
+  return DND_RULES.inferSkill(text);
+}
+
+function inferActionDC(text, skill) {
+  return DND_RULES.inferDC(text, skill);
+}
+
+function rollActionCheck(text, options = {}) {
+  const char = options.character || gameState.character;
+  const check = DND_RULES.rollCheck({
+    ...options, text, character:char, drunk:window.drunkState?.isDrunk,
+  });
+  if (check.consumeCondition && Array.isArray(char?.conditions)) {
+    char.conditions = char.conditions.filter(condition => condition !== check.consumeCondition);
+  }
+  return check;
+}
+
+function logActionCheck(check, dc = check.dc) {
+  const skillLabel = (check.skill || check.ability).replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const rolled = check.rolls.length > 1 ? `[${check.rolls.join(', ')} → ${check.roll}]` : `[${check.roll}]`;
+  const abilityPart = `${check.abilityMod >= 0 ? '+' : '-'} ${Math.abs(check.abilityMod)}`;
+  const prof = check.proficiency ? ` + ${check.proficiency} proficiency` : '';
+  const mode = check.mode === 'normal' ? '' : ` (${check.mode})`;
+  addLog(`🎲 ${skillLabel} (${check.ability.toUpperCase()})${mode} DC${dc}: ${rolled} ${abilityPart}${prof} = ${check.total} — ${check.crit ? '✨ CRITICAL!' : check.fumble ? '💀 FUMBLE!' : check.success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
+  if (window.AudioEngine) AudioEngine.sfx?.dice();
+}
+
+const OFFLINE_CLUES = {
+  vaelthar_city: 'Ash has been swept away from one section of the signing hall. Beneath it, boot marks lead toward the Temple Quarter.',
+  temple_quarter: 'A candle bears Elder Varek\'s private seal, pressed into the wax before it cooled.',
+  thornwood_gate: 'The tracks avoid every Watch patrol and converge on the old forest passage.',
+  thornwood_passage: 'The broken branches were bent from the far side: something was herding travelers toward Vaelthar.',
+  monastery_aldric: 'Fresh mortar hides a seam in the floor. Air moves beneath the stones.',
+  merchant_road: 'The wreckage was searched for documents, not coin; a black wax flake remains under a wheel.',
+  fortress_harren: 'The heraldry has been deliberately scored away, but the old oath-mark is still visible beneath it.',
+  church_archive: 'A catalogue number has been cut from the ledger, leaving the indentation of the missing entry.',
+};
+
+function rememberActionFact(key, value) {
+  window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+  window.sceneState.flags = window.sceneState.flags || {};
+  window.sceneState.knownFacts = window.sceneState.knownFacts || {};
+  window.sceneState.flags[key] = true;
+  window.sceneState.knownFacts[key] = value;
+}
+
+function applyActionConsequences(text, check, character = gameState.character) {
+  const char = character;
+  const locId = window.mapState?.currentLocation || 'vaelthar_city';
+  const locName = window.WORLD_LOCATIONS?.[locId]?.name || 'this place';
+  const skill = check.skill;
+  const factKey = `action_${skill || 'free'}_${locId}`;
+  let narration;
+
+  if (check.success) {
+    if (['investigation','perception'].includes(skill)) {
+      const clue = OFFLINE_CLUES[locId] || `A small inconsistency in ${locName} reveals that someone passed through recently and tried to hide it.`;
+      const repeated = !!window.sceneState?.flags?.[factKey];
+      rememberActionFact(factKey, clue);
+      narration = repeated ? `You search the same ground carefully. The evidence still supports your earlier conclusion: ${clue}` : `Your search pays off. ${clue}`;
+      if (!repeated && typeof window.advanceQuest === 'function') window.advanceQuest('c1q1', `Clue found at ${locName}`);
+    } else if (skill === 'stealth') {
+      rememberActionFact(`hidden_${locId}`, `${char.name} established a concealed position in ${locName}.`);
+      narration = `You find the blind spots in the patrols and disappear into them. Until you act openly, observers in ${locName} do not know exactly where you are.`;
+    } else if (['athletics','acrobatics'].includes(skill)) {
+      rememberActionFact(`position_${locId}`, `${char.name} overcame a physical obstacle in ${locName}.`);
+      narration = `You clear the obstacle and secure a better position. The route behind you remains usable.`;
+    } else if (['persuasion','deception','intimidation','performance'].includes(skill)) {
+      rememberActionFact(`social_leverage_${locId}`, `${char.name} gained social leverage through ${skill}.`);
+      if (window.reputation && skill === 'persuasion') window.reputation.citizens = (window.reputation.citizens || 0) + 1;
+      narration = skill === 'deception' ? `The lie holds. For now, the listener acts on the version of events you gave them.` : `Your words change the balance of the conversation. You gain leverage that can be used in the next exchange.`;
+    } else if (skill === 'sleight_of_hand') {
+      rememberActionFact(`sleight_success_${locId}`, `${char.name} manipulated an object without being noticed.`);
+      narration = `Your hand moves cleanly and returns before anyone notices. The object is now where you intended it to be.`;
+    } else if (['arcana','religion','history','nature','survival','insight','medicine','animal_handling'].includes(skill)) {
+      const fact = `Your ${skill.replaceAll('_',' ')} training reveals a useful truth about ${locName}.`;
+      rememberActionFact(factKey, fact);
+      narration = `${fact} The discovery is recorded and can affect later choices.`;
+    } else {
+      rememberActionFact(`last_action_${locId}`, text);
+      narration = `You carry out the action without immediate resistance. The situation in ${locName} changes accordingly.`;
+    }
+  } else {
+    if (['athletics','acrobatics'].includes(skill)) {
+      const damage = check.fumble ? 6 : 3;
+      char.hp = Math.max(1, char.hp - damage);
+      narration = `You lose your footing and take ${damage} damage. The obstacle remains between you and your goal.`;
+    } else if (['stealth','sleight_of_hand','deception'].includes(skill)) {
+      rememberActionFact(`guards_alerted_${locId}`, `${char.name}'s failed ${skill.replaceAll('_',' ')} attempt attracted attention.`);
+      narration = `Someone notices the attempt. The area is now alert, and repeating the same approach will be harder.`;
+    } else if (['persuasion','intimidation','performance'].includes(skill)) {
+      if (window.reputation) window.reputation.citizens = (window.reputation.citizens || 0) - 1;
+      narration = `Your approach hardens the listener against you. You lose social ground and will need a different argument.`;
+    } else if (['investigation','perception','insight'].includes(skill)) {
+      rememberActionFact(`searched_${locId}`, `${char.name} searched but did not establish a reliable conclusion.`);
+      narration = `You find several possibilities but no reliable conclusion. Acting on the wrong one would create a new risk.`;
+    } else {
+      narration = `The attempt fails and costs you time. The obstacle remains, and the people nearby have seen what you tried.`;
+    }
+  }
+
+  if (check.crit) char.conditions = Array.from(new Set([...(char.conditions || []), 'inspired']));
+  if (check.fumble && !['athletics','acrobatics'].includes(skill)) char.hellPoints = (char.hellPoints || 0) + 1;
+  if (char === gameState.character && typeof renderPlayerCard === 'function') renderPlayerCard();
+  return narration;
+}
+
+async function resolveActionRequest(text, options = {}) {
+  const inMP = !!window.mp?.sessionCode;
+  if (inMP && !options.authoritative) {
+    if (!window.mp.isHost && typeof window.mpRequestAction === 'function') {
+      return window.mpRequestAction(text, options);
+    }
+    options = { ...options, authoritative:true };
+  }
+  const actor = options.character || gameState.character;
+  const skill = options.skill || inferActionSkill(text);
+  if (!skill && !options.ability && !options.dc) {
+    const locId = window.mapState?.currentLocation || 'vaelthar_city';
+    const locName = window.WORLD_LOCATIONS?.[locId]?.name || 'the area';
+    rememberActionFact(`last_free_action_${locId}`, text);
+    const movement = /\b(go|walk|move|approach|enter|leave|cross|follow)\b/i.test(text);
+    addLog(movement
+      ? `You move through ${locName} with purpose. Your position changes, but reaching another named location still requires the World Map.`
+      : `You do it. The action is now part of the scene, and nearby characters can react to it.`, 'narrator');
+    const freeResult = { success:true, free:true, text };
+    if (inMP && window.mp.isHost) window.mpBroadcastCampaignState?.('free_action');
+    return freeResult;
+  }
+  const check = rollActionCheck(text, { ...options, skill, character:actor });
+  logActionCheck(check, check.dc);
+  const narration = applyActionConsequences(text, check, actor);
+  addLog(narration, check.success ? 'narrator' : 'combat');
+  if (inMP && window.mp.isHost) {
+    window.mpSyncHostCharacter?.(actor, options.actorId || window.mp.playerId);
+    window.mpBroadcastCampaignState?.('action_check');
+  }
+  return check;
+}
+
+window.DNDRules = { skills:DND_SKILLS, inferSkill:inferActionSkill, rollCheck:rollActionCheck, logCheck:logActionCheck };
+window.resolveActionRequest = resolveActionRequest;
+
 function classifyAction(text) {
   const t = text.toLowerCase();
 
-  // Pure speech — no roll needed
-  const speechPhrases = ['say ', 'tell ', 'ask ', 'talk to ', 'speak to ', 'shout ', 'whisper ', 'yell ', 'call out', 'greet ', 'introduce ', 'announce ', '"', "'"];
-  if (speechPhrases.some(p => t.startsWith(p) || t.includes(p))) return 'speech';
+  // Pure speech — no roll needed.
+  // Require a real speech verb phrase, OR text actually wrapped in quotes —
+  // never a bare apostrophe/quote (so "I don't open it, I smash it" isn't "speech") (#50)
+  const speechPhrases = ['say ', 'tell ', 'ask ', 'talk to ', 'speak to ', 'shout ', 'whisper ', 'yell ', 'call out', 'greet ', 'introduce ', 'announce '];
+  const isQuotedSpeech = /["“][^"”]+["”]/.test(text) || /\bi (say|tell|ask|shout|whisper|yell)\b/.test(t);
+  if (isQuotedSpeech || speechPhrases.some(p => t.startsWith(p) || t.includes(' ' + p))) return 'speech';
 
   // Combat — handled by checkAutoAttack
   const combatWords = ['attack', 'stab', 'strike', 'punch', 'hit', 'fight', 'kill', 'shoot', 'slash', 'draw sword', 'draw weapon'];
@@ -1016,7 +1438,9 @@ async function submitAction() {
 
   // ── Rest / Camp intercept — before anything else ──
   const tLower = text.toLowerCase().trim();
-  const isRestWord = ['rest', 'camp', 'sleep', 'make camp', 'short rest', 'long rest', 'set up camp', 'take a rest'].some(w => tLower === w || tLower.startsWith(w + ' ') || tLower.includes(w));
+  // Word-boundary match so "forest"/"arrest"/"restore" no longer trigger camp (#49)
+  const isRestWord = /\b(rest|camp|sleep)\b/.test(tLower)
+    || ['make camp', 'short rest', 'long rest', 'set up camp', 'take a rest'].some(w => tLower === w || tLower.startsWith(w + ' '));
   if (isRestWord) {
     if (typeof openCampPanel === 'function') {
       openCampPanel();
@@ -1063,7 +1487,9 @@ async function submitAction() {
   }
 
   // ── Shop intercept ──
-  const isShopWord = ['shop', 'buy', 'sell', 'merchant', 'open shop', 'visit shop', 'browse wares'].some(w => tLower === w || tLower.startsWith(w) || tLower.includes(w));
+  // Word-boundary match so "bishop"/"counsellor" no longer open the shop (#49)
+  const isShopWord = /\b(shop|buy|sell|merchant)\b/.test(tLower)
+    || ['open shop', 'visit shop', 'browse wares'].some(w => tLower === w || tLower.startsWith(w));
   if (isShopWord) {
     if (typeof openShop === 'function') {
       openShop();
@@ -1096,14 +1522,23 @@ async function submitAction() {
     if (checkAutoAttack(text)) return;
   }
 
+  // Contested actions use the same visible d20 contest promised by the rules.
+  if (detectContested(text)) {
+    const target = text.match(/(?:against|at|past|from|to)\s+([\w'-]+(?:\s+[\w'-]+){0,2})/i)?.[1] || 'Opponent';
+    showContestedRoll(text, target);
+    return;
+  }
+
   analyzeActionMorality(text.toLowerCase());
 
   const actionType = classifyAction(text);
 
   // Speech — pass to NPC dialogue if target mentioned, else narrate freely
   if (actionType === 'speech') {
-    // Extract NPC name — cap at 3 words max to prevent capturing entire sentences
-    const talkMatch = text.match(/(?:say to|tell|ask|talk to|speak to|shout at|whisper to|call out to)\s+(\w+(?:\s+\w+){0,2})/i);
+    // Extract only the NPC name, stopping before conversational prepositions so
+    // "talk to Captain Rhael about the Scribe" does not create an NPC literally
+    // named "Captain Rhael about".
+    const talkMatch = text.match(/(?:say to|tell|ask|talk to|speak to|shout at|whisper to|call out to)\s+([\w'-]+(?:\s+[\w'-]+){0,2}?)(?=\s+(?:about|regarding|concerning|for|on|because|and then|to ask)\b|[,.!?]|$)/i);
     const npcName = talkMatch?.[1]?.trim();
     if (npcName && typeof startNPCConversation === 'function') {
       startNPCConversation(npcName, text);
@@ -1113,37 +1548,8 @@ async function submitAction() {
     return;
   }
 
-  // Free narrative actions (movement, looking, basic interaction)
-  if (actionType === 'free') {
-    const roll = Math.floor(Math.random() * 20) + 1;
-    resolveAction(text, roll, 'free', 10);
-    return;
-  }
-
-  // All other action types — require a stat roll with real consequences
-  const statMap = { charisma: 'cha', strength: 'str', dexterity: 'dex', intelligence: 'int', wisdom: 'wis' };
-  const statKey = statMap[actionType];
-  const dcMap = { charisma: 13, strength: 12, dexterity: 13, intelligence: 12, wisdom: 11 };
-  const dc = dcMap[actionType] || 12;
-
-  const statVal = gameState.character?.stats?.[statKey] || 10;
-  const mod = Math.floor((statVal - 10) / 2);
-  const roll = Math.floor(Math.random() * 20) + 1;
-  const total = roll + mod;
-  const crit = roll === 20;
-  const fumble = roll === 1;
-  const success = crit || (!fumble && total >= dc);
-
-  const statLabel = statKey.toUpperCase();
-  addLog(`🎲 ${statLabel} check DC${dc}: [${roll}] + ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${crit ? '✨ CRITICAL!' : fumble ? '💀 FUMBLE!' : success ? '✅ Success!' : '❌ Failure!'}`, 'dice');
-  if (window.AudioEngine) AudioEngine.sfx?.dice();
-
-  resolveAction(text, roll, actionType, dc, total, success);
-}
-
-function detectMajorMoment(text) {
-  const keywords = ['boss', 'final', 'demon', 'god', 'angel', 'ritual', 'covenant', 'destroy', 'sacrifice', 'ancient', 'shattered', 'apocalypse', 'death', 'kill the', 'slay the'];
-  return keywords.some(k => text.toLowerCase().includes(k));
+  // Every non-conversation/non-combat action now flows through one rules engine.
+  await resolveActionRequest(text);
 }
 
 function detectContested(text) {
@@ -1446,67 +1852,10 @@ function narrate_contest_outcome(playerWon, action, p1, p2, r1, r2) {
 }
 
 async function resolveAction(text, roll, actionType, dc, total, success) {
-  const char = gameState.character;
-  const isCrit = roll === 20;
-  const isFumble = roll === 1;
-
-  // For free actions just narrate via Claude
-  if (actionType === 'free') {
-    const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
-
-    // Jesus Christ invocation already handled above before classification
-    const sysPrompt = `You are the DM of "Sanctum & Shadow". Narrate what happens in 2-3 sentences. Be atmospheric and specific to ${loc?.name}. Always write complete sentences. No dice mention. NEVER use markdown headers (#), bold (**), or any formatting — plain prose only.`;
-    const narration = await callClaude(sysPrompt, [{ role: 'user', content: `Player action: "${text}"` }], 200);
-    if (narration) {
-      const clean = narration.replace(/^#+\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/_{2,}([^_]+)_{2,}/g, '$1').trim();
-      addLog(clean, 'narrator');
-    }
-    return;
-  }
-
-  const resultLabel = isCrit ? 'CRITICAL SUCCESS' : isFumble ? 'CRITICAL FAILURE' : success ? 'SUCCESS' : 'FAILURE';
-
-  const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
-  const cls = CLASSES?.find(c => c.id === char?.class);
-  const race = RACES?.find(r => r.id === char?.race);
-  const flags = Object.keys(window.sceneState?.flags || {}).join(', ') || 'none';
-
-  const systemPrompt = `You are the DM of "Sanctum & Shadow", a dark fantasy RPG. Narrate action outcomes in 2-3 complete sentences. Be specific to the setting. Never mention dice or rolls. Always finish your sentences. Stay in narrative voice. NEVER use markdown headers (#), bold (**text**), italic (*text*), or any markdown formatting — write plain prose only. No "What do you do?" at the end.`;
-
-  const userMsg = `Player: ${char?.name}, ${race?.name} ${cls?.name}
-Location: ${loc?.name}
-Story flags: ${flags}
-Action: "${text}"
-Result: ${resultLabel} (rolled ${total} vs DC${dc})
-
-${isCrit ? 'CRITICAL SUCCESS — narrate something unexpectedly great happening.' : ''}
-${isFumble ? 'CRITICAL FAILURE — narrate something going badly and immediately wrong.' : ''}
-${success && !isCrit ? 'SUCCESS — it works but with a complication or cost.' : ''}
-${!success && !isFumble ? 'FAILURE — it fails and there is a real negative consequence. NPC reacts badly, opportunity lost, or situation worsens.' : ''}`;
-
-  const narration = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 250);
-
-  if (narration) {
-    // Strip any markdown the DM Claude returned
-    const cleanNarration = narration
-      .replace(/^#+\s+/gm, '')          // ## Headers
-      .replace(/\*\*([^*]+)\*\*/g, '$1') // **bold**
-      .replace(/\*([^*]+)\*/g, '$1')     // *italic* (keep for now, used for actions)
-      .replace(/_{2,}([^_]+)_{2,}/g, '$1') // __bold__
-      .trim();
-    addLog(cleanNarration, success ? 'narrator' : 'combat');
-  } else {
-    // Fallback
-    if (isCrit) addLog(`A critical success — everything goes better than hoped.`, 'holy');
-    else if (isFumble) addLog(`A catastrophic failure — things have gotten significantly worse.`, 'dark');
-    else if (success) addLog(`The action succeeds, though not without complication.`, 'narrator');
-    else addLog(`The action fails. The consequences are immediate.`, 'combat');
-  }
-
-  // Apply consequences
-  if (isCrit) grantHolyPoints(1);
-  if (isFumble) { grantHellPoints(1); if (char) { char.hp = Math.max(1, char.hp - 3); renderPlayerCard(); } }
-  if (!success && !isFumble && actionType === 'charisma') grantHellPoints(1);
+  // Backwards-compatible entry point for older wrappers. All authoritative
+  // resolution is delegated to the single D&D rules pipeline above.
+  const abilityMap = { charisma:'cha', strength:'str', dexterity:'dex', intelligence:'int', wisdom:'wis' };
+  return resolveActionRequest(text, { ability: abilityMap[actionType], dc });
 }
 
 function analyzeActionMorality(text) {
@@ -1596,10 +1945,9 @@ function pray(type) {
   }
 }
 
-// ─── DICE ─────────────────────────────────
-function rollDice() {
-  showContestedRoll('Custom Contest');
-}
+// ─── (removed) dead zero-arg rollDice() (#26) ──
+// It only wrapped showContestedRoll('Custom Contest') and had no call sites.
+// The real damage-rolling rollDice(formula, statMod) lives in combat.js.
 
 // ─── DICE HISTORY PANEL ───────────────────
 // Automatically populated whenever any addLog(..., 'dice') is called
@@ -1641,162 +1989,63 @@ function rollSpecific(sides) {
   addLog(`🎲 The dice roll when the game demands it — no free rolls.`, 'system');
 }
 
-// ─── ATTACK MENU ──────────────────────────
+// ─── ATTACK QUICK-ACTION ──────────────────
+// The old hardcoded Covenant Cultist/Road Bandit/Bresker stub with fake crits was
+// removed (#26). The 🗡 Attack quick-action now routes into the REAL combat system
+// in combat.js via checkAutoAttack → startCombat.
 function showAttackMenu() {
-  const list = document.getElementById('target-list');
-  const enemies = [
-    { name: 'Covenant Cultist', hp: 25, maxHp: 25, type: 'enemy' },
-    { name: 'Road Bandit', hp: 18, maxHp: 30, type: 'enemy' },
-    { name: 'Bresker (Ally)', hp: 85, maxHp: 120, type: 'ally' },
-  ];
-
-  list.innerHTML = enemies.map(e => `
-    <div class="target-card ${e.type}" onclick="attackTarget('${e.name}', '${e.type}')">
-      <span class="tc-name">${e.name}</span>
-      <span class="tc-hp">${e.hp}/${e.maxHp} HP</span>
-    </div>
-  `).join('');
-
-  openOverlay('attack-overlay');
-}
-
-function attackTarget(targetName, type) {
-  closeOverlay('attack-overlay');
-  const char = gameState.character;
-  const attackRoll = Math.floor(Math.random() * 20) + 1;
-  const damageRoll = Math.floor(Math.random() * 8) + 1 + Math.floor((char?.stats?.str - 10) / 2) || 0;
-
-  addLog(`⚔ ${char?.name} attacks ${targetName}!`, 'action', char?.name);
-  addLog(`🎲 Attack roll: [${attackRoll}] vs AC`, 'dice');
-
-  setTimeout(() => {
-    if (attackRoll >= 10) {
-      addLog(`💥 HIT! ${damageRoll} damage dealt to ${targetName}!`, 'combat');
-      if (attackRoll === 20) addLog(`CRITICAL HIT! Double damage dealt!`, 'holy');
-
-      // Friendly fire check
-      if (type === 'ally') {
-        addLog(`⚠ WARNING: You attacked an ally! This will have consequences.`, 'dark');
-        grantHellPoints(8);
-      }
-    } else {
-      addLog(`Miss! Your attack glances off harmlessly.`, 'system');
-    }
-  }, 400);
-}
-
-// ─── SPELL MENU ───────────────────────────
-function showSpellMenu() {
-  const char = gameState.character;
-  if (!char) return;
-  const classId = char.class;
-  const classSpells = SPELLS[classId] || [];
-  const holySpells = char.holyPoints >= 10 ? SPELLS.holy : [];
-  const darkSpells = char.hellPoints >= 10 ? SPELLS.dark : [];
-  const allSpells = [...classSpells, ...holySpells, ...darkSpells];
-
-  const list = document.getElementById('spell-list');
-  list.innerHTML = allSpells.map(spell => `
-    <div class="spell-card ${spell.type === 'holy' ? 'holy-spell' : spell.type === 'dark' ? 'dark-spell' : ''}"
-         onclick="castSpell('${spell.id}')">
-      <span class="sc-name">${spell.icon} ${spell.name}</span>
-      <span class="sc-cost">MP: ${spell.mp} ${spell.holy_cost ? `| ✝ ${spell.holy_cost}HP` : ''} ${spell.hell_gain ? `| ⛧ +${spell.hell_gain}HP` : ''}</span>
-      <span class="sc-desc">${spell.desc}${spell.friendly_fire ? ' ⚠ FRIENDLY FIRE' : ''}</span>
-    </div>
-  `).join('') || '<p style="color:var(--text-dim)">No spells available. Gain Holy or Hell points to unlock divine/dark powers.</p>';
-
-  openOverlay('spell-overlay');
-}
-
-function castSpell(spellId) {
-  const char = gameState.character;
-  // Find spell across all spell lists
-  let spell = null;
-  for (const key of Object.keys(SPELLS)) {
-    spell = SPELLS[key].find(s => s.id === spellId);
-    if (spell) break;
-  }
-  if (!spell) return;
-
-  closeOverlay('spell-overlay');
-
-  if (char.mp < spell.mp) {
-    toast('Not enough MP!', 'error');
+  if (window.combatState?.active) {
+    toast('You are already in combat.', 'error');
     return;
   }
-  if (spell.holy_cost && char.holyPoints < spell.holy_cost) {
-    toast(`Need ${spell.holy_cost} Holy Points!`, 'error');
-    return;
+  if (typeof checkAutoAttack === 'function') {
+    // checkAutoAttack('attack') generates a location-appropriate enemy and calls
+    // the real startCombat([...]) — no fake damage, no fake crits.
+    checkAutoAttack('attack');
+  } else {
+    toast('Combat system unavailable.', 'error');
   }
-
-  char.mp -= spell.mp;
-  if (spell.holy_cost) char.holyPoints -= spell.holy_cost;
-  if (spell.hell_gain) grantHellPoints(spell.hell_gain);
-
-  addLog(`✨ ${char.name} casts ${spell.name}!`, 'action', char.name);
-
-  setTimeout(() => {
-    if (spell.damage) {
-      const dmgRoll = rollDamageString(spell.damage, char.stats);
-      addLog(`💥 ${spell.name} deals ${dmgRoll} ${spell.type} damage!`, spell.type === 'holy' ? 'holy' : spell.type === 'dark' ? 'dark' : 'combat');
-    }
-
-    if (spell.friendly_fire && Math.random() < 0.35) {
-      const splash = Math.floor(Math.random() * 6) + 1;
-      addLog(`⚠ FRIENDLY FIRE! The ${spell.name} splashes ${splash} damage onto Bresker!`, 'combat');
-    }
-
-    if (spell.type === 'heal') {
-      const healRoll = rollDamageString(spell.damage || '2d8', char.stats);
-      char.hp = Math.min(char.maxHp, char.hp + healRoll);
-      addLog(`💚 Healed for ${healRoll} HP.`, 'holy');
-    }
-
-    renderPlayerCard();
-  }, 400);
-}
-
-function rollDamageString(dmgStr, stats) {
-  // Parse strings like "3d8+WIS", "2d6+4"
-  const match = dmgStr.match(/(\d+)d(\d+)(\+(\w+))?/);
-  if (!match) return parseInt(dmgStr) || 1;
-  const numDice = parseInt(match[1]);
-  const dieSize = parseInt(match[2]);
-  let total = Array.from({length: numDice}, () => Math.floor(Math.random() * dieSize) + 1).reduce((a,b) => a+b, 0);
-  if (match[4]) {
-    const statName = match[4].toLowerCase();
-    if (stats && stats[statName]) {
-      total += Math.floor((stats[statName] - 10) / 2);
-    } else if (!isNaN(parseInt(match[4]))) {
-      total += parseInt(match[4]);
-    }
-  }
-  return Math.max(1, total);
 }
 
 // ─── QUEST LOG ────────────────────────────
 function showQuestLog() {
   const content = document.getElementById('quest-overlay-content');
-  const mainQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'main').slice(0, 5);
-  const sideQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'side').slice(0, 3);
+  const mainQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'main');
+  const sideQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'side');
   const personalQuests = gameState.character?.personalQuests || [];
+  const activeIds = new Set((gameState.activeQuests || []).map(quest => quest.id));
+  const completedIds = new Set((gameState.completedQuests || []).map(quest => quest.id));
+  const escText = window.escapeHtml || (value => String(value));
+  const renderCampaignQuest = q => {
+    const completed = completedIds.has(q.id);
+    const active = activeIds.has(q.id);
+    const status = completed ? '✓ COMPLETED' : active ? '● ACTIVE' : q.type === 'side' ? '○ AVAILABLE' : '🔒 LOCKED';
+    const statusClass = completed ? 'completed' : active ? 'active' : '';
+    const objectives = window.SanctumQuests?.getObjectives(q.id) || [];
+    const objectiveState = gameState.questProgress?.[q.id]?.objectives || {};
+    const objectiveHTML = (active || completed) && objectives.length ? `
+      <div style="margin-top:8px;display:grid;gap:4px">
+        ${objectives.map(objective => {
+          const done = !!objectiveState[objective.id] || completed;
+          return `<div style="font-size:0.72rem;color:${done ? '#7fbf83' : 'var(--text-dim)'}">${done ? '✓' : '○'} ${escText(objective.label)}</div>`;
+        }).join('')}
+      </div>` : '';
+    return `<div class="quest-full-item ${completed ? 'completed' : ''}">
+      <div class="qfi-title">${q.boss ? '💀 ' : ''}${escText(q.title)}</div>
+      <div class="qfi-desc">${escText(q.desc)}</div>
+      ${objectiveHTML}
+      <div class="qfi-status ${statusClass}">${status} — ${q.xp} XP reward</div>
+    </div>`;
+  };
 
   content.innerHTML = `
     <div class="quest-section">
       <h4>☩ MAIN QUESTS — CHAPTER I</h4>
-      ${mainQuests.map(q => `<div class="quest-full-item">
-        <div class="qfi-title">${q.boss ? '💀 ' : ''}${q.title}</div>
-        <div class="qfi-desc">${q.desc}</div>
-        <div class="qfi-status active">● ACTIVE — ${q.xp} XP reward</div>
-      </div>`).join('')}
+      ${mainQuests.map(renderCampaignQuest).join('')}
     </div>
     <div class="quest-section">
       <h4>⚔ SIDE QUESTS</h4>
-      ${sideQuests.map(q => `<div class="quest-full-item">
-        <div class="qfi-title">${q.title}</div>
-        <div class="qfi-desc">${q.desc}</div>
-        <div class="qfi-status active">● AVAILABLE — ${q.xp} XP</div>
-      </div>`).join('')}
+      ${sideQuests.map(renderCampaignQuest).join('')}
     </div>
     <div class="quest-section">
       <h4>🔮 PERSONAL QUESTS <span style="color:var(--hell);font-style:italic;letter-spacing:0">(Secret)</span></h4>
@@ -1810,76 +2059,19 @@ function showQuestLog() {
   openOverlay('quest-overlay');
 }
 
-// ─── AI NARRATOR ──────────────────────────
-async function narrateMajorMoment(actionText) {
-  openOverlay('narrator-overlay');
-  document.getElementById('narrator-text').textContent = '';
-  document.getElementById('narrator-typing').classList.remove('hidden');
-  document.getElementById('narrator-close').style.display = 'none';
-
-  const char = gameState.character;
-  const cls = CLASSES.find(c => c.id === char?.class);
-  const race = RACES.find(r => r.id === char?.race);
-  const questTitle = gameState.activeQuests?.[0]?.title || 'The Shattered Covenant';
-
-  const prompt = `You are the narrator of a dark fantasy RPG called "Sanctum & Shadow" — the tone is Game of Thrones meets Baldur's Gate 3, holy and profane, epic and gritty.
-
-The current player character is: ${char?.name || 'Unknown'}, a ${race?.name || ''} ${cls?.name || ''} with ${char?.holyPoints || 0} Holy Points and ${char?.hellPoints || 0} Hell Points. The current quest is: "${questTitle}". Chapter 1: The Shattered Covenant.
-
-The player just declared: "${actionText}"
-
-Write a dramatic 2-3 paragraph narrative resolution of this moment. Make it cinematic, dark, and memorable. Reference the holy/hell balance if relevant. Keep it between 100-200 words. No preamble, just the narration.`;
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 300,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-
-    const data = await response.json();
-    const text = data.content?.map(i => i.text || '').join('') || 'The fates are silent. The dice have spoken in ways beyond mortal comprehension.';
-
-    document.getElementById('narrator-typing').classList.add('hidden');
-    typewriterEffect('narrator-text', text, 25, () => {
-      document.getElementById('narrator-close').style.display = 'block';
-      addLog('📖 ' + text, 'narrator');
-    });
-  } catch (err) {
-    document.getElementById('narrator-typing').classList.add('hidden');
-    const fallback = `The moment hangs in the air, heavy with fate. ${char?.name} stands at the precipice of something that will be remembered long after bones have turned to dust. The chronicle records this deed. The angels and demons both take note.`;
-    typewriterEffect('narrator-text', fallback, 25, () => {
-      document.getElementById('narrator-close').style.display = 'block';
-    });
-  }
-}
-
-function typewriterEffect(elementId, text, speed, callback) {
-  const el = document.getElementById(elementId);
-  el.textContent = '';
-  let i = 0;
-  const interval = setInterval(() => {
-    if (i < text.length) {
-      el.textContent += text[i];
-      i++;
-    } else {
-      clearInterval(interval);
-      if (callback) callback();
-    }
-  }, speed);
-}
+// ─── (removed) narrateMajorMoment / typewriterEffect (#26) ──
+// narrateMajorMoment was dead code (no call sites) AND made a keyless direct
+// fetch to api.anthropic.com — deleted. typewriterEffect was only used by it.
 
 // ─── OVERLAY MANAGEMENT ───────────────────
 function openOverlay(id) {
-  document.getElementById(id).classList.remove('hidden');
+  if (window.SanctumUI?.openManagedOverlay(id)) return;
+  document.getElementById(id)?.classList.remove('hidden');
 }
 
 function closeOverlay(id) {
-  document.getElementById(id).classList.add('hidden');
+  if (window.SanctumUI?.closeManagedOverlay(id)) return;
+  document.getElementById(id)?.classList.add('hidden');
 }
 
 // ─── PARTY SYNC ───────────────────────────
@@ -1905,6 +2097,9 @@ function toast(message, type = '') {
 function createToastContainer() {
   const c = document.createElement('div');
   c.className = 'toast-container';
+  c.setAttribute('role', 'status');
+  c.setAttribute('aria-live', 'polite');
+  c.setAttribute('aria-atomic', 'false');
   document.body.appendChild(c);
   return c;
 }
@@ -1915,9 +2110,21 @@ document.addEventListener('keydown', (e) => {
     if (gameState.activeScreen === 'game') submitAction();
   }
   if (e.key === 'Escape') {
-    // Close overlays first
-    const openOverlay = document.querySelector('.overlay:not(.hidden)');
-    if (openOverlay) { openOverlay.classList.add('hidden'); return; }
+    // If the PAUSE menu itself is open, close it
+    const escMenu = document.getElementById('esc-menu');
+    if (escMenu) { escMenu.remove(); return; }
+    // If the character sheet is open, Esc closes IT (don't stack pause) (#75)
+    const charSheet = document.getElementById('char-sheet-overlay') || document.getElementById('charsheet-overlay') || document.getElementById('char-sheet');
+    if (charSheet) { charSheet.remove(); return; }
+    // If the save/load screen is open, Esc closes IT (#75)
+    if (document.getElementById('save-load-screen')) {
+      if (typeof closeSaveLoadScreen === 'function') closeSaveLoadScreen();
+      else document.getElementById('save-load-screen').remove();
+      return;
+    }
+    // Close generic overlays
+    const openOverlayElement = document.querySelector('.overlay:not(.hidden)');
+    if (openOverlayElement) { closeOverlay(openOverlayElement.id); return; }
     // Close conv/combat/scene panels
     if (document.getElementById('conv-panel')) { if (typeof closeConvPanel === 'function') closeConvPanel(); return; }
     // Toggle ESC menu when in game
@@ -1990,7 +2197,10 @@ function doEscSave() {
   const feedback = document.getElementById('esc-save-feedback');
 
   if (typeof saveGame === 'function') {
-    const slot = saveGame(name, null, true); // silent (no addLog)
+    // Pass a stable type so buildSaveSlot dedupes (name + type) to ONE slot instead of
+    // creating a new slot on every ESC save and evicting named saves (#26).
+    const escType = window.mp?.sessionCode ? 'multiplayer' : 'solo';
+    const slot = saveGame(name, escType, true); // silent (no addLog)
     if (slot) {
       if (feedback) { feedback.textContent = `✅ Saved: "${slot.name}"`; feedback.className = 'esc-feedback success'; }
       addLog(`💾 Game saved: "${slot.name}"`, 'system');

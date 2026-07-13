@@ -374,9 +374,19 @@ function getSchedulePromptBlock(npcId) {
 // ─── HOOK INTO startNPCConversation ──────────────────────
 // Intercepts conversation starts to check if NPC is present
 // and inject schedule context into the prompt
+let _schedHookInstalled = false;
 function _hookConversationForSchedules() {
+  // Idempotency guard — mirror reputation.js's _repCombatHookInstalled /
+  // dialogue.js's _isNPCWrapped pattern so we wrap exactly once. Called on
+  // both DOMContentLoaded and every showScreen('game'); without this the
+  // wrapper chain grows and spams duplicate "isn't here" logs.
+  if (_schedHookInstalled) return;
   const _origStart = window.startNPCConversation;
   if (!_origStart) { setTimeout(_hookConversationForSchedules, 600); return; }
+  // Belt-and-suspenders: if startNPCConversation is already our wrapped
+  // version (e.g. from another install path), don't re-wrap.
+  if (_origStart._schedWrapped) { _schedHookInstalled = true; return; }
+  _schedHookInstalled = true;
 
   window.startNPCConversation = async function(npcIdOrName, playerOpener) {
     // Resolve NPC id
@@ -390,8 +400,37 @@ function _hookConversationForSchedules() {
       const locId = window.mapState?.currentLocation || 'vaelthar_city';
       const presence = isNPCPresent(npc.id, locId);
 
-      if (!presence.present) {
-        // NPC isn't here — log it and abort conversation
+      // A scripted scene can place an NPC in front of the player regardless of
+      // their daily schedule. If a scene panel is open that involves this NPC,
+      // or the NPC is part of the current scene, don't abort — the scene wins.
+      const scene = window.sceneState?._currentScene;
+      const scenePanelOpen = !!document.getElementById('scene-panel');
+      const nameNeedle = (npc.name || '').toLowerCase();
+      const sceneText = scene
+        ? `${scene.narration || ''} ${scene.sub || ''} ${(scene.options || []).map(o => o.label).join(' ')}`.toLowerCase()
+        : '';
+      const sceneInvolvesNPC = !!scene && (
+        scene.npc === npc.id ||
+        scene.npc === npc.name ||
+        (!!nameNeedle && sceneText.includes(nameNeedle)) ||
+        (!!nameNeedle && sceneText.includes(nameNeedle.split(' ').pop()))
+      );
+      const scriptedPresence = scenePanelOpen && sceneInvolvesNPC;
+
+      // When the 3D city map (vaelthar3d) is active, every SQUARE_NPC is
+      // physically spawned and rendered in the square regardless of the
+      // worldClock schedule. The NPC is literally standing in front of the
+      // player, so the schedule presence-gate must NOT abort here — the
+      // render wins. (The schedule gate still applies to normal 2D
+      // free-roam talk attempts, where the NPC may genuinely be elsewhere.)
+      if (window.vt3dActive) {
+        // skip presence abort — NPC is physically rendered in the 3D square
+        window._currentNPCScheduleContext = getSchedulePromptBlock(npc.id);
+        return _origStart(npcIdOrName, playerOpener);
+      }
+
+      if (!presence.present && !scriptedPresence) {
+        // NPC isn't here (and no scripted scene puts them here) — abort free-roam talk
         addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
         addLog(`🔍 ${presence.reason}`, 'narrator');
         if (presence.hint) addLog(`💡 ${presence.hint}`, 'system');
@@ -404,6 +443,8 @@ function _hookConversationForSchedules() {
 
     return _origStart(npcIdOrName, playerOpener);
   };
+  // Tag the wrapper so re-entry (or another install path) won't re-wrap.
+  window.startNPCConversation._schedWrapped = true;
 
   console.log('🕐 NPC schedule hook active.');
 }

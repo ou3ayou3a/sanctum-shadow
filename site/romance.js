@@ -72,7 +72,7 @@ Respond with exactly one word: "male" or "female". Base it on name, title, and a
 const FLIRT_PATTERNS = [
   /\bflirt\b/i, /\bcompliment\b/i, /\bcharm\b/i, /\bwink\b/i,
   /smile at\b/i, /\bbat (my )?eyes\b/i, /\bbuy (her|him) a drink\b/i,
-  /tell (her|him) (she'?s?|he'?s?|how)/i, /\bwhisper\b/i,
+  /tell (her|him) (she'?s?|he'?s?|how)/i,
   /\bseduce\b/i, /\bromance\b/i, /\bcourt\b/i, /\bask (her|him) out\b/i,
   /you'?re? (beautiful|handsome|lovely|stunning|gorgeous)/i,
   /\bflatter\b/i, /lean (closer|in)\b/i, /\bgive (her|him) a look\b/i,
@@ -87,7 +87,7 @@ const INTIMATE_PATTERNS = [
   /tell (you|her|him) something in (your|my) ear/i,
   /whisper (something )?(in|into) (your|my) ear/i,
   /\blet'?s? go somewhere (private|alone|quiet)\b/i,
-  /\blet'?s? be alone\b/i, /\bcome with me\b/i,
+  /\blet'?s? be alone\b/i,
   /\bkiss (you|her|him)\b/i, /\btouch (you|her|him)\b/i,
 ];
 const PROPOSE_PATTERNS = [
@@ -166,24 +166,88 @@ ${rel.affection >= 90
 After your dialogue and OPTIONS, always include the appropriate tag(s) on a final line.`;
 }
 
+// ─── RE-RENDER OPTIONS AFTER A FAILED ROMANCE BEAT ─────────
+// Romance prereq/fumble/hard-fail beats end with appendConvLine + addLog and
+// then return without sending to Claude. That left the PRIOR turn's option
+// buttons on screen. Re-render the current options so the player has fresh,
+// correct choices to continue with. (#33)
+function _reRenderRomanceOptions() {
+  const opts = window.npcConvState?.currentOptions;
+  if (opts && opts.length && typeof renderConvOptions === 'function') {
+    renderConvOptions(opts);
+  }
+}
+
+// ─── ROMANCE SYSTEM-PROMPT INJECTION HOOK ──────────────────
+// Base sendNPCMessage (dialogue.js) injects this alongside the reputation and
+// schedule blocks. We stash the per-turn romance context when a romance intent
+// is detected, then the base prompt builder pulls it in here. Consumed once.
+window.getNPCRomanceContext = function(npc) {
+  const ctx = window._currentRomanceContext;
+  if (!ctx || !npc || ctx.npc?.id !== npc.id) return '';
+  return ctx.promptBlock || '';
+};
+
+// ─── ROMANCE RESPONSE POST-PROCESSOR ───────────────────────
+// Base sendNPCMessage calls this after callClaude. We consume the affection /
+// intimate / married tags and apply their side-effects, then return the
+// cleaned response so the base lifecycle (display-sanitize, history, world
+// writeback, talked_to/reputation flags, autosave) runs on clean text. (#17)
+window._postProcessNPCResponse = function(npc, raw) {
+  const ctx = window._currentRomanceContext;
+  // Only act on the turn we set up; clear it so normal turns are untouched.
+  if (!ctx || !npc || ctx.npc?.id !== npc.id) return raw;
+  window._currentRomanceContext = null;
+
+  const rel = getRelationship(npc.id);
+
+  const affMatch = raw.match(/\[AFFECTION:([+-]\d+)\]/);
+  if (affMatch) changeAffection(npc.id, parseInt(affMatch[1]));
+
+  if (/\[INTIMATE:true\]/i.test(raw)) rel.intimate = true;
+  if (/\[MARRIED:true\]/i.test(raw)) handleMarriage(npc.id, npc.name);
+
+  if (ctx.intent === 'declare_love' && rel.affection >= 75) rel.inLove = true;
+
+  // Refresh the affection bar once the base path has rendered the line.
+  setTimeout(() => renderAffectionBar(npc.id, npc.name), 0);
+
+  // Strip romance tags so they never reach the transcript.
+  return raw.replace(/\[(AFFECTION:[+-]\d+|INTIMATE:true|MARRIED:true)\]/gi, '').trim();
+};
+
 // ─── MAIN HOOK — intercept sendNPCMessage ─────
 const _origSendNPCMessage = window.sendNPCMessage;
-window.sendNPCMessage = async function(playerText) {
+window.sendNPCMessage = async function(...args) {
+  const playerText = args[0];
+  const isOpener = args[1] === true;
   const npc = window.npcConvState?.npc;
-  if (!npc) { if (_origSendNPCMessage) return _origSendNPCMessage(playerText); return; }
+
+  // Clear any stale one-shot romance context from a prior turn that didn't
+  // reach the post-processor (e.g. base bailed on turn-limit/navigation), so
+  // it can never inject the romance prompt into an unrelated later turn.
+  window._currentRomanceContext = null;
+
+  // Only intercept inside an active one-on-one conversation with an NPC.
+  // Never intercept openers (they'd burn the romance flow and double-log) and
+  // never intercept when there's no live conversation — let plot lines through.
+  if (!npc || isOpener || !window.npcConvState?.active) {
+    if (_origSendNPCMessage) return _origSendNPCMessage(...args);
+    return;
+  }
 
   const intent = detectRomanceIntent(playerText);
 
   // No romance intent — pass through normally but still track
   if (!intent) {
-    if (_origSendNPCMessage) return _origSendNPCMessage(playerText);
+    if (_origSendNPCMessage) return _origSendNPCMessage(...args);
     return;
   }
 
   // Handle family action directly
   if (intent === 'family') {
     startFamily();
-    if (_origSendNPCMessage) return _origSendNPCMessage(playerText);
+    if (_origSendNPCMessage) return _origSendNPCMessage(...args);
     return;
   }
 
@@ -211,6 +275,7 @@ window.sendNPCMessage = async function(playerText) {
       const line = lines[Math.floor(Math.random() * lines.length)];
       addLog(`${npc.portrait || '👤'} ${line}`, 'narrator');
       appendConvLine(npc.name, line);
+      _reRenderRomanceOptions();
       return;
     }
 
@@ -231,6 +296,7 @@ window.sendNPCMessage = async function(playerText) {
       const line = fumbles[Math.floor(Math.random() * fumbles.length)];
       addLog(`${npc.portrait || '👤'} ${line}`, 'narrator');
       appendConvLine(npc.name, line);
+      _reRenderRomanceOptions();
       return;
     }
     // Good roll — fall through to Claude with intimate context
@@ -254,6 +320,7 @@ window.sendNPCMessage = async function(playerText) {
       addLog(`${npc.portrait || '👤'} ${line}`, 'narrator');
       appendConvLine(npc.name, line);
       changeAffection(npc.id, -1);
+      _reRenderRomanceOptions();
       return;
     }
     if (total >= 10) rel.flirtedSuccessfully = true;
@@ -274,6 +341,7 @@ window.sendNPCMessage = async function(playerText) {
       const line = lines[Math.floor(Math.random() * lines.length)];
       addLog(`${npc.portrait || '👤'} ${line}`, 'narrator');
       appendConvLine(npc.name, line);
+      _reRenderRomanceOptions();
       return;
     }
     // Cheating marriage check
@@ -281,6 +349,7 @@ window.sendNPCMessage = async function(playerText) {
       addLog(`⚠ You are already married to ${window.romanceState.marriedToName}! This is a grave sin.`, 'hell');
       gameState.character.holyPoints = 0;
       grantHellPoints(40);
+      _reRenderRomanceOptions();
       return;
     }
   }
@@ -300,44 +369,27 @@ window.sendNPCMessage = async function(playerText) {
     addLog(`💔 You have betrayed your vows to ${window.romanceState.marriedToName}. All Holy Points lost. +25 Hell Points.`, 'hell');
   }
 
-  // ── Call Claude with romance-aware system ──
-  const romanceAddition = buildRomancePrompt(npc, rel, intent, npcGender);
-  const augmentedSystem = (npc.personality || `You are ${npc.name}, an NPC in the dark fantasy world of Vaelthar.`) + romanceAddition;
+  // ── Route the actual send through the BASE lifecycle (#17) ──
+  // Rather than re-implementing a partial send (which skipped display-sanitize,
+  // _updateWorldFromConversation, talked_to_/reputation flags and autosave),
+  // we stash the romance system-prompt addition + intent so the base
+  // sendNPCMessage injects it (via getNPCRomanceContext) and consumes the
+  // affection/intimate/married tags afterward (via _postProcessNPCResponse).
+  // The base path then performs the full world writeback for free, and the
+  // affection/flirt mechanics above remain intact.
+  window._currentRomanceContext = {
+    npc,
+    rel,
+    intent,
+    npcGender,
+    promptBlock: buildRomancePrompt(npc, rel, intent, npcGender),
+  };
 
-  const history = window.npcConvState.history || [];
-  const messages = [...history, { role: 'user', content: playerText }];
-
-  showTypingIndicator();
-  const raw = await callClaude(augmentedSystem, messages, 500);
-  hideTypingIndicator();
-
-  if (!raw) { addLog('...', 'system'); return; }
-
-  // ── Parse response tags ──
-  const affMatch = raw.match(/\[AFFECTION:([+-]\d+)\]/);
-  if (affMatch) changeAffection(npc.id, parseInt(affMatch[1]));
-
-  const intimateMatch = raw.match(/\[INTIMATE:true\]/i);
-  if (intimateMatch) rel.intimate = true;
-
-  const marriedMatch = raw.match(/\[MARRIED:true\]/i);
-  if (marriedMatch) handleMarriage(npc.id, npc.name);
-
-  // Clean tags from output
-  const cleanRaw = raw.replace(/\[(AFFECTION:[+-]\d+|INTIMATE:true|MARRIED:true)\]/gi, '').trim();
-  const { speech, options } = parseNPCResponse(cleanRaw);
-
-  // Update history
-  window.npcConvState.history.push(
-    { role: 'user', content: playerText },
-    { role: 'assistant', content: cleanRaw }
-  );
-
-  if (intent === 'declare_love' && rel.affection >= 75) rel.inLove = true;
-
-  displayNPCLine(npc, speech, options);
-  addLog(`${npc.portrait || '👤'} ${npc.name}: "${speech.replace(/\*[^*]+\*/g, '').replace(/\([^)]+\)/g, '').trim().substring(0, 120)}"`, 'narrator');
-  renderAffectionBar(npc.id, npc.name);
+  if (_origSendNPCMessage) {
+    return _origSendNPCMessage(...args);
+  }
+  // No base send available — clear the one-shot context so it can't leak.
+  window._currentRomanceContext = null;
 };
 
 // ─── AFFECTION MANAGEMENT ─────────────────────
@@ -421,11 +473,12 @@ function renderAffectionBar(npcId, npcName) {
 
 // ─── HELPER ───────────────────────────────────
 function appendConvLine(name, text) {
-  const t = document.getElementById('conv-transcript');
+  const t = document.getElementById('cp-transcript');
   if (!t) return;
+  const esc = window.escapeHtml || (s => s);
   const d = document.createElement('div');
   d.className = 'ct-entry npc';
-  d.innerHTML = `<span class="ct-speaker">${name}</span><span class="ct-text">${text}</span>`;
+  d.innerHTML = `<span class="ct-speaker">${esc(name)}</span><span class="ct-text">${esc(text)}</span>`;
   t.appendChild(d);
   t.scrollTop = t.scrollHeight;
 }
@@ -437,5 +490,21 @@ window.checkAutoAttack = function(text) {
   if (_origCheckAutoAttack) return _origCheckAutoAttack(text);
   return false;
 };
+
+// ─── MINIMAL TRANSCRIPT STYLING ───────────────
+// romance.js owns this style block; the shared stylesheets are owned by other files.
+(function injectRomanceCSS() {
+  if (document.getElementById('romance-ct-style')) return;
+  const style = document.createElement('style');
+  style.id = 'romance-ct-style';
+  style.textContent = `
+    .ct-entry { display:flex; flex-direction:column; gap:1px; margin:3px 0; padding:3px 6px;
+      border-left:2px solid rgba(255,150,150,0.25); }
+    .ct-entry.npc { border-left-color:rgba(255,150,150,0.4); }
+    .ct-speaker { font-family:'Cinzel',serif; font-size:0.6rem; color:#ff9aaa; letter-spacing:0.04em; }
+    .ct-text { font-size:0.72rem; color:#cfc6b8; line-height:1.35; }
+  `;
+  document.head.appendChild(style);
+})();
 
 console.log('💕 Universal romance engine loaded — every NPC can be romanced.');

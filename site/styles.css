@@ -15,7 +15,7 @@
   --panel-border: rgba(201, 168, 76, 0.3);
   --text-primary: #e8dcc0;
   --text-secondary: #9a8860;
-  --text-dim: #5a4a30;
+  --text-dim: #8a7a55; /* bumped for readability/contrast (#81) */
   --parchment: #1a1408;
   --parchment-mid: #221c0e;
   --blood-red: #8b1a1a;
@@ -39,6 +39,19 @@ body {
   color: var(--text-primary);
   font-size: 16px;
   line-height: 1.6;
+}
+
+body.ui-large-text { font-size: 18px; }
+body.ui-high-contrast {
+  --panel-bg: rgba(4, 3, 2, 0.98);
+  --panel-border: rgba(240, 208, 128, 0.62);
+  --text-secondary: #c8b98f;
+  --text-dim: #b9aa82;
+}
+
+:focus-visible {
+  outline: 3px solid var(--gold-light);
+  outline-offset: 3px;
 }
 
 #app {
@@ -1004,6 +1017,15 @@ body {
 }
 
 .action-input:focus { border-color: rgba(201,168,76,0.6); }
+.action-input:disabled { opacity:0.65; cursor:wait; }
+
+.action-status {
+  min-height: 1.2em;
+  margin: -6px 0 9px;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
 
 .btn-action {
   font-family: 'Cinzel', serif;
@@ -1022,6 +1044,53 @@ body {
 .btn-action:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 15px rgba(201,168,76,0.4);
+}
+
+.btn-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
+}
+
+.character-conditions { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 8px; }
+.condition-chip {
+  border:1px solid rgba(224,190,90,0.38);
+  background:rgba(201,168,76,0.1);
+  color:var(--gold-light);
+  border-radius:999px;
+  padding:1px 7px;
+  font-family:'Cinzel',serif;
+  font-size:0.58rem;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+
+.accessibility-panel { position:fixed; inset:0; z-index:2700; display:grid; place-items:center; padding:20px; }
+.accessibility-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.82); backdrop-filter:blur(3px); }
+.accessibility-card {
+  position:relative; width:min(460px,100%); padding:26px;
+  background:#0c0905; border:1px solid var(--panel-border); box-shadow:0 18px 70px rgba(0,0,0,0.8);
+  display:grid; gap:14px;
+}
+.accessibility-card h2 { color:var(--gold); font-family:'Cinzel',serif; font-size:1rem; }
+.accessibility-card label { display:flex; align-items:center; gap:10px; cursor:pointer; color:var(--text-primary); }
+.accessibility-card input { width:18px; height:18px; accent-color:var(--gold); }
+.accessibility-card p { color:var(--text-dim); font-size:0.78rem; }
+
+body.ui-reduce-motion *, body.ui-reduce-motion *::before, body.ui-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:0.001ms !important;
+    animation-iteration-count:1 !important;
+    scroll-behavior:auto !important;
+  }
 }
 
 .quick-actions {
@@ -1266,7 +1335,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 2000; /* modal overlay scale (#74) */
   backdrop-filter: blur(4px);
   transition: opacity 0.3s;
 }
@@ -1530,7 +1599,7 @@ body {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 999;
+  z-index: 2600; /* toasts above modals (#74) */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1551,6 +1620,22 @@ body {
 
 .toast.error { border-color: rgba(192,57,43,0.5); color: var(--hell-glow); }
 .toast.holy { border-color: rgba(232,200,74,0.5); color: var(--holy); }
+.toast.success { border-color: rgba(74,154,100,0.5); color: #6abf6a; } /* (#81) */
+
+/* Generic pulse keyframe — referenced by game.js/skilltree.js (#81) */
+@keyframes pulse {
+  0%   { opacity: 1;    transform: scale(1); }
+  50%  { opacity: 0.55; transform: scale(1.06); }
+  100% { opacity: 1;    transform: scale(1); }
+}
+
+/* Chat / dialogue text styling (#81) */
+.chat-text {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
 
 @keyframes toastIn {
   from { opacity: 0; transform: translateX(20px); }
@@ -1604,6 +1689,16 @@ body {
   .stats-display {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .center-panel { height:100dvh; min-height:0; }
+  .game-log { padding:12px; }
+  .action-area { padding:10px; }
+  .action-input-wrapper { gap:6px; }
+  .action-input { padding:10px; min-width:0; }
+  .btn-action { padding:10px 13px; }
+  .quick-actions { flex-wrap:nowrap; overflow-x:auto; padding-bottom:5px; scrollbar-width:thin; }
+  .quick-actions .qa-btn { flex:0 0 auto; min-height:40px; }
+  .chapter-banner { padding-inline:10px; }
 }
 
 /* ============================================
@@ -1671,6 +1766,7 @@ body {
 /* World map SVG container */
 .world-map-container { flex:1; position:relative; background:#060402; overflow:hidden; cursor:crosshair; }
 .world-map-container svg { width:100%; height:100%; }
+.map-location-shortcuts{position:absolute;left:50%;bottom:14px;z-index:8;display:flex;gap:5px;max-width:calc(100% - 40px);padding:6px;overflow-x:auto;background:rgba(5,4,2,.82);border:1px solid rgba(201,168,76,.18);transform:translateX(-50%)}.map-location-shortcuts button{flex:0 0 auto;padding:6px 9px;color:var(--text-secondary);background:rgba(18,12,6,.95);border:1px solid rgba(201,168,76,.2);font:600 .62rem Cinzel,serif;cursor:pointer}.map-location-shortcuts button:hover,.map-location-shortcuts button:focus{color:var(--gold);border-color:var(--gold);outline:none}.map-location-shortcuts button:disabled{opacity:.38;cursor:not-allowed}
 
 /* Location detail side panel */
 .loc-detail-panel { width:300px; background:rgba(10,8,4,0.98); border-left:1px solid rgba(201,168,76,0.2); padding:24px; overflow-y:auto; flex-shrink:0; transition:all 0.3s; }
@@ -1697,7 +1793,8 @@ body {
 
 /* ── ESC MENU ──────────────────────────────────── */
 #esc-menu {
-  position: fixed; inset: 0; z-index: 9000;
+  /* PAUSE menu sits above every modal it should cover (#74) */
+  position: fixed; inset: 0; z-index: 3500;
   display: flex; align-items: center; justify-content: center;
 }
 .esc-backdrop {

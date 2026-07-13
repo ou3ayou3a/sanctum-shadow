@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sanctum & Shadow — Playable Elf Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype/elf-prototype.css">
+  <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+</head>
+<body>
+  <main id="prototype-shell">
+    <canvas id="game-canvas" aria-label="Playable three-dimensional elf prototype"></canvas>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">S&amp;S</span>
+        <span><strong>ELVEN RUINS</strong><small>PLAYABLE CHARACTER PROTOTYPE</small></span>
+      </div>
+      <div class="prototype-tag"><span></span> LIVE PROTOTYPE</div>
+    </header>
+
+    <aside class="hero-card" aria-label="Character status">
+      <div class="portrait">A</div>
+      <div class="hero-copy">
+        <span class="level">LEVEL 3 · WOOD ELF</span>
+        <strong>AELWYN NIGHTLEAF</strong>
+        <span class="class-name">Gloom Ranger</span>
+        <div class="bars"><i class="hp"></i><i class="focus"></i></div>
+      </div>
+    </aside>
+
+    <section class="objective">
+      <span class="eyebrow">CURRENT OBJECTIVE</span>
+      <strong>Reach the moonwell</strong>
+      <small>Cross the ruined courtyard</small>
+    </section>
+
+    <section class="instructions" id="instructions">
+      <span class="mouse-icon"></span>
+      <div><strong>CLICK THE GROUND TO MOVE</strong><small>Drag to orbit · Scroll to zoom · Shift-click to run</small></div>
+      <button type="button" aria-label="Dismiss instructions">×</button>
+    </section>
+
+    <div class="target-label" id="target-label">MOVE</div>
+
+    <nav class="ability-bar" aria-label="Abilities">
+      <button class="ability selected" id="ability-shot" type="button" aria-label="Use Moonfire Arrow">
+        <span class="key">1</span><span class="ability-icon arrow">➶</span><small>Moonfire Arrow</small><i id="cooldown"></i>
+      </button>
+      <button class="ability locked" type="button" aria-label="Shadow Step, unavailable">
+        <span class="key">2</span><span class="ability-icon">✦</span><small>Shadow Step</small>
+      </button>
+      <button class="ability locked" type="button" aria-label="Entangling Roots, unavailable">
+        <span class="key">3</span><span class="ability-icon">♧</span><small>Entangling Roots</small>
+      </button>
+    </nav>
+
+    <div class="state-pill"><span id="state-dot"></span><span id="state-text">LOADING RIGGED GLB…</span></div>
+    <div id="loading"><div class="loader-ring"></div><strong>AWAKENING THE RANGER</strong><span>Loading mesh, skeleton and animations…</span></div>
+    <div id="error" hidden></div>
+  </main>
+  <script type="module" src="prototype/elf-prototype.js"></script>
+</body>
+</html>

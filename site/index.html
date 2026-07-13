@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SANCTUM & SHADOW — The Chronicle</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="visuals.css?v=87">
+<link rel="stylesheet" href="styles.css?v=98">
+<link rel="stylesheet" href="visuals.css?v=91">
+<link rel="stylesheet" href="divinity.css?v=91">
 <script>
 // Early stub — replaced by real function when multiplayer.js loads
 window.mpBroadcastStoryEvent = function(eventType, payload) {
@@ -15,6 +16,8 @@ window.mpBroadcastStoryEvent = function(eventType, payload) {
 };
 window.mp = window.mp || { sessionCode: null, socket: null, connected: false, playerId: null, isHost: false, session: null, combatState: null, _receiving: false };
 </script>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
+<link rel="stylesheet" href="world3d.css?v=111">
 </head>
 <body>
 <div id="app">
@@ -29,6 +32,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
         <button class="btn-primary" onclick="showScreen('mode-select')">⚔ Enter the Chronicle</button>
         <button class="btn-secondary" id="load-game-btn" onclick="openLoadScreen()" style="display:none">📖 Load Chronicle</button>
         <button class="btn-secondary" onclick="showScreen('rules')">📜 The Sacred Laws</button>
+        <button class="btn-secondary" onclick="SanctumUI.openAccessibilityPanel()" aria-label="Open display and accessibility settings">⚙ Display</button>
       </div>
       <div class="version-tag">Chapter I: The Shattered Covenant</div>
     </div>
@@ -104,7 +108,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
       <div class="form-card">
         <div class="form-group"><label>Chronicle Name</label><input type="text" id="session-name" placeholder="e.g. The Brotherhood of Doom" class="form-input"></div>
         <div class="form-group"><label>Your Name</label><input type="text" id="host-name" placeholder="Your name" class="form-input"></div>
-        <div class="form-group"><label>Max Players</label><select id="max-players" class="form-input"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
+        <div class="form-group"><label>Max Players</label><select id="max-players" class="form-input"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></div>
         <button class="btn-primary full-width" onclick="createSession()">⚔ Forge the Chronicle</button>
         <button class="btn-ghost full-width" onclick="showScreen('lobby')">↩ Back</button>
       </div>
@@ -290,21 +294,23 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
         <div id="game-log" class="game-log"></div>
         <div class="action-area">
           <div class="action-input-wrapper">
-            <textarea id="action-input" class="action-input" placeholder="What do you do? Type anything freely — the dice decide the outcome..." rows="2"></textarea>
-            <button class="btn-action" onclick="submitAction()">⚔ ACT</button>
+            <textarea id="action-input" class="action-input" aria-label="Describe your character's action" placeholder="What do you do? Type anything freely — the dice decide the outcome..." rows="2"></textarea>
+            <button id="action-submit-btn" class="btn-action" onclick="submitAction()" aria-label="Resolve character action">⚔ ACT</button>
           </div>
+          <div id="action-status" class="action-status" role="status" aria-live="polite">Ready. Enter acts; Shift+Enter adds a new line.</div>
           <div class="quick-actions">
             <button class="qa-btn holy" onclick="pray('holy')">✝ Holy Prayer</button>
             <button class="qa-btn dark" onclick="pray('dark')">⛧ Dark Prayer</button>
             <button class="qa-btn attack" onclick="showAttackMenu()">🗡 Attack</button>
             <button class="qa-btn quest" onclick="showQuestLog()">📜 Quests</button>
             <button class="qa-btn" style="border-color:rgba(201,168,76,0.5);color:#c9a84c;font-weight:600" onclick="openShop()">🛒 Shop</button>
-            <button class="qa-btn" style="border-color:rgba(100,200,100,0.3);color:#6abf6a" onclick="openCampPanel()">⛺ Camp</button>
-            <button class="qa-btn" style="border-color:rgba(180,120,80,0.4);color:#c48a5a" onclick="openRepPanel ? openRepPanel() : null">⚖ Rep</button>
+            <button id="camp-qa-btn" class="qa-btn" style="border-color:rgba(100,200,100,0.3);color:#6abf6a" onclick="openCampPanel()">⛺ Camp</button>
+            <button id="rep-qa-btn" class="qa-btn" style="border-color:rgba(180,120,80,0.4);color:#c48a5a" onclick="openRepPanel ? openRepPanel() : null">⚖ Rep</button>
             <button class="qa-btn" style="border-color:rgba(74,154,138,0.4);color:#4a9a8a" onclick="openWorldMap()">🗺 World Map</button>
-            <button class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
+            <button id="save-btn" class="qa-btn" style="border-color:rgba(100,180,100,0.4);color:#7abf7a" onclick="openSaveScreen()">💾 Save</button>
             <button class="qa-btn" style="border-color:rgba(130,100,200,0.4);color:#a07ad4" onclick="openLoadScreen()">📂 Runs</button>
             <button class="qa-btn" style="border-color:rgba(201,168,76,0.5);color:#c9a84c;font-weight:600" onclick="openCharSheet()">📋 Character</button>
+            <button class="qa-btn" onclick="SanctumUI.openAccessibilityPanel()" aria-label="Open display and accessibility settings">⚙ Display</button>
           </div>
         </div>
       </div>
@@ -316,11 +322,11 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
           <h3 class="panel-title">🎵 Ambient Score</h3>
           <div class="music-box">
             <div id="music-track-name" class="music-track-name">Vaelthar — Uneasy Peace</div>
-            <div class="music-bars" id="music-bars">
+            <div class="music-bars paused" id="music-bars">
               <span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
             <div class="music-controls-row">
-              <button class="music-ctrl-btn" id="music-toggle" onclick="toggleMusic()">⏸</button>
+              <button class="music-ctrl-btn" id="music-toggle" onclick="toggleMusic()">▶</button>
               <input type="range" id="vol-slider" min="0" max="100" value="35" class="vol-slider" oninput="setMusicVolume(this.value)">
               <span class="vol-label" id="vol-label">35%</span>
             </div>
@@ -377,22 +383,8 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
       </div>
     </div>
 
-    <div id="spell-overlay" class="overlay hidden">
-      <div class="overlay-content">
-        <h3>✨ Cast a Spell</h3>
-        <div id="spell-list" class="spell-list"></div>
-        <button class="btn-ghost" onclick="closeOverlay('spell-overlay')">✕ Close</button>
-      </div>
-    </div>
-
-    <div id="attack-overlay" class="overlay hidden">
-      <div class="overlay-content">
-        <h3>🗡 Choose Target</h3>
-        <div id="target-list" class="target-list"></div>
-        <div class="friendly-fire-warning">⚠ Allies in melee range may take splash damage!</div>
-        <button class="btn-ghost" onclick="closeOverlay('attack-overlay')">✕ Close</button>
-      </div>
-    </div>
+    <!-- #spell-overlay and #attack-overlay removed (#26) — their only callers
+         (showSpellMenu/castSpell, the fake Attack stub) were deleted. -->
 
     <div id="narrator-overlay" class="overlay hidden">
       <div class="overlay-content narrator-box">
@@ -442,24 +434,27 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   </div>
 </div>
 
-<script src="data.js?v=87"></script>
-<script src="audio.js?v=87"></script>
-<script src="map.js?v=87"></script>
-<script src="game.js?v=87"></script>
-<script src="combat.js?v=87"></script>
-<script src="additions.js?v=87"></script>
-<script src="story.js?v=87"></script>
-<script src="dialogue.js?v=87"></script>
-<script src="romance.js?v=87"></script>
-<script src="senses.js?v=87"></script>
-<script src="multiplayer.js?v=87"></script>
-<script src="saves.js?v=87"></script>
-<script src="visuals.js?v=87"></script>
-<script src="shop.js?v=87"></script>
-<script src="travel.js?v=87"></script>
-<script src="camp.js?v=87"></script>
-<script src="reputation.js?v=87"></script>
-<script src="schedules.js?v=87"></script>
+<script src="data.js?v=92"></script>
+<script src="rules.js?v=93"></script>
+<script src="schema.js?v=97"></script>
+<script src="quests.js?v=97"></script>
+<script src="audio.js?v=91"></script>
+<script src="map.js?v=111"></script>
+<script src="game.js?v=98"></script>
+<script src="combat.js?v=97"></script>
+<script src="additions.js?v=91"></script>
+<script src="story.js?v=97"></script>
+<script src="dialogue.js?v=93"></script>
+<script src="romance.js?v=91"></script>
+<script src="senses.js?v=91"></script>
+<script src="multiplayer.js?v=97"></script>
+<script src="saves.js?v=97"></script>
+<script src="visuals.js?v=91"></script>
+<script src="shop.js?v=91"></script>
+<script src="travel.js?v=91"></script>
+<script src="camp.js?v=91"></script>
+<script src="reputation.js?v=91"></script>
+<script src="schedules.js?v=91"></script>
 <script>
 // Show Load Chronicle button on splash if saves exist
 document.addEventListener('DOMContentLoaded', () => {
@@ -475,8 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch {}
 });
 </script>
-  <script src="classes.js?v=87"></script>
-  <script src="skilltree.js?v=87"></script>
-  <script src="charsheet.js?v=87"></script>
+  <script src="classes.js?v=91"></script>
+  <script src="skilltree.js?v=91"></script>
+  <script src="charsheet.js?v=91"></script>
+  <script src="divinity.js?v=91"></script>
+  <canvas id="vaelthar-scene"></canvas>
+  <div id="vaelthar-overlay"></div>
+  <script src="vaelthar-integration.js?v=111"></script>
+  <script src="ui.js?v=98"></script>
+  <script type="module" src="world3d/bootstrap.js?v=111"></script>
 </body>
 </html>

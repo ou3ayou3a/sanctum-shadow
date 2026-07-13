@@ -10,7 +10,27 @@ window.sceneState = {
   flags: {},
   npcStates: {},
   history: [],
+  knownFacts: {},       // persistent facts the AI has established (names, broken bindings, etc.)
+  _lastNarration: '',   // the most recent AI narration so the next scene continues from it
+  currentThreat: null,  // { hostiles:[{type,count,level}], imminent:bool } or null when peaceful
 };
+
+// Restore window.sceneState to fresh defaults for a brand-new run.
+// Call ONLY when a new chronicle begins — never on save-load (loads restore their own flags).
+function resetSceneState() {
+  window.sceneState = {
+    currentScene: 'arrival_vaelthar',
+    flags: {},
+    npcStates: {},
+    history: [],
+    knownFacts: {},
+    _lastNarration: '',
+    currentThreat: null,
+    inPersonalQuest: false,
+    personalQuestContext: '',
+  };
+}
+window.resetSceneState = resetSceneState;
 
 function setFlag(key, val = true) { window.sceneState.flags[key] = val; }
 function getFlag(key) { return !!window.sceneState.flags[key]; }
@@ -19,6 +39,13 @@ function getNPCState(npc) { return window.sceneState.npcStates[npc] || 'neutral'
 
 // ─── SCENE PANEL UI ───────────────────────────
 function showScene(sceneData) {
+  // Safety: if a conversation claims to be active but its panel is gone, the
+  // conversation is dead — reset it instead of queueing forever.
+  if (window.npcConvState?.active && !document.getElementById('conv-panel')) {
+    window.npcConvState.active = false;
+    window.npcConvState.npc = null;
+    window.npcConvState.history = [];
+  }
   // Never interrupt an active conversation or combat with a scene
   if (window.npcConvState?.active) {
     // Queue it — fire after conversation ends
@@ -38,14 +65,32 @@ function showScene(sceneData) {
   panel.className = 'scene-panel';
 
   const isMP = !!(window.mp?.sessionCode);
-  const playerCount = isMP ? Object.keys(window.mp?.session?.players || {}).length : 1;
+  // Count CONNECTED players only — disconnected players linger in session.players
+  // (kept ~5 min server-side) and would otherwise inflate the vote threshold so a
+  // vote can never resolve when someone drops (MP vote deadlock fix).
+  const playerCount = isMP
+    ? (Object.values(window.mp?.session?.players || {}).filter(p => p && p.connected !== false).length || 1)
+    : 1;
   const isPersonal = !!(sceneData.personal); // Personal quests: no voting, solo execution
+
+  // Safe HTML escaper for AI-sourced / dynamic strings interpolated into innerHTML.
+  const _esc = window.escapeHtml || (s => s);
+  // AI scenes set threat to an OBJECT {hostiles, imminent}; scripted scenes use a
+  // plain string. Render a safe label — never the raw "[object Object]".
+  let _threatLabel = '';
+  if (typeof sceneData.threat === 'string') {
+    _threatLabel = _esc(sceneData.threat);
+  } else if (sceneData.threat && typeof sceneData.threat === 'object') {
+    const _t = sceneData.threat;
+    const _hasHostiles = Array.isArray(_t.hostiles) ? _t.hostiles.length > 0 : !!_t.hostiles;
+    _threatLabel = (_t.imminent || _hasHostiles) ? '⚠ Hostiles' : '';
+  }
 
   const optionsHTML = (sceneData.options || []).map((opt, i) => `
     <button class="scene-option ${opt.type || ''}" id="scene-opt-${i}" onclick="${isPersonal ? `executeSceneOption(${i})` : `castVote(${i})`}">
-      <span class="so-icon">${opt.icon || '▸'}</span>
-      <span class="so-text">${opt.label}</span>
-      ${opt.roll ? `<span class="so-roll">🎲 ${opt.roll.stat} DC${opt.roll.dc}</span>` : ''}
+      <span class="so-icon">${_esc(opt.icon || '▸')}</span>
+      <span class="so-text">${_esc(opt.label)}</span>
+      ${opt.roll ? `<span class="so-roll">🎲 ${_esc(opt.roll.stat)} DC${_esc(String(opt.roll.dc))}</span>` : ''}
       ${!isPersonal ? `<span class="so-votes" id="votes-${i}" style="display:none"></span>` : ''}
     </button>
   `).join('');
@@ -60,35 +105,33 @@ function showScene(sceneData) {
   panel.innerHTML = `
     <div class="sp-inner">
       <div class="sp-location-bar">
-        <span class="sp-loc-icon">${sceneData.locationIcon || '🏰'}</span>
-        <span class="sp-loc-name">${sceneData.location || 'Vaelthar'}</span>
-        ${isPersonal ? `<span class="sp-threat" style="color:var(--gold)">🔖 PERSONAL QUEST</span>` : sceneData.threat ? `<span class="sp-threat">${sceneData.threat}</span>` : ''}
+        <span class="sp-loc-icon">${_esc(sceneData.locationIcon || '🏰')}</span>
+        <span class="sp-loc-name">${_esc(sceneData.location || 'Vaelthar')}</span>
+        ${isPersonal ? `<span class="sp-threat" style="color:var(--gold)">🔖 PERSONAL QUEST</span>` : _threatLabel ? `<span class="sp-threat">${_threatLabel}</span>` : ''}
         ${isMP && !isPersonal ? `<span class="sp-vote-status" id="vote-status">⏳ 0/${playerCount} voted</span>` : ''}
       </div>
       <div class="sp-narration" id="sp-narration"></div>
       <div class="sp-options" id="sp-options">${optionsHTML}${notNowHTML}</div>
       <div class="sp-free-action">
         <span class="sp-free-hint">${isPersonal
-          ? '🔖 This is your personal story — only you decide'
+          ? '🔖 This is your personal story — pick an option, or type your own action in the bar below.'
           : isMP
             ? '🗳 All players vote — majority wins, ties broken by dice'
-            : ''
+            : '✦ Pick an option above — or type your own action in the bar below.'
         }</span>
-        ${!isPersonal && !isMP ? `
-        <div class="sp-input-row">
-          <input id="scene-free-input" class="sp-free-input" type="text"
-            placeholder="Or type freely here — your action goes directly into the scene..."
-            onkeydown="if(event.key==='Enter') submitSceneFreeInput()"
-            autocomplete="off">
-          <button class="sp-free-send" onclick="submitSceneFreeInput()">↵</button>
-        </div>` : ''}
       </div>
     </div>
   `;
 
-  // Insert INSIDE the game log so it scrolls with the chat and never covers it
+  // In 3D Vaelthar the game-log is inside #game-screen, BELOW the z1400 city canvas —
+  // an inline panel would be hidden. Float it on document.body (z-index 1600) (#2).
+  const in3D = document.body.classList.contains('vt-3d-active');
   const gameLog = document.getElementById('game-log');
-  if (gameLog) {
+  if (in3D) {
+    panel.classList.add('scene-panel-floating');
+    document.body.appendChild(panel);
+  } else if (gameLog) {
+    // Insert INSIDE the game log so it scrolls with the chat and never covers it
     gameLog.appendChild(panel);
     setTimeout(() => {
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -98,7 +141,14 @@ function showScene(sceneData) {
   }
 
   window.sceneState._currentOptions = sceneData.options || [];
+  // Stamp a stable per-render id so multiplayer vote resolution keys are unique per scene
+  if (!sceneData._renderId) sceneData._renderId = `${sceneData.location || 'scene'}-${Date.now()}`;
   window.sceneState._currentScene = sceneData;
+  // Personal-quest isolation: a memory scene (and its AI continuations, which are
+  // re-stamped personal) keep this true so free-text stays inside the memory; a
+  // scripted present-day scene clears it.
+  window.sceneState.inPersonalQuest = !!sceneData.personal;
+  if (sceneData.personal) window.sceneState.personalQuestContext = sceneData.narration || window.sceneState.personalQuestContext || '';
   window.sceneState._votes = {};
   window.sceneState._myVote = null;
   window.sceneState._playerCount = isPersonal ? 1 : playerCount; // personal = no group vote
@@ -107,8 +157,10 @@ function showScene(sceneData) {
   typewriteScene(sceneData.narration, sceneData.sub, window._sceneStartAt || 0);
   // Scene text is shown in the scene panel via typewriter — no truncated echo needed
 
-  // Only broadcast shared scenes — personal quests stay local
-  if (!isPersonal && (window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
+  // Only broadcast shared scenes — personal quests stay local. Also skip when we're
+  // RECEIVING a scene from another player (#22): a non-host that gets a show_scene
+  // would otherwise re-broadcast it, echoing the scene around the party.
+  if (!isPersonal && !window.mp?._receiving && (window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     const safeScene = {
       location: sceneData.location,
       locationIcon: sceneData.locationIcon,
@@ -152,7 +204,7 @@ function castVote(index) {
   // Highlight my choice
   document.querySelectorAll('.scene-option').forEach(b => b.classList.remove('my-vote'));
   document.getElementById(`scene-opt-${index}`)?.classList.add('my-vote');
-  addLog(`🗳 ${char?.name} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'action');
+  addLog(`🗳 ${char?.name} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'local');
 
   // Update vote display
   updateVoteDisplay();
@@ -173,7 +225,7 @@ function castVote(index) {
 
 function receiveVote(playerId, playerName, index, roll) {
   window.sceneState._votes[playerId] = { index, playerName, roll };
-  addLog(`🗳 ${playerName} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'action');
+  addLog(`🗳 ${playerName} votes: "${window.sceneState._currentOptions[index]?.label}"`, 'local');
   updateVoteDisplay();
   checkVoteResolution();
 }
@@ -217,6 +269,10 @@ function updateVoteDisplay() {
 }
 
 function checkVoteResolution() {
+  // Only the HOST resolves a vote in multiplayer. Non-hosts wait for the
+  // host's scene_resolved broadcast (handled on the MP receive side).
+  if (window.mp?.sessionCode && !window.mp.isHost) return;
+
   const votes = window.sceneState._votes;
   const needed = window.sceneState._playerCount;
   const total = Object.keys(votes).length;
@@ -258,34 +314,100 @@ function checkVoteResolution() {
   const statusEl = document.getElementById('vote-status');
   if (statusEl) { statusEl.textContent = `✅ Decided!`; statusEl.style.color = '#4a9a6a'; }
 
-  // Broadcast resolution to all other players
+  // Unique resolution key (scene id + option index) so every client executes
+  // a given resolution at most once.
+  const sceneId = window.sceneState._currentScene?._renderId
+    || window.sceneState._currentScene?.id
+    || window.sceneState.currentScene
+    || 'scene';
+  const resolutionKey = `${sceneId}:${chosenIndex}`;
+
+  // Broadcast resolution to all other players (host only reaches here)
   if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
     window.mpBroadcastStoryEvent('scene_resolved', {
       index: chosenIndex,
       label: window.sceneState._currentOptions[chosenIndex]?.label || '',
+      resolutionKey,
     });
   }
 
-  // Execute the winning choice after a short delay
-  setTimeout(() => executeSceneOption(chosenIndex), 800);
+  // Execute the winning choice locally after a short delay
+  setTimeout(() => executeSceneOption(chosenIndex, resolutionKey), 800);
 }
 
-function executeSceneOption(index) {
+function executeSceneOption(index, resolutionKey) {
+  // Dedupe guard — a given resolution key runs at most once per client.
+  if (resolutionKey) {
+    if (window._lastResolvedKey === resolutionKey) return;
+    window._lastResolvedKey = resolutionKey;
+  }
   const option = window.sceneState._currentOptions[index];
   if (!option) return;
   const char = gameState.character;
+  // Own the panel we are resolving. Remove THIS instance before an option opens
+  // its continuation; never query #scene-panel later and accidentally delete the
+  // newly-rendered scene.
+  const sourcePanel = document.getElementById('scene-panel');
+  if (sourcePanel) {
+    sourcePanel.dataset.resolving = 'true';
+    sourcePanel.remove();
+  }
+
+  // Personal-quest isolation (#4): remember whether the scene we're resolving was
+  // a personal-quest memory. Many PQ payoff options END on addLog/setFlag with NO
+  // runScene, so showScene never fires again to clear inPersonalQuest — leaving the
+  // present-day story softlocked in the "PAST MEMORY" branch forever. We clear the
+  // flag after this option resolves UNLESS the option transitioned into ANOTHER
+  // personal scene (a new personal panel reopened and re-set _currentScene.personal).
+  const _wasPersonal = !!window.sceneState._currentScene?.personal;
+  const _personalSceneRef = window.sceneState._currentScene;
+  // The resolved scene is no longer current. A continuation opened by the
+  // authoritative host will replace these values through showScene().
+  window.sceneState._currentScene = null;
+  window.sceneState._currentOptions = [];
+
+  // CRITICAL (#audit3): a scene option's action() may call travelToLocation() while
+  // this scene's panel is still in the DOM (it's removed ~300ms later). The travel
+  // guards ("Finish the current scene first") would otherwise abort EVERY 'travel to X'
+  // story option, making the game unable to progress. Flag that we're mid-option so the
+  // travel guards let an option-initiated trip through. Cleared shortly after (covers
+  // synchronous travel calls inside the action, and any early return below).
+  window._sceneActionActive = true;
+  setTimeout(() => { window._sceneActionActive = false; }, 150);
 
   if (option.roll) {
     const stat = option.roll.stat.toLowerCase();
-    const statVal = char?.stats?.[stat] || 10;
-    const mod = Math.floor((statVal - 10) / 2);
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const total = roll + mod;
-    const success = total >= option.roll.dc || roll === 20;
-    const crit = roll === 20;
-    const fumble = roll === 1;
-    addLog(`🎲 ${option.roll.stat} check DC${option.roll.dc}: [${roll}] + ${mod>=0?'+':''}${mod} = ${total} — ${crit?'CRITICAL!':fumble?'FUMBLE!':success?'Success!':'Failure!'}`, 'dice');
+    const check = window.DNDRules?.rollCheck
+      ? window.DNDRules.rollCheck(option.label, {
+          ability: stat,
+          skill: option.roll.skill,
+          dc: option.roll.dc,
+          advantage: option.roll.advantage,
+          disadvantage: option.roll.disadvantage,
+        })
+      : (() => {
+          const statVal = char?.stats?.[stat] || 10;
+          const mod = Math.floor((statVal - 10) / 2);
+          const roll = Math.floor(Math.random() * 20) + 1;
+          const total = roll + mod;
+          return { roll, total, modifier: mod, success: total >= option.roll.dc || roll === 20, crit: roll === 20, fumble: roll === 1, ability: stat, skill: null };
+        })();
+    const { roll, total, success, crit, fumble } = check;
+    if (window.DNDRules?.logCheck) window.DNDRules.logCheck(check, option.roll.dc);
+    else addLog(`🎲 ${option.roll.stat} check DC${option.roll.dc}: [${roll}] ${check.modifier>=0?'+':'-'} ${Math.abs(check.modifier)} = ${total} — ${crit?'CRITICAL!':fumble?'FUMBLE!':success?'Success!':'Failure!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
+    // ── failCombat: a failed roll makes the present hostiles attack for real (Part 2) ──
+    // Inside a personal-quest memory with no real threat there are no present-day
+    // foes — skip the default city_guard spawn and let normal fail narration run (#7).
+    const _failThreat = window.sceneState.currentThreat?.hostiles;
+    const _allowFailCombat = !!_failThreat || !window.sceneState.inPersonalQuest;
+    if (!success && option.failCombat && _allowFailCombat && window.startCombat && !window.combatState?.active) {
+      const hostiles = _failThreat || [{ type: 'city_guard', count: 2, level: 1 }];
+      window._postCombatContinue = `Combat just resolved after the player failed: "${option.label}".`;
+      document.getElementById('scene-panel')?.remove();
+      startCombat(window.buildEnemiesFromSpec(hostiles));
+      return;
+    }
     if (option.onSuccess && success) option.onSuccess(roll, total);
     else if (option.onFail && !success) option.onFail(roll, total);
     else if (success && option.next) setTimeout(() => runScene(option.next), 600);
@@ -298,11 +420,24 @@ function executeSceneOption(index) {
     else if (option.next) setTimeout(() => runScene(option.next), 400);
   }
 
-  // Close modal
-  setTimeout(() => {
-    const panel = document.getElementById('scene-panel');
-    if (panel) { panel.style.opacity = '0'; setTimeout(() => panel?.remove(), 400); }
-  }, 300);
+  // Personal-quest isolation cleanup (#4): if this option resolved a personal scene
+  // and did NOT transition into another personal scene, leave the memory branch so
+  // present-day free play resumes. Internal runScene transitions fire on setTimeout
+  // (longest 600ms), so we check after they've had a chance to reopen a panel.
+  if (_wasPersonal) {
+    setTimeout(() => {
+      const cur = window.sceneState._currentScene;
+      // A new personal scene reopened (different object, flagged personal) → stay in PQ.
+      const stillInPersonal = cur && cur !== _personalSceneRef && !!cur.personal;
+      if (!stillInPersonal) {
+        window.sceneState.inPersonalQuest = false;
+        window.sceneState.personalQuestContext = '';
+      }
+    }, 900);
+  }
+  if (window.mp?.isHost) {
+    setTimeout(() => window.mpBroadcastCampaignState?.('scene_option'), 1000);
+  }
 }
 
 
@@ -342,6 +477,10 @@ function chooseSceneOption(index) {
 }
 
 // ─── SCENE RUNNER ────────────────────────────
+function processSceneQuestMilestone(sceneId) {
+  window.recordQuestEvent?.(`scene:${sceneId}`, { sceneId });
+}
+
 function runScene(sceneId) {
   const scene = SCENES[sceneId];
   const isPersonalScene = sceneId.startsWith('pq_');
@@ -353,12 +492,19 @@ function runScene(sceneId) {
   if (typeof scene === 'function') {
     const built = scene();
     if (built) {
+      built.id = sceneId;
       if (isPersonalScene) built.personal = true;
       showScene(built);
+      window.sceneState.currentScene = sceneId;
+      processSceneQuestMilestone(sceneId);
+      if (window.mp?.isHost && !isPersonalScene) window.mpBroadcastCampaignState?.(`scene:${sceneId}`);
     }
   } else {
-    const sceneObj = isPersonalScene ? { ...scene, personal: true } : scene;
+    const sceneObj = { ...scene, id:sceneId, ...(isPersonalScene ? { personal:true } : {}) };
     showScene(sceneObj);
+    window.sceneState.currentScene = sceneId;
+    processSceneQuestMilestone(sceneId);
+    if (window.mp?.isHost && !isPersonalScene) window.mpBroadcastCampaignState?.(`scene:${sceneId}`);
   }
 }
 
@@ -378,15 +524,35 @@ async function generateAIScene(context) {
   const deadNPCs = Object.keys(flags).filter(k => k.startsWith('npc_dead_')).map(k => k.replace('npc_dead_', '')).join(', ') || 'none';
   const history = window.sceneState.history.slice(-8).join(' → ') || 'just arrived';
 
+  // ── Persistent fact store + last narration (Part 1 — MEMORY) ──
+  if (!window.sceneState.knownFacts) window.sceneState.knownFacts = {};
+  if (typeof window.sceneState._lastNarration !== 'string') window.sceneState._lastNarration = '';
+  const factEntries = Object.entries(window.sceneState.knownFacts);
+  const knownFactsText = factEntries.length
+    ? factEntries.map(([k, v]) => `- ${k}: ${v}`).join('\n')
+    : '- (none yet)';
+  const lastNarration = window.sceneState._lastNarration || '(this is the first beat of free play)';
+
+  // Personal-quest memories run in an ISOLATED context — a private flashback from
+  // the character's PAST. They must NOT pull in present-day Vaelthar NPCs/crisis.
+  const inPQ = !!window.sceneState.inPersonalQuest;
+
   // Build a rich story state so the AI knows exactly where the player is in the narrative
-  const storyState = `
+  const storyState = inPQ ? `
+⚠ THIS IS A PERSONAL MEMORY / PAST SCENE — for ${char?.name} alone.
+It takes place in ${char?.name}'s OWN PAST: a different time and place from present-day Vaelthar.
+Do NOT include or reference present-day NPCs (Captain Rhael, Sister Mourne, the Trembling Scribe, Elder Varek, the Vaelthar City Watch) or the current Covenant political crisis — none of them are here.
+This is a private memory only ${char?.name} relives. Stay entirely inside it; never cut back to the present-day city.
+Memory so far: ${window.sceneState.personalQuestContext || window.sceneState._lastNarration || 'a buried memory resurfacing'}
+- Recent path: ${history}`.trim()
+  : `
 STORY PROGRESSION:
-- Talked to Rhael: ${flags.talked_to_captain_rhael ? 'YES' : 'no'}
-- Talked to Scribe: ${flags.talked_to_trembling_scribe ? 'YES' : 'no'}
+- Talked to Rhael: ${(flags.met_rhael || flags.rhael_revealed_covenant || flags.talked_to_captain_rhael) ? 'YES' : 'no'}
+- Talked to Scribe: ${(flags.met_scribe || flags.talked_to_trembling_scribe) ? 'YES' : 'no'}
 - Has the document: ${flags.has_document ? 'YES' : 'no'}
 - Knows Varek\'s name: ${flags.knows_elder_name ? 'YES' : 'no'}
 - Knows Varek\'s location: ${flags.knows_varek_location ? 'YES' : 'no'}
-- Allied with Mourne: ${flags.allied_sister_mourne ? 'YES' : 'no'}
+- Allied with Mourne: ${(flags.mourne_ally || flags.mourne_allied || flags.allied_sister_mourne) ? 'YES' : 'no'}
 - Dead NPCs: ${deadNPCs}
 - All flags: ${flagList}
 - Recent path: ${history}
@@ -402,18 +568,37 @@ Current situation: ${context}
 
 ${storyState}
 
+KNOWN FACTS (already established — NEVER ask about or re-introduce these; use them):
+${knownFactsText}
+
+WHAT JUST HAPPENED (continue from this, do not repeat it):
+${lastNarration}
+
+ADVANCE the scene every turn — escalate, resolve, or move the plot. NEVER offer the same choice or re-ask something already known (e.g., if a name is in KNOWN FACTS, use it). The player is mid-story.
+
+When the player initiates violence, OR hostiles attack, emit ONE option with type:'combat' and a realistic 'enemies' list. Use enemy types: city_guard, bandit, cultist, church_agent, shadow_wraith, skeleton, wolf, and 'captain' for a leader. In Vaelthar use level 1-3. Always set 'threat' when anyone hostile is present so the player can attack them.
+
 Generate the NEXT scene that logically follows from the current story progression. Respond with raw JSON only (no markdown):
 {
-  "narration": "2-3 sentence atmospheric description of what happens next, consistent with story so far",
+  "narration": "2-3 sentence atmospheric description of what happens next, consistent with story so far AND continuing from WHAT JUST HAPPENED",
   "sub": "1 sentence of what seems most pressing",
   "location": "${loc?.name}",
   "locationIcon": "${loc?.icon || '🏰'}",
+  "facts": {"survivor_name": "Kael", "binding_broken": false},
+  "threat": {"hostiles": [{"type": "city_guard", "count": 3, "level": 1}, {"type": "captain", "count": 1, "level": 2}], "imminent": true},
   "options": [
     {"icon": "💬", "label": "Specific action 1", "type": "talk", "next": "scene_id"},
     {"icon": "🔍", "label": "Specific action 2", "type": "explore", "next": "scene_id"},
-    {"icon": "🏃", "label": "Move to somewhere specific", "type": "move", "next": "scene_id"}
+    {"icon": "⚔", "label": "Cut them down", "type": "combat", "enemies": [{"type": "city_guard", "count": 3, "level": 1}]}
   ]
-}`;
+}
+
+FIELD RULES:
+- "facts": object of NEW facts to remember this turn (names, whether a binding broke, an alliance formed, etc.). Use {} if nothing new.
+- "threat": { "hostiles": [ {"type","count","level"} ], "imminent": true } when hostiles are present/threatening; null when the scene is peaceful.
+- An option may be a combat option: {"icon":"⚔","label":"Cut them down","type":"combat","enemies":[{"type","count","level"}]}.
+- An option with a "roll" may also set "failCombat": true — failing the roll makes the hostiles attack.
+- If the scene is peaceful, set "threat": null and DO NOT emit any combat option.`;
 
   try {
     const response = await fetch("/api/npc", {
@@ -421,20 +606,41 @@ Generate the NEXT scene that logically follows from the current story progressio
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 600,
+        max_tokens: 1000,
         messages: [{ role: "user", content: prompt }]
       })
     });
     const data = await response.json();
     const raw = data.content?.map(i => i.text || '').join('').trim();
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    // Keep AI continuations of a personal memory isolated (no MP voting, no
+    // present-day NPC bleed) by re-stamping the personal flag.
+    if (inPQ) parsed.personal = true;
 
-    // Wire up options with AI continuation
-    parsed.options = parsed.options.map(opt => ({
+    // ── Record memory (Part 1) — default safely for older/malformed responses ──
+    Object.assign(window.sceneState.knownFacts, parsed.facts || {});
+    window.sceneState._lastNarration = parsed.narration || '';
+    window.sceneState.currentThreat = parsed.threat || null;
+    // Short summary into history so future scenes have continuity
+    if (parsed.narration) {
+      window.sceneState.history.push(parsed.narration.slice(0, 120));
+    }
+
+    // Wire up options with AI continuation. Combat options start a REAL fight (Part 2).
+    parsed.options = (parsed.options || []).map(opt => ({
       ...opt,
       action: () => {
         window.sceneState.history.push(opt.label);
-        generateAIScene(`Player chose: "${opt.label}" in context: ${context}`);
+        if (opt.type === 'combat' || opt.enemies) {
+          // Real combat — not narration. Resume the story after victory.
+          window._postCombatContinue = `The fight is over. Context: ${parsed.narration || ''}. The player chose: "${opt.label}".`;
+          const spec = opt.enemies || window.sceneState.currentThreat?.hostiles || [{ type: 'bandit', count: 1, level: 1 }];
+          document.getElementById('scene-panel')?.remove();
+          if (window.startCombat) startCombat(window.buildEnemiesFromSpec(spec));
+          return;
+        }
+        // Non-combat: continue from the AI's OWN new narration + the chosen label (don't loop).
+        generateAIScene(`Continuing. Just happened: ${parsed.narration || ''}. Player chose: "${opt.label}".`);
       }
     }));
 
@@ -444,6 +650,45 @@ Generate the NEXT scene that logically follows from the current story progressio
     addLog(`*The situation develops. You take stock of what you know and decide what matters most.*`, 'narrator');
   }
 }
+
+// ─── BUILD REAL COMBATANTS FROM AN AI "enemies"/"hostiles" SPEC (Part 2) ──────
+// specArr: [ {type, count, level}, ... ]  →  flat array of generateEnemy() combatants.
+// Caps each group's count and the total roster at 6. 'captain' becomes a generic
+// Watch Captain (NOT the real Captain Rhael). Unknown types fall back to 'bandit'.
+function buildEnemiesFromSpec(specArr) {
+  // Valid enemy template ids that exist in combat.js generateEnemy()
+  const VALID = ['city_guard', 'church_agent', 'bandit', 'cultist', 'skeleton', 'wolf', 'shadow_wraith'];
+  const out = [];
+  const spec = Array.isArray(specArr) ? specArr : [];
+  for (const grp of spec) {
+    if (!grp || typeof grp !== 'object') continue;
+    const type = String(grp.type || 'bandit').toLowerCase();
+    const level = Math.max(1, Math.min(10, parseInt(grp.level) || 1));
+    let count = Math.max(1, Math.min(6, parseInt(grp.count) || 1));
+    for (let i = 0; i < count; i++) {
+      if (out.length >= 6) break; // hard cap total roster
+      if (type === 'captain') {
+        // Generic captain, NOT the real Rhael — reuse his stat template only.
+        const e = generateEnemy('captain_rhael', level || 2);
+        e.name = 'Watch Captain';
+        e.id = 'watch_captain_' + out.length; // unique across whole roster
+        out.push(e);
+      } else {
+        const validType = VALID.includes(type) ? type : 'bandit';
+        const e = generateEnemy(validType, level || 1);
+        // generateEnemy ids use Date.now() and collide inside a tight loop —
+        // force uniqueness by roster position so combatants don't overwrite.
+        e.id = validType + '_' + out.length;
+        out.push(e);
+      }
+    }
+    if (out.length >= 6) break;
+  }
+  // Never start a fight with zero enemies.
+  if (out.length === 0) out.push(generateEnemy('bandit', 1));
+  return out;
+}
+window.buildEnemiesFromSpec = buildEnemiesFromSpec;
 
 // ─── ALL MISSING SCENES — appended to SCENES object ───────────────────────
 // These replace every runScene() call that previously fell through to AI improv
@@ -470,7 +715,10 @@ const MISSING_SCENES = {
 
   vaelthar_fugitive: () => {
     setFlag('wanted');
-    grantHellPoints(3);
+    if (!getFlag('vaelthar_fugitive_rewarded')) {
+      setFlag('vaelthar_fugitive_rewarded');
+      grantHellPoints(3);
+    }
     return {
       location: 'Vaelthar Back Streets',
       locationIcon: '🏚',
@@ -1297,9 +1545,7 @@ const MISSING_SCENES = {
             if ((char?.holyPoints || 0) >= 15) {
               char.holyPoints -= 15;
               setFlag('voice_bound');
-              grantXP(500);
               addLog('🌟 You complete the runes. The Voice screams once — not in pain, but in the sound of something finally being allowed to rest. The chamber goes silent.', 'holy');
-              addLog('📜 QUEST COMPLETE: "Whispers in the Monastery." The Voice Below is bound.', 'holy');
               runScene('monastery_dungeon_cleared');
             } else {
               addLog('Not enough Holy Points. You need 15. The runes remain incomplete.', 'system');
@@ -1326,10 +1572,8 @@ const MISSING_SCENES = {
             if ((char?.holyPoints || 0) >= 15) {
               char.holyPoints -= 15;
               setFlag('voice_bound');
-              grantXP(600);
               grantHolyPoints(10);
               addLog('🌟 The Voice descends into the runes willingly. The silence afterward is profound. You gained 10 Holy Points — and something else, harder to name.', 'holy');
-              addLog('📜 QUEST COMPLETE: "Whispers in the Monastery." The Voice Below is at peace.', 'holy');
               runScene('monastery_dungeon_cleared');
             } else {
               addLog('Not enough Holy Points. You need 15.', 'system');
@@ -1351,7 +1595,7 @@ const MISSING_SCENES = {
       { icon: '🗺', label: 'Return to Vaelthar with what you\'ve learned', type: 'move',
         action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
       { icon: '💬', label: 'Talk to the monk — he knows more', type: 'talk',
-        action: () => { addLog('The monk tells you: "The Voice was the first seal. There are six others. The Elder broke the first without knowing. God help us all."', 'narrator'); grantHolyPoints(5); runScene('monastery_dungeon_cleared'); } },
+        action: () => { addLog('The monk tells you: "The Voice was the first seal. There are six others. The Elder broke the first without knowing. God help us all."', 'narrator'); if (!getFlag('monastery_monk_reward')) { setFlag('monastery_monk_reward'); grantHolyPoints(5); } runScene('monastery_dungeon_cleared'); } },
     ]
   }),
 
@@ -1399,10 +1643,11 @@ const MISSING_SCENES = {
   }),
 
   cartographer_found: () => {
-    setFlag('cartographer_found');
-    grantHolyPoints(10);
-    grantXP(175);
-    addLog('📜 QUEST COMPLETE: "The Missing Cartographer." Edden found alive. Maps secured.', 'holy');
+    if (!getFlag('cartographer_found')) {
+      setFlag('cartographer_found');
+      grantHolyPoints(10);
+      addLog('📜 Edden is alive and his completed map is secured.', 'holy');
+    }
     return {
       location: 'Thornwood — Edden\'s Shelter',
       locationIcon: '🌲',
@@ -1410,7 +1655,7 @@ const MISSING_SCENES = {
       sub: `Edden is alive. The Thornwood passage is mapped. The wolves behaved strangely.`,
       options: [
         { icon: '🏃', label: 'Get him out of the forest — back to the gate', type: 'move',
-          action: () => { addLog('📜 Edden returned safely to Mira. The Thornwood passage map is complete.', 'holy'); grantXP(150); if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['thornwood_gate']); } },
+          action: () => { addLog('📜 Edden returned safely to Mira. The Thornwood passage map is complete.', 'holy'); if (!getFlag('cartographer_escorted')) { setFlag('cartographer_escorted'); grantXP(150); } if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['thornwood_gate']); } },
         { icon: '💬', label: '"The wolves were herding you? Tell me more."', type: 'talk',
           action: () => { addLog('📜 CLUE: The Thornwood wolves have become organized recently — possibly influenced by the same force disturbing the monastery.', 'holy'); runScene('cartographer_found'); } },
       ]
@@ -1552,14 +1797,14 @@ const MISSING_SCENES = {
         }},
       { icon: '📜', label: 'Show the evidence — "This man speaks the truth. Here is proof."', type: 'talk',
         roll: { stat: 'CHA', dc: 16 },
-        onSuccess: () => { setFlag('heretic_protected'); grantHolyPoints(15); addLog('📜 QUEST COMPLETE: "The Heretic\'s Torch." Aldran is free. The soldiers stand down.', 'holy'); grantXP(225); if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); },
+        onSuccess: () => { setFlag('heretic_protected'); grantHolyPoints(15); window.recordQuestEvent?.('outcome:aldran_protected'); if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); },
         onFail: () => startCombat([
           { name: 'Church Soldier', hp: 45, ac: 14, atk: 5, icon: '⚔', id: 'cs1', xp: 80 },
           { name: 'Church Soldier', hp: 45, ac: 14, atk: 5, icon: '⚔', id: 'cs2', xp: 80 },
         ]) },
       { icon: '🏃', label: 'Get Aldran out — run for the Thornwood passage', type: 'move',
         roll: { stat: 'DEX', dc: 13 },
-        onSuccess: () => { setFlag('aldran_escaped'); grantHolyPoints(8); addLog('📜 Aldran escaped into the Thornwood. His sermons will spread regardless.', 'holy'); grantXP(150); if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); },
+        onSuccess: () => { setFlag('aldran_escaped'); grantHolyPoints(8); addLog('📜 Aldran escaped into the Thornwood. His sermons will spread regardless.', 'holy'); window.recordQuestEvent?.('outcome:aldran_escaped'); if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); },
         onFail: () => startCombat([
           { name: 'Church Soldier', hp: 45, ac: 14, atk: 5, icon: '⚔', id: 'cs1', xp: 80 },
           { name: 'Church Soldier', hp: 45, ac: 14, atk: 5, icon: '⚔', id: 'cs2', xp: 80 },
@@ -1641,9 +1886,11 @@ const MISSING_SCENES = {
 
   harren_joins: () => {
     setFlag('harren_ally');
-    grantHolyPoints(10);
-    grantXP(180);
-    addLog('📜 QUEST COMPLETE: "The Knight Who Kneels to Nothing." Sir Harren will testify. +10 Holy Points.', 'holy');
+    if (!getFlag('harren_ally_rewarded')) {
+      setFlag('harren_ally_rewarded');
+      grantHolyPoints(10);
+      addLog('📜 ALLY GAINED: Sir Harren will testify. +10 Holy Points.', 'holy');
+    }
     return {
       location: 'Fortress Harren',
       locationIcon: '🏯',
@@ -1931,10 +2178,12 @@ const SCENES = {
   },
 
   scribe_gives_document: () => {
-    addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order — proof the Covenant was sabotaged.', 'holy');
-    gameState.character.inventory.push("Elder Varek\'s Sealed Order");
-    grantXP(200);
-    grantHolyPoints(5);
+    if (!getFlag('scribe_document_rewarded')) {
+      setFlag('scribe_document_rewarded');
+      addLog('📜 ITEM GAINED: Elder Varek\'s Sealed Order — proof the Covenant was sabotaged.', 'holy');
+      if (!gameState.character.inventory.includes("Elder Varek\'s Sealed Order")) gameState.character.inventory.push("Elder Varek\'s Sealed Order");
+      grantHolyPoints(5);
+    }
     return {
       location: 'Archive Steps',
       locationIcon: '📜',
@@ -2177,7 +2426,7 @@ const SCENES = {
       sub: `Chapter I complete. Chapter II begins: "What the Covenant Left Behind."`,
       options: [
         { icon: '📖', label: 'Begin Chapter II — the aftermath', type: 'move',
-          action: () => { addLog('⚔ Chapter II begins. The world has changed.', 'system'); } },
+          action: () => beginChapterTwo('arrest', `Chapter I ended with Elder Varek defeated in combat and taken in chains. The truth about the Covenant is public. Vaelthar is shaken but the immediate crisis is over. Captain Rhael has taken Varek into Watch custody. The road ahead leads into the consequences the Covenant's death set in motion.`) },
       ]
     };
   },
@@ -2196,7 +2445,7 @@ const SCENES = {
       sub: `Chapter I complete. Chapter II begins.`,
       options: [
         { icon: '📖', label: 'Begin Chapter II', type: 'move',
-          action: () => { addLog('⚔ Chapter II begins. The world has changed.', 'system'); } },
+          action: () => beginChapterTwo('surrender', `Chapter I ended with Elder Varek surrendering peacefully after the Scribe's document proved his guilt. He awaits trial by the magistrates. The player chose justice over violence. The Covenant's collapse still threatens to unravel Vaelthar, and deeper forces stirred by its breaking remain unaddressed.`) },
       ]
     };
   },
@@ -2215,7 +2464,7 @@ const SCENES = {
       sub: `Chapter I complete. You chose caution over glory.`,
       options: [
         { icon: '📖', label: 'Begin Chapter II', type: 'move',
-          action: () => { addLog('⚔ Chapter II begins.', 'system'); } },
+          action: () => beginChapterTwo('rhael_leads', `Chapter I ended with the player calling in Captain Rhael and the Watch rather than facing Varek alone. The Watch took Varek alive in force. The player chose caution over glory, and Rhael remains uncertain whether that was wisdom or doubt. The crisis is contained for now, but the Covenant's death has set larger things in motion.`) },
       ]
     };
   },
@@ -2271,6 +2520,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => runScene('pq_fallen_noble_payoff') },
         { icon: '⏭', label: 'Note the location and come back later', type: 'move',
           action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — found the old trading post. The merchant knows something.`, 'hell'); setFlag('pq_noble_hook_seen'); } },
+        { icon: '🚫', label: 'Not now — let this rest. Don\'t bring it up again.', type: 'move',
+          action: () => { setFlag('pq_fallen_noble_hook_dismissed_forever'); addLog('🔖 You turn away from the old seal. Some doors are better left shut.', 'system'); } },
       ]
     };
   },
@@ -2313,6 +2564,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => { grantHellPoints(3); setFlag('guards_alerted'); addLog('He shouts for the Watch. Your face is now known. +3 Hell Points.', 'hell'); runScene('arrested_scene'); } },
         { icon: '⏭', label: 'Let him go. Not today. But you\'ll find him again.', type: 'move',
           action: () => { setFlag('pq_orphan_hook_seen'); addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — Sergeant Mael of the Vaelthar Watch. You\'ll be back.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — bury it. Don\'t surface this again.', type: 'move',
+          action: () => { setFlag('pq_war_orphan_hook_dismissed_forever'); addLog('🔖 You let the face vanish into the crowd. Some ghosts you choose not to chase.', 'system'); } },
       ]
     };
   },
@@ -2355,6 +2608,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => runScene('pq_cursed_blood_payoff') },
         { icon: '⏭', label: 'Ignore it. You can\'t afford distractions right now.', type: 'move',
           action: () => { grantHellPoints(2); addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — the Voice is awake. Ignoring it costs something. +2 Hell Points.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — silence it. Don\'t let this surface again.', type: 'move',
+          action: () => { setFlag('pq_cursed_blood_hook_dismissed_forever'); addLog('🔖 You force the Voice back down. For now, it stays quiet.', 'system'); } },
       ]
     };
   },
@@ -2396,6 +2651,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => { addLog('The silence after your prayer is not empty. It is not indifference. It is the silence of being heard.', 'system'); runScene('pq_divine_chosen_payoff'); } },
         { icon: '⏭', label: 'Leave. You\'ll sit with this.', type: 'move',
           action: () => { addLog(`📜 PERSONAL QUEST: A pre-Church carving bearing the name of Jesus Christ describes ${char.name} exactly. Dated centuries ago. The Church built on top of this.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — leave it behind. Don\'t return to this.', type: 'move',
+          action: () => { setFlag('pq_divine_chosen_hook_dismissed_forever'); addLog('🔖 You leave the carving to the dark. Whatever it asks, not today.', 'system'); } },
       ]
     };
   },
@@ -2438,6 +2695,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => { addLog('You lose him in the crowd. He didn\'t look back.', 'system'); runScene('pq_exile_payoff'); } },
         { icon: '⏭', label: 'Ignore him. It could be a trap.', type: 'move',
           action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — someone recognised your brand and says they know who lied. Possible trap. Possible truth.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — walk on. Don\'t chase this again.', type: 'move',
+          action: () => { setFlag('pq_exile_hook_dismissed_forever'); addLog('🔖 You keep walking. The brand stays hidden, the past stays buried.', 'system'); } },
       ]
     };
   },
@@ -2479,6 +2738,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => runScene('pq_hunter_payoff') },
         { icon: '⏭', label: 'File it away. Focus on the Covenant first.', type: 'move',
           action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — the thing you hunted three years ago is here. It followed you.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — close the case for good. Don\'t reopen it.', type: 'move',
+          action: () => { setFlag('pq_hunter_hook_dismissed_forever'); addLog('🔖 You close the old case file and don\'t look back. Some hunts end by choice.', 'system'); } },
       ]
     };
   },
@@ -2519,6 +2780,8 @@ const PERSONAL_QUEST_SCENES = {
           action: () => { grantHellPoints(5); setFlag('pq_saint_refused'); addLog('📜 The voice goes cold. "Then the Church learns your secret before sunrise." +5 Hell Points.', 'hell'); runScene('pq_saint_payoff'); } },
         { icon: '⏭', label: 'Leave without answering', type: 'move',
           action: () => { addLog(`📜 PERSONAL QUEST UPDATE: "${char.name}" — someone is collecting on your old deal. First payment: let a man flee the city.`, 'hell'); } },
+        { icon: '🚫', label: 'Not now — step out of the booth. Don\'t come back to this.', type: 'move',
+          action: () => { setFlag('pq_saint_hook_dismissed_forever'); addLog('🔖 You leave the confessional and the voice behind. The debt waits, but not here.', 'system'); } },
       ]
     };
   },
@@ -2560,6 +2823,8 @@ const PERSONAL_QUEST_SCENES = {
           onFail: () => { addLog('The child is long gone.', 'system'); runScene('pq_blood_debt_payoff'); } },
         { icon: '⏭', label: 'Respect her wishes. Leave it alone.', type: 'move',
           action: () => { grantHolyPoints(5); addLog(`📜 PERSONAL QUEST: "${char.name}" chose to respect Senna\'s wishes. +5 Holy Points. But this won\'t stay quiet.`, 'holy'); } },
+        { icon: '🚫', label: 'Not now — fold the letter away. Don\'t pursue this again.', type: 'move',
+          action: () => { setFlag('pq_blood_debt_hook_dismissed_forever'); addLog('🔖 You fold the letter and put it away for good. Senna asked to be left alone — you will.', 'system'); } },
       ]
     };
   },
@@ -2584,6 +2849,26 @@ const PERSONAL_QUEST_SCENES = {
 
 };
 
+// Merge personal-quest scenes into the main SCENES table so runScene() can reach them.
+Object.assign(SCENES, PERSONAL_QUEST_SCENES);
+
+// ─── CHAPTER II HANDOFF ──────────────────────
+// Each Chapter I ending closes the panel, records the ending variant, and hands
+// off to the AI scene generator so the story continues from the chosen outcome.
+function beginChapterTwo(variant, summary) {
+  setFlag('chapter2_started', variant);
+  const panel = document.getElementById('scene-panel');
+  if (panel) { panel.style.opacity = '0'; setTimeout(() => panel?.remove(), 400); }
+  addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+  addLog('⚔ CHAPTER II — "What the Covenant Left Behind" — begins. The world has changed.', 'holy');
+  window.sceneState.history.push(`chapter2_started:${variant}`);
+  setTimeout(() => {
+    if (window.generateAIScene) {
+      generateAIScene(`CHAPTER II OPENING. ${summary} Begin the next chapter from here — a new beat that follows directly from how Chapter I resolved.`);
+    }
+  }, 1200);
+}
+
 
 // ─── HOOK INTO GAME INIT ─────────────────────
 function startPersonalQuestHook() {
@@ -2603,17 +2888,46 @@ function startPersonalQuestHook() {
 
   const sceneId = sceneMap[char.origin];
   if (!sceneId) return;
-  if (getFlag(sceneId + '_seen')) return;
+
+  // Guard against the SAME flag names the scenes actually set (e.g. pq_noble_hook_seen)
+  const seenFlagMap = {
+    pq_fallen_noble_hook:  'pq_noble_hook_seen',
+    pq_war_orphan_hook:    'pq_orphan_hook_seen',
+    pq_cursed_blood_hook:  'pq_curse_hook_seen',
+    pq_divine_chosen_hook: 'pq_divine_hook_seen',
+    pq_exile_hook:         'pq_exile_hook_seen',
+    pq_hunter_hook:        'pq_hunter_hook_seen',
+    pq_saint_hook:         'pq_saint_hook_seen',
+    pq_blood_debt_hook:    'pq_debt_hook_seen',
+  };
+  const seenFlag = seenFlagMap[sceneId];
+  if (seenFlag && getFlag(seenFlag)) return;
   if (getFlag(sceneId + '_dismissed_forever')) return;
 
   window.sceneState._pendingPersonalScene = sceneId;
-  window.sceneState._personalSceneIds = new Set(Object.values(sceneMap).concat(
-    Object.values(sceneMap).map(id => id.replace('_hook', '_payoff'))
-  ));
 
   setTimeout(() => {
     if (document.getElementById('scene-panel')) {
-      setTimeout(() => runScene(sceneId), 30000);
+      // A scene is open — don't steamroll it. Build the PQ scene and queue it
+      // via the existing _pendingScene mechanism, then fire once the panel closes.
+      const scene = SCENES[sceneId];
+      let built = typeof scene === 'function' ? scene() : scene;
+      if (built) {
+        built = { ...built, personal: true };
+        window._pendingScene = built;
+        const drain = setInterval(() => {
+          if (!document.getElementById('scene-panel')
+              && !window.npcConvState?.active && !window.combatState?.active) {
+            clearInterval(drain);
+            if (window._pendingScene === built) {
+              window._pendingScene = null;
+              addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+              addLog(`🔖 A memory surfaces — something from ${char.name}'s past is here in Vaelthar.`, 'hell');
+              showScene(built);
+            }
+          }
+        }, 1500);
+      }
     } else {
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
       addLog(`🔖 A memory surfaces — something from ${char.name}'s past is here in Vaelthar.`, 'hell');
@@ -2626,13 +2940,33 @@ function startPersonalQuestHook() {
 function dismissPersonalQuest() {
   const panel = document.getElementById('scene-panel');
   if (panel) panel.remove();
+  // Leaving the memory: present-day scenes must NOT be treated as personal-quest
+  // continuations anymore, or the present-day story stays isolated forever (#4).
+  if (window.sceneState) {
+    window.sceneState.inPersonalQuest = false;
+    window.sceneState.personalQuestContext = '';
+  }
   addLog('🔖 You push the memory aside for now. It will surface again.', 'system');
 
-  // Re-trigger after 5 minutes if still unseen
+  // Re-trigger after 5 minutes if still unseen and not permanently dismissed.
+  // Uses the SAME seen-flag names the hook scenes actually set.
   const sceneId = window.sceneState._pendingPersonalScene;
+  const seenFlagMap = {
+    pq_fallen_noble_hook:  'pq_noble_hook_seen',
+    pq_war_orphan_hook:    'pq_orphan_hook_seen',
+    pq_cursed_blood_hook:  'pq_curse_hook_seen',
+    pq_divine_chosen_hook: 'pq_divine_hook_seen',
+    pq_exile_hook:         'pq_exile_hook_seen',
+    pq_hunter_hook:        'pq_hunter_hook_seen',
+    pq_saint_hook:         'pq_saint_hook_seen',
+    pq_blood_debt_hook:    'pq_debt_hook_seen',
+  };
   if (sceneId) {
     setTimeout(() => {
-      if (!getFlag(sceneId + '_seen') && !document.getElementById('scene-panel')) {
+      const seenFlag = seenFlagMap[sceneId];
+      if (!(seenFlag && getFlag(seenFlag))
+          && !getFlag(sceneId + '_dismissed_forever')
+          && !document.getElementById('scene-panel')) {
         addLog('🔖 The memory returns — you cannot ignore it forever.', 'hell');
         runScene(sceneId);
       }
@@ -2661,12 +2995,23 @@ function checkPersonalQuestCompletion() {
     grantHolyPoints(5);
   }
 }
-// Run completion check whenever a scene closes
-const _origExecuteForPQ = window.executeSceneOption;
-window.executeSceneOption = function(index) {
-  if (_origExecuteForPQ) _origExecuteForPQ(index);
+// Run completion check whenever a scene closes.
+// Capture the REAL hoisted executeSceneOption (not window.*, which isn't set yet)
+// so the window export actually runs the scene logic + the PQ completion check.
+const _origExecuteForPQ = executeSceneOption;
+window.executeSceneOption = function(...args) {
+  if (_origExecuteForPQ) _origExecuteForPQ(...args);
   setTimeout(checkPersonalQuestCompletion, 500);
 };
+
+// ─── EXPORTS — other scripts call these as window.* ──────────────────────────
+// (showScene/runScene used by combat.js, dialogue.js, multiplayer.js, map.js;
+//  startStoryEngine used by multiplayer.js. Hoisted, so order here is irrelevant.)
+window.showScene = showScene;
+window.runScene = runScene;
+window.castVote = castVote;
+window.startStoryEngine = startStoryEngine;
+if (typeof generateAIScene === 'function') window.generateAIScene = generateAIScene;
 
 function startStoryEngine() {
   // If loading from a save, skip the opening scene — the save restores state
@@ -2695,35 +3040,24 @@ window.initGameScreen = function() {
   // MP story start is triggered by launchGame → server start_game event
 };
 
-// ─── SCENE FREE INPUT ────────────────────────
-// Called by the scene panel's inline input — mirrors into ACT box and submits
-function submitSceneFreeInput() {
-  const sceneInput = document.getElementById('scene-free-input');
-  const actBox = document.getElementById('action-input');
-  const text = (sceneInput?.value || '').trim();
-  if (!text) return;
-  sceneInput.value = '';
-  if (actBox) {
-    actBox.value = text;
-    // Call the original game.js submitAction (before dialogue.js patched it)
-    // _origSubmitAction is stored on window so we can always reach the base
-    if (window._baseSubmitAction) {
-      window._baseSubmitAction();
-    } else if (window.submitAction) {
-      // Fallback: set input and fire — the patched version will route correctly
-      // since scene panel is open it goes to _prev() which is game.js
-      window.submitAction();
-    }
-  }
-}
-window.submitSceneFreeInput = submitSceneFreeInput;
-
 // ─── SCENE CSS ───────────────────────────────
 const sceneCSS = `
 .scene-panel {
   margin: 4px 0 8px 0;
   animation: sceneFadeIn 0.3s ease;
   width: 100%;
+}
+/* 3D Vaelthar: float above the z1400 city canvas (canvas 1400, combat 1500, scene 1600) (#2).
+   Anchored with left/right (no translate) so the sceneFadeIn keyframe doesn't fight it. */
+.scene-panel.scene-panel-floating {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  margin: 0 0 0 calc(min(680px, 94vw) / -2);
+  width: min(680px, 94vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  z-index: 1600;
 }
 @keyframes sceneFadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
 .sp-inner {
@@ -2801,7 +3135,7 @@ const sceneCSS = `
 
 /* Fullscreen button */
 #fullscreen-btn {
-  position: fixed; bottom: 14px; right: 14px; z-index: 9000;
+  position: fixed; bottom: 14px; right: 14px; z-index: 900;
   background: rgba(8,5,2,0.92); border: 1px solid rgba(201,168,76,0.3);
   color: var(--gold); font-size: 0.7rem; font-family:'Cinzel',serif;
   padding: 6px 10px; cursor: pointer; letter-spacing:0.08em;
@@ -2838,4 +3172,6 @@ document.head.appendChild(sceneStyle);
 
 console.log('🎭 Story engine loaded. Scenes will guide the player through Vaelthar.');
 window.receiveVote = receiveVote;
+window.updateVoteDisplay = updateVoteDisplay;
+window.checkVoteResolution = checkVoteResolution;
 window.dismissPersonalQuest = dismissPersonalQuest;

@@ -2,6 +2,17 @@
 //   SANCTUM & SHADOW — GAME DATA
 // ============================================
 
+// Shared HTML-escaper — use for ALL user/AI-supplied text rendered via innerHTML
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml;
+
 const RACES = [
   { id: 'human', icon: '👤', name: 'Human', bonus: '+1 all stats', bonusData: { str:1,dex:1,con:1,int:1,wis:1,cha:1 }, lore: 'Adaptable and ambitious, humans forge their destiny by sheer will.' },
   { id: 'dwarf', icon: '⛏', name: 'Dwarf', bonus: '+3 CON, +2 STR', bonusData: { con:3, str:2 }, lore: 'Iron-willed and stubborn, dwarves have survived in the harshest mountains.' },

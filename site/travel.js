@@ -136,9 +136,9 @@ const TRAVEL_ENCOUNTERS = {
     title: 'Lost Child',
     scenes: [{ text: 'A small figure sitting on a stone, crying quietly. Maybe eight years old. No wounds. Just... alone. Very alone. When they see you, they scramble back against the stone.' }],
     options: [
-      { text: 'Sit down and speak to them gently', action: 'scene',
+      { text: 'Sit down and speak to them gently', action: 'reward',
         text_result: 'It takes time. Slowly they talk — their family\'s cart was attacked. They hid. They don\'t know where anyone is. You escort them to the nearest settlement. +8 Holy.',
-        action: 'reward', holy: 8, gold: 0 },
+        holy: 8, gold: 0 },
       { text: 'Leave them a ration and continue', action: 'escape', holy: 2,
         text_result: 'You set down a ration beside them. It\'s something. Not much.' },
       { text: 'Ignore them entirely', action: 'escape', hell: 5,
@@ -153,9 +153,9 @@ const TRAVEL_ENCOUNTERS = {
     title: 'Fallen Knight',
     scenes: [{ text: 'A knight in shattered plate sits beside a dead horse. Sword unsheathed, pointed at no one. *"The Covenant had me hunting you. All of you."* He looks up. Something in his eyes has already broken. *"I don\'t anymore."*' }],
     options: [
-      { text: 'Hear him out', action: 'dialogue',
+      { text: 'Hear him out', action: 'reward',
         text_result: 'He tells you things. About the Covenant\'s reach. About orders he refused. He gives you a sealed letter. +flag: knows_covenant_structure.',
-        action: 'reward', flag: 'knows_covenant_structure', item: 'Sealed Orders', icon: '📜' },
+        flag: 'knows_covenant_structure', item: 'Sealed Orders', icon: '📜' },
       { text: 'Disarm him and bind him — he\'s still an enemy', action: 'roll', stat: 'str', dc: 10,
         success: { text: 'He doesn\'t resist much. You bind him and leave him for the city watch.', action: 'escape', holy: 2 },
         failure: { text: 'He reacts faster than expected. His training takes over.', action: 'combat', enemyKey: 'city_guard' }
@@ -250,7 +250,7 @@ const TRAVEL_ENCOUNTERS = {
     scenes: [{ text: 'Fog rolls in from nowhere — thick, white, and wrong. Your hand disappears past your wrist. You can hear breathing that isn\'t yours. Something moves in the white. Close.' }],
     options: [
       { text: 'Draw your weapon and hold position', action: 'combat_chance',
-        chance: 0.4, enemyKey: 'shadow',
+        chance: 0.4, enemyKey: 'shadow_wraith',
         escape_text: 'Whatever was there decides against it. The fog lifts. You\'re standing in the middle of the road, weapon drawn, alone.' },
       { text: 'Move quickly and don\'t look at what\'s in the fog', action: 'roll', stat: 'wis', dc: 10,
         success: { text: 'You keep your eyes forward. You feel things passing close. You don\'t look. You arrive shaken but unharmed.', action: 'escape' },
@@ -351,7 +351,37 @@ function rollTravelEncounter(fromLoc, toLoc) {
     rand -= enc.weight;
     if (rand <= 0) return { key, enc };
   }
-  return pool[pool.length - 1];
+  // #81: fallback must return the same shape, not a raw [key, enc] array.
+  if (!pool.length) return null;
+  const [fbKey, fbEnc] = pool[pool.length - 1];
+  return { key: fbKey, enc: fbEnc };
+}
+
+// ─── #33: CONDITION FLAG CHECK ───────────────────────────
+// An option with a condition_flag is only available if the matching flag is
+// set OR the player carries the matching key item. Mirrors the data:
+//   has_city_pass    → "City Watch Pass"
+//   has_false_papers → "False Papers"
+const CONDITION_FLAG_ITEMS = {
+  has_city_pass:    'City Watch Pass',
+  has_false_papers: 'False Papers',
+};
+
+function _conditionFlagMet(flag) {
+  if (!flag) return true;
+  if (window.getFlag && window.getFlag(flag)) return true;
+  if (window.sceneState?.flags?.[flag]) return true;
+  const itemName = CONDITION_FLAG_ITEMS[flag];
+  if (itemName) {
+    const inv = gameState.character?.inventory || [];
+    if (inv.some(i => i === itemName)) return true;
+  }
+  return false;
+}
+
+// Disable an option whose condition_flag isn't met.
+function _optionDisabled(opt) {
+  return !!(opt && opt.condition_flag && !_conditionFlagMet(opt.condition_flag));
 }
 
 // ─── SHOW ENCOUNTER PANEL ────────────────────────────────
@@ -386,12 +416,16 @@ function showTravelEncounter(encObj, destination) {
       <h3 class="tep-title">${enc.title}</h3>
       <p class="tep-scene">${scene.text}</p>
       <div class="tep-options" id="tep-options">
-        ${enc.options.map((opt, i) => `
-          <button class="tep-option" onclick="resolveTravelOption(${i}, '${destination}')">
-            ${opt.roll ? `<span class="tep-roll-badge">🎲 ${opt.roll?.toUpperCase() || opt.stat?.toUpperCase()} DC${opt.dc}</span>` : ''}
-            ${opt.text}
-          </button>
-        `).join('')}
+        ${enc.options.map((opt, i) => {
+          const esc = window.escapeHtml || (s => String(s));
+          const disabled = _optionDisabled(opt);
+          const tip = esc(opt.condition_fail_text || 'Requires a key item you don\'t have');
+          return `
+          <button class="tep-option" data-opt-index="${i}" ${disabled ? `disabled title="${tip}"` : ''} onclick="resolveTravelOption(${i}, '${destination}')">
+            ${(opt.action === 'roll' && opt.stat) ? `<span class="tep-roll-badge">🎲 ${opt.stat.toUpperCase()} DC${opt.dc}</span>` : ''}
+            ${esc(opt.text)}
+          </button>`;
+        }).join('')}
       </div>
     </div>
   `;
@@ -416,7 +450,109 @@ function resolveTravelOption(index, destination) {
   const char = gameState.character;
   if (!opt || !char) return;
 
+  // ── #33: enforce condition_flag (safety net; the button is also disabled) ──
+  if (opt.condition_flag && !_conditionFlagMet(opt.condition_flag)) {
+    addLog(opt.condition_fail_text || 'You lack what this requires.', 'system');
+    return; // keep the panel up so the player can pick another option
+  }
+
   document.getElementById('travel-encounter-panel')?.remove();
+
+  // ── #35: reward-type options route through the shared reward logic ──
+  if (opt.action === 'reward') {
+    addLog(opt.text_result || opt.text || '', 'narrator');
+    _applyTravelReward(opt, destination);
+    return;
+  }
+
+  // ── #32: ESCORT ── pay the stated reward, with a chance of a bandit fight ──
+  if (opt.action === 'escort') {
+    const reward = opt.reward || opt.success || {};
+    const fightChance = opt.combat_chance || 0.5;
+    addLog(opt.text || 'You take up escort.', 'action');
+    if (reward.text) addLog(reward.text, 'narrator');
+    if (Math.random() < fightChance) {
+      // Bandits hit the road mid-escort — reuse the existing combat path.
+      addLog('⚔ Bandits ambush the escort on the road!', 'combat');
+      // Pay the reward first (the job is honoured either way), then fight.
+      _applyTravelReward(reward, destination);
+      setTimeout(() => {
+        if (window.generateEnemy && window.startCombat) {
+          const key = opt.enemyKey || 'bandit';
+          const enemies = [window.generateEnemy(key, 1)];
+          if (Math.random() > 0.5) enemies.push(window.generateEnemy(key, 1));
+          window.startCombat(enemies);
+        }
+      }, 600);
+      return;
+    }
+    _applyTravelReward(reward, destination);
+    return;
+  }
+
+  // ── #32: COMBAT_CHANCE ── roll the stated %, maybe start combat ──
+  if (opt.action === 'combat_chance') {
+    const chance = opt.chance || 0.4;
+    addLog(opt.text || 'You ready yourself.', 'action');
+    if (Math.random() < chance) {
+      arriveAtDestination(destination);
+      setTimeout(() => {
+        if (window.generateEnemy && window.startCombat) {
+          const key = opt.enemyKey || 'shadow_wraith';
+          const enemies = [window.generateEnemy(key, 1)];
+          window.startCombat(enemies);
+        }
+      }, 600);
+    } else {
+      addLog(opt.escape_text || 'Nothing comes of it. You continue on.', 'narrator');
+      arriveAtDestination(destination);
+    }
+    return;
+  }
+
+  // ── #32: USE_ITEM ── require + consume a specific item, else feedback ──
+  if (opt.action === 'use_item') {
+    const inv = char.inventory || [];
+    const idx = inv.indexOf(opt.item);
+    if (idx === -1) {
+      addLog(opt.fail_text || `You have no ${opt.item}.`, 'system');
+      arriveAtDestination(destination);
+      return;
+    }
+    inv.splice(idx, 1);
+    addLog(`🔦 You use your ${opt.item}.`, 'system');
+    addLog(opt.success?.text || '', 'narrator');
+    _applyTravelReward(opt.success || {}, destination);
+    return;
+  }
+
+  // ── #32: CHEST_FORCE ── STR roll to force a chest, reuse chest_loot ──
+  if (opt.action === 'chest_force') {
+    const dc = opt.dc || 14;
+    const mod = Math.floor(((char.stats?.str || 10) - 10) / 2);
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const total = roll + mod;
+    const success = total >= dc || roll === 20;
+    addLog(`🎲 STR DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${success ? '✅ The chest gives way!' : '❌ It holds.'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice?.();
+    if (success) {
+      _grantChestLoot(opt.tier || 2);
+      arriveAtDestination(destination);
+    } else {
+      addLog('The chest refuses to open. Whatever is inside stays there.', 'narrator');
+      arriveAtDestination(destination);
+    }
+    return;
+  }
+
+  // ── #32: DELAY ── advance time, log it, then arrive ──
+  if (opt.action === 'delay') {
+    addLog(opt.text_result || 'You wait it out. Time passes.', 'narrator');
+    if (window.advanceTime) advanceTime(2);
+    addLog('⏱ A couple of hours pass before you can continue.', 'system');
+    arriveAtDestination(destination);
+    return;
+  }
 
   // ── ROLL ──
   if (opt.action === 'roll') {
@@ -461,6 +597,11 @@ function resolveTravelOption(index, destination) {
     if ((char.gold || 0) < amount) {
       if (opt.fail_text) {
         addLog(opt.fail_text, 'system');
+        // #36: confirm arrival + persist BEFORE the forced fight, like every
+        // other terminal branch. Previously this returned early and skipped
+        // arriveAtDestination, so the player lost the arrival confirmation,
+        // updateCharacterPanel and autosave after the bribe failed.
+        arriveAtDestination(destination);
         // Force combat instead
         setTimeout(() => {
           if (window.generateEnemy && window.startCombat) {
@@ -511,18 +652,7 @@ function resolveTravelOption(index, destination) {
 
   // ── CHEST LOOT ──
   if (opt.action === 'chest_loot') {
-    const tier = opt.tier || 1;
-    const table = CHEST_LOOT[tier] || CHEST_LOOT[1];
-    const lootItem = table[Math.floor(Math.random() * table.length)];
-    const goldBonus = Math.floor(Math.random() * 20) + tier * 10;
-    char.inventory = char.inventory || [];
-    char.inventory.push(lootItem.name);
-    char.gold = (char.gold || 0) + goldBonus;
-    if (lootItem.type === 'weapon' && lootItem.atk) char.atkBonus = (char.atkBonus || 0) + lootItem.atk;
-    if (lootItem.type === 'armor' && lootItem.ac) char.ac = (char.ac || 10) + lootItem.ac;
-    addLog(`📦 Found: ${lootItem.icon} ${lootItem.name} and 🪙 ${goldBonus} gold.`, 'holy');
-    toast(`${lootItem.icon} ${lootItem.name} added to inventory!`, 'success');
-    if (window.updateCharacterPanel) updateCharacterPanel();
+    _grantChestLoot(opt.tier || 1);
     arriveAtDestination(destination);
     return;
   }
@@ -563,6 +693,9 @@ function _applyTravelReward(result, destination) {
   if (result.item) {
     char.inventory = char.inventory || [];
     char.inventory.push(result.item);
+    // #34: if the rewarded item carries gear stats (e.g. Grave Sword atk:4),
+    // apply them AND record the grant so selling deducts only what was granted.
+    _applyGearBonus(char, result.item, result.atk, result.ac);
     toast(`${result.icon || '📦'} ${result.item} added to inventory!`, 'success');
   }
   if (result.flag && window.sceneState) {
@@ -574,6 +707,42 @@ function _applyTravelReward(result, destination) {
     const dmg = result.amount || 10;
     char.hp = Math.max(1, (char.hp || 1) - dmg);
     addLog(`💔 Lost ${dmg} HP. (${char.hp}/${char.maxHp})`, 'combat');
+  }
+  // #32: a failed lock-pick can hand off to a STR force attempt.
+  if (result.action === 'chest_force') {
+    const dc = result.dc || 14;
+    const mod = Math.floor(((char.stats?.str || 10) - 10) / 2);
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const total = roll + mod;
+    const forced = total >= dc || roll === 20;
+    addLog(`🎲 STR DC${dc}: [${roll}] ${mod >= 0 ? '+' : ''}${mod} = ${total} — ${forced ? '✅ The chest gives way!' : '❌ It holds.'}`, 'dice');
+    if (window.AudioEngine) AudioEngine.sfx?.dice?.();
+    if (forced) _grantChestLoot(result.tier || 2);
+    else addLog('The chest refuses to open. Whatever is inside stays there.', 'narrator');
+    arriveAtDestination(destination);
+    return;
+  }
+  // #32/#35: a roll success can itself be an escort (e.g. the negotiated
+  // merchant). Pay its nested reward and roll for the bandit fight.
+  if (result.action === 'escort') {
+    const reward = result.reward || {};
+    const fightChance = result.combat_chance || 0.5;
+    if (reward.text) addLog(reward.text, 'narrator');
+    if (Math.random() < fightChance) {
+      addLog('⚔ Bandits ambush the escort on the road!', 'combat');
+      _applyTravelReward(reward, destination);
+      setTimeout(() => {
+        if (window.generateEnemy && window.startCombat) {
+          const key = result.enemyKey || 'bandit';
+          const enemies = [window.generateEnemy(key, 1)];
+          if (Math.random() > 0.5) enemies.push(window.generateEnemy(key, 1));
+          window.startCombat(enemies);
+        }
+      }, 600);
+      return;
+    }
+    _applyTravelReward(reward, destination);
+    return;
   }
   if (result.action === 'combat') {
     arriveAtDestination(destination);
@@ -591,12 +760,49 @@ function _applyTravelReward(result, destination) {
   arriveAtDestination(destination);
 }
 
+// #34: apply weapon/armor bonuses and record what was granted on the character
+// (same convention as shop.js buyItem) so sellItem deducts only the real grant.
+function _applyGearBonus(char, name, atk, ac) {
+  if (!char || !name) return;
+  let grantedAtk = 0, grantedAc = 0;
+  if (atk) { char.atkBonus = (char.atkBonus || 0) + atk; grantedAtk = atk; }
+  if (ac)  { char.ac = (char.ac || 10) + ac; grantedAc = ac; }
+  if (!grantedAtk && !grantedAc) return;
+  char._gearBonuses = char._gearBonuses || {};
+  const prev = char._gearBonuses[name] || { atk: 0, ac: 0, count: 0 };
+  char._gearBonuses[name] = {
+    atk: prev.atk + grantedAtk,
+    ac: prev.ac + grantedAc,
+    count: (prev.count || 0) + 1,
+  };
+}
+
+// #32/#34: shared chest loot grant (used by chest_loot and chest_force).
+function _grantChestLoot(tier) {
+  const char = gameState.character;
+  if (!char) return;
+  const table = CHEST_LOOT[tier] || CHEST_LOOT[1];
+  const lootItem = table[Math.floor(Math.random() * table.length)];
+  const goldBonus = Math.floor(Math.random() * 20) + tier * 10;
+  char.inventory = char.inventory || [];
+  char.inventory.push(lootItem.name);
+  char.gold = (char.gold || 0) + goldBonus;
+  _applyGearBonus(char, lootItem.name, lootItem.atk, lootItem.ac);
+  addLog(`📦 Found: ${lootItem.icon} ${lootItem.name} and 🪙 ${goldBonus} gold.`, 'holy');
+  toast(`${lootItem.icon} ${lootItem.name} added to inventory!`, 'success');
+  if (window.updateCharacterPanel) updateCharacterPanel();
+  if (window.autoSave) autoSave();
+}
+
 // ─── ARRIVE AT DESTINATION ────────────────────────────────
 function arriveAtDestination(locId) {
   if (!locId) return;
   const loc = window.WORLD_LOCATIONS?.[locId];
   if (!loc) return;
-  addLog(`🗺 You arrive at ${loc.name}.`, 'system');
+  // #81: map.js travelToLocation already logged the full arrival narration when
+  // the trip began; the encounter merely interrupted it. Don't duplicate the
+  // "You arrive" line — just confirm the road is clear and persist state.
+  addLog(`…the road clears, and you press on to ${loc.name}.`, 'system');
   if (window.updateCharacterPanel) updateCharacterPanel();
   if (window.autoSave) autoSave();
 }
@@ -663,10 +869,15 @@ function arriveAtDestination(locId) {
     align-items: center;
     gap: 8px;
   }
-  .tep-option:hover {
+  .tep-option:hover:not(:disabled) {
     background: rgba(201,168,76,0.12);
     border-color: rgba(201,168,76,0.4);
     color: var(--gold, #c9a84c);
+  }
+  .tep-option:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    color: rgba(255,255,255,0.4);
   }
   .tep-roll-badge {
     background: rgba(100,80,200,0.2);
@@ -693,15 +904,36 @@ function arriveAtDestination(locId) {
   }
 
   window.travelToLocation = function(loc) {
+    // #16: don't travel (or schedule encounters) during combat.
+    if (window.combatState?.active) {
+      if (window.toast) toast('⚔ Not during combat!', 'error');
+      else if (window.addLog) addLog('⚔ Not during combat!', 'system');
+      return;
+    }
+    // #20: don't travel (or schedule encounters) mid-scene/conversation. The
+    // wrapped map.js travelToLocation guards too, but we must bail here as well
+    // so this wrapper never schedules a road encounter for a trip that won't run.
+    if (document.getElementById('scene-panel') || window.npcConvState?.active) {
+      if (window.toast) toast('Finish the current scene first', 'error');
+      else if (window.addLog) addLog('Finish the current scene first', 'system');
+      return;
+    }
+
     const fromLocId = window.mapState?.currentLocation;
     const fromLoc = window.WORLD_LOCATIONS?.[fromLocId] || {};
 
-    // Run travel first (music, fog of war, description)
+    // Decide on the encounter BEFORE running travel so we can claim the trip's
+    // single encounter slot and stop map.js's own scheduler from double-firing.
+    const encObj = rollTravelEncounter(fromLoc, loc);
+
+    // Run travel (music, fog of war, description). This resets
+    // window._travelEncounterFired = false at its start.
     _orig(loc);
 
-    // Then check for travel encounter (delayed so narration shows first)
-    const encObj = rollTravelEncounter(fromLoc, loc);
+    // #16/#81: if we're going to fire an encounter, claim the slot now so
+    // map.js's triggerEncounter (2200ms) skips this trip.
     if (encObj) {
+      window._travelEncounterFired = true;
       setTimeout(() => {
         addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
         showTravelEncounter(encObj, loc.id);

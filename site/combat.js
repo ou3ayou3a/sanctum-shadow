@@ -8,22 +8,28 @@
 // ─── CONSTANTS ───────────────────────────────
 const AP_COSTS = { move:1, attack:1, spell:2, pray:1, item:1, dash:2, free:0 };
 const MAX_AP = 3;
+const COMBAT_RULES = window.SanctumRules;
+if (!COMBAT_RULES) throw new Error('SanctumRules must load before combat.js');
 
 // XP needed per level (level 1→2 needs 100 XP, etc.)
-const XP_TABLE = [0,100,250,450,700,1000,1400,1900,2500,3200,4000];
+// #24: extended to level 20. Indices 0-10 unchanged; 11-20 continue the curve
+// with increasing thresholds so levels 12-20 are actually reachable.
+const XP_TABLE = [0,100,250,450,700,1000,1400,1900,2500,3200,4000,
+                  4900,5900,7000,8200,9500,10900,12400,14000,15700,17500];
 window.XP_TABLE = XP_TABLE;
 
 // Spells learned at each level (max 5 spells, last at level 10)
 const SPELL_LEARN_LEVELS = [1, 3, 5, 7, 10];
 
-// Area danger levels — maps to WORLD_LOCATIONS
+// Area danger levels — keyed to REAL location ids in map.js WORLD_LOCATIONS
 const AREA_LEVELS = {
-  vaelthar_city: 1, vaelthar_slums: 1, vaelthar_docks: 1,
-  temple_quarter: 2, covenant_hall: 2,
-  thornwood_gate: 2, thornwood_forest: 3,
-  monastery_aldric: 4, catacombs: 4,
-  shadow_reaches: 6, void_citadel: 8,
-  shattered_realm: 10,
+  vaelthar_city: 1, tarnished_cup: 1,
+  temple_quarter: 2, merchant_road: 2,
+  thornwood_gate: 2, thornwood_passage: 3,
+  mol_village: 3, monastery_aldric: 3,
+  fortress_harren: 4, lost_cartographer: 3,
+  church_archive: 4, ashen_fields: 5,
+  tower_ash: 8,
 };
 
 // ─── COMBAT STATE ─────────────────────────────
@@ -39,7 +45,20 @@ const combatState = {
   selectedTarget: null,
   // Status effects: { [combatantId]: [{ id, name, icon, turnsLeft, ...data }] }
   statusEffects: {},
+  // Turn-guard tracking (#14): whose turn it is + pending auto-end timer
+  whoseTurn: null,
+  pendingEndTurnTimer: null,
+  endedThisTurn: false,
 };
+window.combatState = combatState;
+
+function getLocalCombatantId() {
+  return window.mp?.sessionCode && window.mp?.playerId ? window.mp.playerId : 'player';
+}
+
+function getLocalCombatant() {
+  return combatState.combatants[getLocalCombatantId()] || combatState.combatants.player || null;
+}
 
 // ─── STATUS EFFECT ENGINE ─────────────────────
 function addStatus(targetId, effect) {
@@ -61,7 +80,14 @@ function getStatusData(targetId, statusId) {
 function removeStatus(targetId, statusId) {
   if (!combatState.statusEffects[targetId]) return;
   const e = combatState.statusEffects[targetId].find(s => s.id === statusId);
-  if (e) addLog(`${e.icon} ${combatState.combatants[targetId]?.name}: ${e.name} expired.`, 'system');
+  if (e) {
+    // #17: revert any stat deltas applied at cast (e.g. Shadow Step's ±AC)
+    if (e.acDelta) {
+      const c = combatState.combatants[targetId];
+      if (c) c.ac = (c.ac || 0) - e.acDelta;
+    }
+    addLog(`${e.icon} ${combatState.combatants[targetId]?.name}: ${e.name} expired.`, 'system');
+  }
   combatState.statusEffects[targetId] = combatState.statusEffects[targetId].filter(e => e.id !== statusId);
 }
 
@@ -79,13 +105,18 @@ function tickStatuses(combatantId) {
 // Get total attack bonus modifier from statuses
 function getAtkMod(combatantId) {
   let mod = 0;
-  (combatState.statusEffects[combatantId] || []).forEach(s => { if (s.atkMod) mod += s.atkMod; });
+  (combatState.statusEffects[combatantId] || []).forEach(s => {
+    if (s.atkMod) mod += s.atkMod;
+    // #20: consumable buffs store their flat bonus as bonusAtk/bonusDex
+    if (s.bonusAtk) mod += s.bonusAtk;
+    if (s.bonusDex) mod += s.bonusDex;
+  });
   // smoke_bomb affects this combatant
   if (hasStatus(combatantId, 'smoke_bomb_debuff')) mod -= 4;
   return mod;
 }
 
-// Get damage multiplier from statuses
+// Get damage multiplier from statuses (#20: Avatar of War dmgMult, etc.)
 function getDmgMult(combatantId) {
   let mult = 1;
   (combatState.statusEffects[combatantId] || []).forEach(s => { if (s.dmgMult) mult *= s.dmgMult; });
@@ -108,6 +139,11 @@ function getDmgShield(combatantId) {
 function applyDamage(targetId, rawDmg) {
   const target = combatState.combatants[targetId];
   if (!target) return rawDmg;
+
+  // #22: Mage glass-cannon vulnerability applies to damage the PLAYER takes
+  if (targetId === 'player' && window.getMageVulnerability) {
+    rawDmg = getMageVulnerability(rawDmg);
+  }
 
   // Mirror Image: each image absorbs one hit
   if (hasStatus(targetId, 'mirror_image')) {
@@ -138,16 +174,16 @@ const CLASS_SPELLS = {
   cleric: [
     { id:'cure_wounds',    level:1,  name:'Cure Wounds',      icon:'💚', ap:2, mp:20, damage:null,        heal:'2d8+WIS', type:'heal',    desc:'Restore 2d8+WIS HP to one ally.' },
     { id:'spirit_weapon',  level:3,  name:'Spiritual Weapon', icon:'👻', ap:2, mp:35, damage:'2d8+WIS',   heal:null,      type:'holy',    desc:'Summon a floating spectral blade. Attacks each round.' },
-    { id:'mass_heal',      level:5,  name:'Mass Heal',        icon:'💫', ap:2, mp:60, damage:null,        heal:'2d6+WIS', type:'heal',    desc:'Heal ALL allies for 2d6+WIS. Costs 8 Holy Points.' },
+    { id:'mass_heal',      level:5,  name:'Mass Heal',        icon:'💫', ap:2, mp:60, damage:null,        heal:'2d6+WIS', type:'heal',    holy_cost:8,  desc:'Heal ALL allies for 2d6+WIS. Costs 8 Holy Points.' },
     { id:'divine_strike',  level:7,  name:'Divine Strike',    icon:'⚡', ap:2, mp:45, damage:'4d8+WIS',   heal:null,      type:'holy',    desc:'Channel divinity into a strike. Deals holy damage.' },
     { id:'revivify',       level:10, name:'Revivify',         icon:'❤', ap:2, mp:80, damage:null,        heal:'1',       type:'revive',  desc:'Restore a fallen ally to 1 HP. Must use within 3 turns.' },
   ],
   paladin: [
     { id:'holy_smite',    level:1,  name:'Holy Smite',    icon:'✝', ap:2, mp:30, damage:'3d6+WIS', heal:'1d4', type:'holy',  desc:'Radiant damage + heal yourself 1d4. Costs 5 Holy.' },
     { id:'lay_on_hands',  level:3,  name:'Lay on Hands',  icon:'🙏', ap:2, mp:25, damage:null,      heal:'3d8', type:'heal',  desc:'Touch an ally to heal 3d8+WIS. Not self.' },
-    { id:'divine_shield', level:5,  name:'Divine Shield', icon:'🔆', ap:2, mp:50, damage:null,      heal:null,  type:'buff',  desc:'Absorb up to 30 damage for self or ally. 10 Holy.' },
-    { id:'judgment',      level:7,  name:'Judgment',      icon:'⚖', ap:2, mp:60, damage:'5d10+WIS',heal:null,  type:'holy',  desc:'Devastating holy strike. Costs 15 Holy Points.' },
-    { id:'wrath_divine',  level:10, name:'Wrath of God',  icon:'☀', ap:3, mp:90, damage:'8d10+WIS',heal:null,  type:'holy',  desc:'Annihilate one target with divine fury. 25 Holy.' },
+    { id:'divine_shield', level:5,  name:'Divine Shield', icon:'🔆', ap:2, mp:50, damage:null,      heal:null,  type:'buff',  holy_cost:10, desc:'Absorb up to 30 damage for self or ally. 10 Holy.' },
+    { id:'judgment',      level:7,  name:'Judgment',      icon:'⚖', ap:2, mp:60, damage:'5d10+WIS',heal:null,  type:'holy',  holy_cost:15, desc:'Devastating holy strike. Costs 15 Holy Points.' },
+    { id:'wrath_divine',  level:10, name:'Wrath of God',  icon:'☀', ap:3, mp:90, damage:'8d10+WIS',heal:null,  type:'holy',  holy_cost:25, desc:'Annihilate one target with divine fury. 25 Holy.' },
   ],
   mage: [
     { id:'magic_missile', level:1,  name:'Magic Missile', icon:'✨', ap:2, mp:20, damage:'3d4+INT', heal:null, type:'arcane', desc:'Auto-hit magic bolts. Never misses.' },
@@ -215,7 +251,7 @@ function generateEnemy(type, areaLevel) {
 
 // ─── SYNC HP TO UI ───────────────────────────
 function syncPlayerHP() {
-  const player = combatState.combatants['player'];
+  const player = getLocalCombatant();
   if (!player || !gameState.character) return;
   // Write back to character
   gameState.character.hp = Math.max(0, player.hp);
@@ -230,15 +266,16 @@ function grantXP(amount) {
   const char = gameState.character;
   if (!char) return;
   char.xp = (char.xp || 0) + amount;
-  const nextNeeded = XP_TABLE[(char.level || 1) + 1] || 99999;
+  // Player at level L advances to L+1 when total XP >= XP_TABLE[L].
+  const nextNeeded = XP_TABLE[(char.level || 1)] || 99999;
   addLog(`✨ +${amount} XP  (${char.xp} / ${nextNeeded} to next level)`, 'system');
 
   // Loop — handles gaining multiple levels in one shot
   let levelled = false;
   while (true) {
-    const nextLevel = (char.level || 1) + 1;
-    if (nextLevel > 20) break;
-    const needed = XP_TABLE[nextLevel];
+    const lvl = char.level || 1;
+    if (lvl + 1 > 20) break;
+    const needed = XP_TABLE[lvl]; // XP required to leave level `lvl`
     if (!needed || char.xp < needed) break;
     levelUp(char);
     levelled = true;
@@ -258,9 +295,10 @@ function updateXPBar() {
   if (!bar || !label) return;
   const lvl = char.level || 1;
   const cur = char.xp || 0;
-  const prev = XP_TABLE[lvl] || 0;
-  const next = XP_TABLE[lvl + 1] || prev + 1000;
-  const pct = Math.min(100, Math.round(((cur - prev) / (next - prev)) * 100));
+  // Progress within level L: (xp - XP_TABLE[L-1]) / (XP_TABLE[L] - XP_TABLE[L-1])
+  const prev = XP_TABLE[lvl - 1] || 0;
+  const next = XP_TABLE[lvl] || prev + 1000;
+  const pct = Math.max(0, Math.min(100, Math.round(((cur - prev) / (next - prev)) * 100)));
   bar.style.width = pct + '%';
   label.textContent = `${cur} / ${next} XP`;
 }
@@ -270,7 +308,8 @@ function levelUp(char) {
 
   // ── HP / MP ──
   const conMod = Math.floor(((char.stats?.con || 10) - 10) / 2);
-  const hpGain = 8 + conMod;
+  // #22: class-specific HP per level (already includes CON mod)
+  const hpGain = window.getClassHpBonus ? getClassHpBonus() : (8 + conMod);
   char.maxHp += hpGain;
   char.hp = Math.min(char.hp + hpGain, char.maxHp);
   if (window.grantSkillPoint) grantSkillPoint(char);
@@ -293,9 +332,13 @@ function levelUp(char) {
   }
 
   // ── UPGRADE POINTS above level 10 ──
+  // #21: upgradePoints had no way to be spent. Grant a usable stat point alongside
+  // the (still-persisted) upgradePoints counter so the level-11+ reward is actually
+  // spendable through the existing stat-assignment UI.
   if (char.level > 10) {
     char.upgradePoints = (char.upgradePoints || 0) + 1;
-    addLog(`⬆ +1 Spell Upgrade Point (Total: ${char.upgradePoints})`, 'holy');
+    char.statPoints = (char.statPoints || 0) + 1;
+    addLog(`⬆ +1 Upgrade Point — converted to a usable Stat Point (Total upgrades: ${char.upgradePoints})`, 'holy');
   }
 
   if (window.AudioEngine) AudioEngine.sfx?.levelup();
@@ -322,9 +365,9 @@ function showLevelUpPanel(char, newSpell) {
   document.getElementById('levelup-panel')?.remove();
 
   const lvl = char.level || 1;
-  const prev = XP_TABLE[lvl] || 0;
-  const next = XP_TABLE[lvl + 1] || prev + 1000;
-  const xpPct = Math.min(100, Math.round(((char.xp - prev) / (next - prev)) * 100));
+  const prev = XP_TABLE[lvl - 1] || 0;
+  const next = XP_TABLE[lvl] || prev + 1000;
+  const xpPct = Math.max(0, Math.min(100, Math.round(((char.xp - prev) / (next - prev)) * 100)));
 
   const statPointMsg = (char.statPoints > 0)
     ? `<div style="color:#8bc87a;font-size:0.78rem;margin-top:6px">
@@ -373,7 +416,7 @@ function showLevelUpPanel(char, newSpell) {
     <div style="font-size:1.9rem;margin:6px 0">${char.name}</div>
     <div style="font-size:0.9rem;color:#aaa">Level <span style="color:var(--gold);font-size:1.2rem">${lvl}</span></div>
     <div style="font-size:0.72rem;color:#888;margin-top:6px">
-      +${8 + Math.floor(((char.stats?.con||10)-10)/2)} HP &nbsp;•&nbsp; +10 MP
+      +${window.getClassHpBonus ? getClassHpBonus() : (8 + Math.floor(((char.stats?.con||10)-10)/2))} HP &nbsp;•&nbsp; +10 MP
     </div>
     ${spellMsg}${statPointMsg}
     <!-- XP progress bar -->
@@ -390,7 +433,11 @@ function showLevelUpPanel(char, newSpell) {
     <button onclick="document.getElementById('levelup-panel').remove()"
       style="margin-top:18px;background:rgba(201,168,76,0.15);border:1px solid var(--gold);
       color:var(--gold);font-family:'Cinzel',serif;font-size:0.8rem;padding:8px 28px;cursor:pointer;
-      letter-spacing:0.1em;">CONTINUE</button>` : ''}
+      letter-spacing:0.1em;">CONTINUE</button>` : `
+    <button onclick="document.getElementById('levelup-panel').remove()"
+      style="margin-top:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.3);
+      color:var(--text-dim);font-family:'Cinzel',serif;font-size:0.72rem;padding:6px 22px;cursor:pointer;
+      letter-spacing:0.1em;" title="Unspent points are banked on your character sheet">LATER</button>`}
   `;
   document.body.appendChild(panel);
 }
@@ -421,6 +468,13 @@ window.selectTarget = selectTarget;
 window.getTarget = getTarget;
 window.selectSpell = selectSpell;
 window.cancelSpell = cancelSpell;
+// Exposed for shop.js / consumables (#15, #20, #25) and status helpers (#17)
+window.combatItem = combatItem;
+window.combatMove = combatMove;
+window.addStatus = addStatus;
+window.removeStatus = removeStatus;
+window.hasStatus = hasStatus;
+window.endCombat = endCombat;
 
 // ─── INITIALIZE PLAYER SPELLS ─────────────────
 function initPlayerSpells(char) {
@@ -437,6 +491,12 @@ function startCombat(enemies) {
   const char = gameState.character;
   if (!char) return;
 
+  // #16: re-entry guard — never wipe a live fight with a second encounter
+  if (combatState.active) {
+    console.warn('startCombat called while combat already active — ignoring re-entry.');
+    return;
+  }
+
   initPlayerSpells(char);
   if (window.initClassResource) initClassResource(char);
   window._rogueFirstStrikeDone = false;
@@ -448,19 +508,31 @@ function startCombat(enemies) {
   combatState.selectedSpell = null;
   combatState.statusEffects = {}; // clear all statuses
 
-  const wisMod = Math.floor(((char.stats?.wis || 10) - 10) / 2);
-  const strMod = Math.floor(((char.stats?.str || 10) - 10) / 2);
-  const dexMod = Math.floor(((char.stats?.dex || 10) - 10) / 2);
+  const wisMod = COMBAT_RULES.abilityModifier(char.stats?.wis || 10);
+  const strMod = COMBAT_RULES.abilityModifier(char.stats?.str || 10);
+  const dexMod = COMBAT_RULES.abilityModifier(char.stats?.dex || 10);
+  const attackAbility = COMBAT_RULES.getAttackAbility(char.class);
+  const attackMod = COMBAT_RULES.abilityModifier(char.stats?.[attackAbility] || 10);
+
+  // #13: fold in equipment — char.ac is stored as 10 + armor AC (shop.js/charsheet.js),
+  // char.atkBonus is the summed weapon ATK bonus. #22: class passive AC bonus.
+  const armorAc = char.ac ? (char.ac - 10) : 0;
+  const classAcBonus = window.getClassAcBonus ? getClassAcBonus() : 0;
+  const weaponAtk = char.atkBonus || 0;
+  const proficiency = COMBAT_RULES.proficiencyBonus(char.level || 1);
 
   combatState.combatants['player'] = {
     id: 'player', name: char.name,
     hp: char.hp, maxHp: char.maxHp,
     mp: char.mp || 100, maxMp: char.maxMp || 100,
-    ac: 10 + dexMod,
-    atk: strMod,
+    ac: 10 + dexMod + armorAc + classAcBonus,
+    atk: attackMod + weaponAtk + proficiency,
+    attackAbility,
+    attackBonus:attackMod + weaponAtk + proficiency,
+    damageMod:attackMod + weaponAtk,
     type: 'player', ap: MAX_AP, icon: '⚔',
     isPlayer: true, boss: false,
-    initiative: Math.floor(Math.random()*20)+1+dexMod,
+    initiative: COMBAT_RULES.rollInitiative({ bonus:dexMod }).total,
     spells: char.spells || [],
     statMods: { str:strMod, dex:dexMod, wis:wisMod, int:Math.floor(((char.stats?.int||10)-10)/2) },
   };
@@ -468,9 +540,11 @@ function startCombat(enemies) {
   enemies.forEach((e, i) => {
     const id = e.id || ('enemy_' + i);
     combatState.combatants[id] = {
-      id, name: e.name,
+      id, name: String(e.name || '').trim() || 'Hostile Creature',
       hp: e.hp, maxHp: e.hp || e.maxHp || 50,
       ac: e.ac || 12, atk: e.atk || 3,
+      attackBonus:e.attackBonus ?? e.atk ?? 3,
+      damageMod:e.damageMod ?? e.atk ?? 3,
       mp: e.mp || 50, maxMp: e.mp || 50,
       type: 'enemy', ap: MAX_AP,
       icon: e.icon || '👹',
@@ -480,7 +554,7 @@ function startCombat(enemies) {
       spells: e.spells || [],
       level: e.level || 1,
       xp: e.xp || 50,
-      initiative: Math.floor(Math.random()*20)+1+(e.dex||0),
+      initiative: COMBAT_RULES.rollInitiative({ bonus:e.dex || 0 }).total,
     };
   });
 
@@ -535,9 +609,11 @@ function updateCombatUI() {
 
   const currentId = combatState.turnOrder[combatState.currentTurnIndex];
   const current = combatState.combatants[currentId];
-  const isPlayerTurn = current?.isPlayer;
+  const localCombatantId = getLocalCombatantId();
+  const isMultiplayerCombat = !!window.mp?.sessionCode;
+  const isPlayerTurn = isMultiplayerCombat ? currentId === localCombatantId : current?.isPlayer;
   const char = gameState.character;
-  const player = combatState.combatants['player'];
+  const player = getLocalCombatant();
   if (!player) return;
 
   // Build enemy list with HP bars (no HP bar for bosses)
@@ -598,9 +674,13 @@ function updateCombatUI() {
     .map((id, i) => {
       const c = combatState.combatants[id];
       const isCurrent = id === currentId;
+      const partyPortrait = c.isPlayer
+        ? (window.mp?.session?.players?.[c.playerId || c.id]?.character?.portrait
+          || (c.id === localCombatantId ? gameState.character?.portrait : null))
+        : null;
       const thumb = c.isPlayer
-        ? (gameState.character?.portrait
-            ? `<img src="${gameState.character.portrait}" class="to-thumb" alt="${c.name}">`
+        ? (partyPortrait
+            ? `<img src="${partyPortrait}" class="to-thumb" alt="${c.name}">`
             : `<span class="to-thumb-icon">${c.icon}</span>`)
         : (window.NPC_PORTRAITS?.[c.id]?.path
             ? `<img src="${window.NPC_PORTRAITS[c.id].path}" class="to-thumb" alt="${c.name}">`
@@ -615,8 +695,10 @@ function updateCombatUI() {
   const activeTurnPortrait = (() => {
     if (!activeCombatant) return '';
     if (activeCombatant.isPlayer) {
-      return gameState.character?.portrait
-        ? `<img src="${gameState.character.portrait}" class="active-turn-portrait player-portrait" alt="${activeCombatant.name}">`
+      const partyPortrait = window.mp?.session?.players?.[activeCombatant.playerId || activeCombatant.id]?.character?.portrait
+        || (activeCombatant.id === localCombatantId ? gameState.character?.portrait : null);
+      return partyPortrait
+        ? `<img src="${partyPortrait}" class="active-turn-portrait player-portrait" alt="${activeCombatant.name}">`
         : `<span class="active-turn-icon">${activeCombatant.icon}</span>`;
     }
     const npcPath = window.NPC_PORTRAITS?.[activeCombatant.id]?.path;
@@ -635,9 +717,9 @@ function updateCombatUI() {
       </div>
     </div>
 
-    ${(combatState.statusEffects['player']?.length > 0) ? `
+    ${(combatState.statusEffects[localCombatantId]?.length > 0) ? `
     <div class="cp-status-bar">
-      ${(combatState.statusEffects['player'] || []).map(s =>
+      ${(combatState.statusEffects[localCombatantId] || []).map(s =>
         `<span class="status-badge" title="${s.name} (${s.turnsLeft} turns)">${s.icon} ${s.name} <small>${s.turnsLeft}t</small></span>`
       ).join('')}
     </div>` : ''}
@@ -651,21 +733,7 @@ function updateCombatUI() {
         <div class="cp-ap-pips">${apPips}</div>
         <span class="cp-ap-num">${combatState.apRemaining}/${MAX_AP} AP</span>
       </div>
-      ${(()=>{
-        const cr = window.classResource;
-        if (!cr || !cr.type) return '';
-        const pct = Math.round((cr.current/cr.max)*100);
-        const glowStyle = (cr.type==='rage'&&cr.current>=100)||(cr.type==='surge'&&cr.current>=5) ? `box-shadow:0 0 12px ${cr.color}80` : '';
-        return `<div style="padding:4px 0 6px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-            <span style="font-family:'Cinzel',serif;font-size:0.62rem;color:${cr.color};letter-spacing:0.08em">${cr.icon} ${cr.label.toUpperCase()}</span>
-            <span style="font-family:'Cinzel',serif;font-size:0.62rem;color:var(--gold)">${cr.current}/${cr.max}</span>
-          </div>
-          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;${glowStyle}">
-            <div style="height:100%;width:${pct}%;background:${cr.color};border-radius:3px;transition:width 0.3s"></div>
-          </div>
-        </div>`;
-      })()}
+      <!-- #23: class resource bar injected here by injectClassResourceBar() after render -->
 
       <div class="cp-action-buttons">
         <button class="ca-btn attack ${combatState.apRemaining < 1 ? 'disabled' : ''}"
@@ -699,6 +767,9 @@ function updateCombatUI() {
     </div>
     ` : `<div class="cp-enemy-thinking">${current?.icon} ${current?.name} is acting...</div>`}
   `;
+
+  // #23: render the class resource bar (Rage/Combo/Focus/etc.) into the UI as the comment intends
+  if (isPlayerTurn && window.injectClassResourceBar) injectClassResourceBar();
 }
 
 // ─── PLAYER ACTIONS ───────────────────────────
@@ -708,7 +779,7 @@ function selectTarget(enemyId) {
 }
 
 function selectSpell(spellId) {
-  const player = combatState.combatants['player'];
+  const player = getLocalCombatant();
   if (!player) return;
   const spell = player?.spells?.find(s => s.id === spellId);
   if (!spell) return;
@@ -732,13 +803,30 @@ function combatAttack() {
   if (!target) { addLog('Select a target first!', 'system'); return; }
   const player = combatState.combatants['player'];
   if (!player) return;
-  const roll = Math.floor(Math.random()*20)+1;
-  const atkBonus = (player.atk || 0) + getAtkMod('player');
-  const hit = roll + atkBonus >= target.ac || roll === 20;
+  const atkBonus = (player.attackBonus ?? player.atk ?? 0) + getAtkMod('player');
+  // #17: Shadow Step's nextHitAutoHit guarantees this strike lands, then is consumed
+  const ss = getStatusData('player', 'shadow_step');
+  const autoHit = !!(ss && ss.nextHitAutoHit);
+  const attack = COMBAT_RULES.resolveAttack({
+    attackBonus:atkBonus, targetAC:target.ac, autoHit,
+    attackerConditions:(combatState.statusEffects.player || []).map(status => status.id),
+    targetConditions:(combatState.statusEffects[target.id] || []).map(status => status.id),
+  });
+  const { roll, hit } = attack;
+  if (autoHit && ss) ss.nextHitAutoHit = false;
 
   if (hit) {
-    const isCrit = (roll === 20);
-    let baseDmg = Math.floor(Math.random()*8)+1 + (player.atk||0);
+    const isCrit = attack.crit;
+    // Critical hits double weapon dice, not the flat ability/gear modifier.
+    let baseDmg = COMBAT_RULES.rollFormula('1d8', { modifier:player.damageMod ?? player.atk ?? 0, critical:isCrit }).total;
+    if (isCrit) {
+      addLog(`💥 CRITICAL HIT! Natural 20 — weapon dice doubled!`, 'hell');
+    }
+    // #22: Ranger focus powers up the shot (spends focus first so it isn't double-counted below)
+    if (window.getRangerFocusBonus && gameState.character?.class === 'ranger') {
+      const rf = getRangerFocusBonus(baseDmg);
+      baseDmg = rf.dmg;
+    }
     // Class damage multipliers
     const classMult = window.getClassDmgMult ? getClassDmgMult() : 1;
     const firstStrikeMult = window.getRogueFirstStrikeBonus ? getRogueFirstStrikeBonus() : 1;
@@ -753,8 +841,9 @@ function combatAttack() {
       addLog(`🎯 Hunter's Mark triggers! +${bonus} bonus damage!`, 'holy');
     }
 
-    // Avatar of War: +100% damage
-    if (hasStatus('player', 'avatar_war')) baseDmg = Math.floor(baseDmg * 2);
+    // #20: status damage multipliers (Avatar of War dmgMult:2, etc.)
+    const statusMult = getDmgMult('player');
+    if (statusMult > 1) baseDmg = Math.floor(baseDmg * statusMult);
 
     // Last Stand: +50% damage when below 20 HP
     if (hasStatus('player', 'last_stand') && player.hp < 20) baseDmg = Math.floor(baseDmg * 1.5);
@@ -763,6 +852,16 @@ function combatAttack() {
     // applyDamage returns net damage after shields — apply it to target HP here (only once)
     if (finalDmg > 0) target.hp = Math.max(0, target.hp - finalDmg);
     addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage! (${target.hp}/${target.maxHp} HP)`, 'combat');
+
+    // #20: poisoned weapon — extra poison damage on hit, decrement the counter
+    if (combatState.poisonedWeapon > 0 && target.hp > 0) {
+      const poisonDmg = applyDamage(target.id, 5);
+      target.hp = Math.max(0, target.hp - poisonDmg);
+      combatState.poisonedWeapon--;
+      addStatus(target.id, { id:'poison', name:'Poisoned', icon:'☠', turnsLeft:3, dmgPerTurn:5 });
+      addLog(`☠ Nightshade bites deep! +${poisonDmg} poison damage. (${combatState.poisonedWeapon} coatings left)`, 'hell');
+    }
+
     if (window.classOnHitDealt) classOnHitDealt(finalDmg, isCrit);
     if (gameState.character) { gameState.character.hp = player.hp; }
   } else {
@@ -779,7 +878,7 @@ function combatAttack() {
   // Auto-end turn when all AP spent — clear and unambiguous
   if (combatState.apRemaining <= 0) {
     addLog(`⏸ All AP spent — ending your turn.`, 'system');
-    setTimeout(endPlayerTurn, 600);
+    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
   }
 }
 
@@ -810,7 +909,8 @@ function castSelectedSpell() {
 
   // ── CLERIC ──────────────────────────────────
   if (spell.id === 'cure_wounds') {
-    const amt = rollDice(spell.heal, statMod);
+    let amt = rollDice(spell.heal, statMod);
+    if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
     player.hp = Math.min(player.maxHp, player.hp + amt);
     if (gameState.character) gameState.character.hp = player.hp;
     addLog(`💚 Cure Wounds: healed for ${amt} HP!`, 'holy');
@@ -826,7 +926,8 @@ function castSelectedSpell() {
     }
   }
   else if (spell.id === 'mass_heal') {
-    const amt = rollDice(spell.heal, statMod);
+    let amt = rollDice(spell.heal, statMod);
+    if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
     player.hp = Math.min(player.maxHp, player.hp + amt);
     if (gameState.character) gameState.character.hp = player.hp;
     addLog(`💫 Mass Heal: all allies restored ${amt} HP!`, 'holy');
@@ -909,16 +1010,19 @@ function castSelectedSpell() {
   else if (spell.id === 'disintegrate') {
     if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
     // CON save DC 15 — fail = disintegrated (set to 1 HP threshold to simulate)
-    const conSave = Math.floor(Math.random()*20)+1 + Math.floor(((target.level||1)*0.5));
-    if (conSave < 15) {
+    const conSave = COMBAT_RULES.resolveSavingThrow({
+      ability:'con', dc:15, abilityMod:Math.floor((target.level || 1) * 0.5),
+      conditions:(combatState.statusEffects[target.id] || []).map(status => status.id),
+    });
+    if (!conSave.success) {
       const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
       target.hp = Math.max(0, target.hp - dmg);
-      if (target.hp <= 0) addLog(`💀 Disintegrate → ${target.name}: DISINTEGRATED! [CON save failed: ${conSave}]`, 'combat');
-      else addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage! [CON save failed: ${conSave}]`, 'combat');
+      if (target.hp <= 0) addLog(`💀 Disintegrate → ${target.name}: DISINTEGRATED! [CON ${conSave.total} vs DC ${conSave.dc}]`, 'combat');
+      else addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage! [CON ${conSave.total} vs DC ${conSave.dc}]`, 'combat');
     } else {
       const dmg = applyDamage(target.id, Math.floor(rollDice(spell.damage, statMod) / 2));
       target.hp = Math.max(0, target.hp - dmg);
-      addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage (CON save partial: ${conSave})`, 'combat');
+      addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage (CON save ${conSave.total} vs DC ${conSave.dc})`, 'combat');
     }
   }
 
@@ -969,9 +1073,10 @@ function castSelectedSpell() {
     addLog(`💨 Smoke Bomb! All enemies suffer -4 ATK for 2 turns!`, 'holy');
   }
   else if (spell.id === 'shadow_step') {
-    // Grant +4 AC and first attack next turn auto-hits
-    addStatus('player', { id:'shadow_step', name:'Shadow Step', icon:'🌑', turnsLeft:1, acBonus:4, nextHitAutoHit:true });
-    player.ac = (player.ac || 12) + 4;
+    // Grant +4 AC (reverted on expiry via acDelta) and make the next attack auto-hit
+    const acDelta = 4;
+    addStatus('player', { id:'shadow_step', name:'Shadow Step', icon:'🌑', turnsLeft:1, acDelta, nextHitAutoHit:true });
+    player.ac = (player.ac || 12) + acDelta;
     addLog(`🌑 Shadow Step! Vanished into shadows. +4 AC, next attack auto-hits!`, 'holy');
   }
   else if (spell.id === 'garrote') {
@@ -1038,26 +1143,15 @@ function castSelectedSpell() {
   // Auto-end turn when AP spent
   if (combatState.apRemaining <= 0) {
     addLog(`⏸ All AP spent — ending your turn.`, 'system');
-    setTimeout(endPlayerTurn, 600);
+    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
   }
 }
 
 function rollDice(formula, statMod) {
-  if (!formula || formula === '1') return 1 + (statMod||0);
-  const parts = formula.split('+');
-  let total = 0;
-  parts.forEach(p => {
-    p = p.trim();
-    if (p.match(/^\d+d\d+$/i)) {
-      const [num, sides] = p.split('d').map(Number);
-      for (let i = 0; i < num; i++) total += Math.floor(Math.random()*sides)+1;
-    } else if (p.match(/^[A-Z]+$/i)) {
-      total += statMod || 0;
-    } else {
-      total += parseInt(p) || 0;
-    }
-  });
-  return Math.max(1, total);
+  if (!formula) return 0;
+  return COMBAT_RULES.rollFormula(formula, {
+    statMods:{ str:statMod||0, dex:statMod||0, con:statMod||0, int:statMod||0, wis:statMod||0, cha:statMod||0 },
+  }).total;
 }
 
 function combatMove() {
@@ -1071,19 +1165,86 @@ function combatMove() {
 function combatItem() {
   if (combatState.apRemaining < 1) return;
   const char = gameState.character;
-  const potions = (char?.inventory || []).filter(i => i.toLowerCase().includes('potion'));
-  if (potions.length === 0) { addLog('No items to use!', 'system'); return; }
   const player = combatState.combatants['player'];
   if (!player) return;
-  player.hp = Math.min(player.maxHp, player.hp + 30);
+
+  // #25: recognise any healing consumable — by SHOP_ITEMS metadata (effect heal_N)
+  // or by name keywords — instead of only matching "potion".
+  const nameKeywords = ['potion','mending','bandage','draught','vial','salve','tonic','elixir','rations','bread'];
+  const items = window.SHOP_ITEMS || {};
+  const findCatalog = (name) => Object.values(items).find(i => i.name === name);
+  const isHealItem = (name) => {
+    const ci = findCatalog(name);
+    if (ci && typeof ci.effect === 'string' && ci.effect.startsWith('heal_')) return true;
+    const lower = name.toLowerCase();
+    return nameKeywords.some(k => lower.includes(k));
+  };
+  // #31: MP-restore consumables (Essence of Focus / "MP Tonic" etc.) were unusable in
+  // combat. Recognise effect mp_N items too and restore MP (bounded by maxMp).
+  const isMpItem = (name) => {
+    const ci = findCatalog(name);
+    return !!(ci && typeof ci.effect === 'string' && ci.effect.startsWith('mp_'));
+  };
+
+  const healName = (char?.inventory || []).find(isHealItem);
+
+  // If no heal item but an MP item exists, use that instead.
+  if (!healName) {
+    const mpName = (char?.inventory || []).find(isMpItem);
+    if (!mpName) { addLog('No healing or restorative items to use!', 'system'); return; }
+    const mci = findCatalog(mpName);
+    let mpAmt = 40; // fallback
+    if (mci && typeof mci.effect === 'string' && mci.effect.startsWith('mp_')) {
+      mpAmt = parseInt(mci.effect.split('_')[1]) || 40;
+    }
+    const beforeMp = player.mp;
+    player.mp = Math.min(player.maxMp, player.mp + mpAmt);
+    char.mp = player.mp;
+    const mridx = char.inventory.indexOf(mpName);
+    if (mridx !== -1) char.inventory.splice(mridx, 1);
+    combatState.apRemaining--;
+    addLog(`💧 Used ${mpName}! Restored ${player.mp - beforeMp} MP. (${player.mp}/${player.maxMp})`, 'holy');
+    syncPlayerHP();
+    updateCombatUI();
+    if (combatState.apRemaining <= 0) {
+      addLog(`⏸ All AP spent — ending your turn.`, 'system');
+      combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
+    }
+    return;
+  }
+
+  // Determine the item's real heal amount where the catalogue knows it.
+  const ci = findCatalog(healName);
+  let healAmt = 30; // fallback for loot with no metadata
+  if (ci && typeof ci.effect === 'string' && ci.effect.startsWith('heal_')) {
+    healAmt = parseInt(ci.effect.split('_')[1]) || 30;
+  }
+
+  const before = player.hp;
+  player.hp = Math.min(player.maxHp, player.hp + healAmt);
   char.hp = player.hp;
-  char.inventory = char.inventory.filter(i => i !== potions[0]);
+  const ridx = char.inventory.indexOf(healName);
+  if (ridx !== -1) char.inventory.splice(ridx, 1);
   combatState.apRemaining--;
-  addLog(`🎒 Used ${potions[0]}! Restored 30 HP.`, 'holy');
+  addLog(`🎒 Used ${healName}! Restored ${player.hp - before} HP. (${player.hp}/${player.maxHp})`, 'holy');
+  syncPlayerHP();
   updateCombatUI();
+
+  if (combatState.apRemaining <= 0) {
+    addLog(`⏸ All AP spent — ending your turn.`, 'system');
+    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
+  }
 }
 
 function endPlayerTurn() {
+  // #14: guard — only valid during the player's turn, and only once per turn
+  if (!combatState.active) return;
+  if (combatState.whoseTurn !== 'player') return;
+  if (combatState.endedThisTurn) return;
+  combatState.endedThisTurn = true;
+  // Clear any pending auto-end timer so it can't fire a second time
+  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
+
   // Apply DOT effects at end of player turn
   const player = combatState.combatants['player'];
   if (player) {
@@ -1128,6 +1289,27 @@ function processTurn() {
   const current = combatState.combatants[currentId];
   if (!current || current.hp <= 0) { advanceTurn(); return; }
 
+  // #14: mark whose turn it is and reset the per-turn end guard
+  combatState.whoseTurn = currentId;
+  combatState.endedThisTurn = false;
+  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
+
+  // #18: stunned combatants skip their action entirely. Check BEFORE ticking so a
+  // 1-turn stun ("stunned next turn") is honored, then tick it away.
+  if (hasStatus(currentId, 'stunned')) {
+    addLog(`💫 ${current.name} is STUNNED and loses their turn!`, 'system');
+    tickStatuses(currentId);
+    // #11: for the player, zero out AP and mark the turn ended BEFORE rendering the UI,
+    // so updateCombatUI() draws a spent, non-actionable turn (no live action buttons).
+    if (current.isPlayer) {
+      combatState.apRemaining = 0;
+      combatState.endedThisTurn = true;
+    }
+    updateCombatUI();
+    setTimeout(advanceTurn, 900);
+    return;
+  }
+
   // Tick status effects at start of this combatant's turn
   tickStatuses(currentId);
 
@@ -1142,6 +1324,21 @@ function processTurn() {
       checkCombatEnd();
     }
   }
+
+  // #20: Spirit Weapon strikes each of the player's rounds for its stored bonusAtk
+  if (currentId === 'player' && hasStatus('player', 'spirit_weapon')) {
+    const sw = getStatusData('player', 'spirit_weapon');
+    const enemy = getTarget() || Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
+    if (enemy && sw) {
+      const swDmg = applyDamage(enemy.id, sw.bonusAtk || rollDice('2d8', 0));
+      enemy.hp = Math.max(0, enemy.hp - swDmg);
+      addLog(`👻 Spiritual Weapon strikes ${enemy.name} for ${swDmg}!`, 'holy');
+      checkCombatEnd();
+    }
+  }
+
+  // If an auto-attack (spirit beast / spirit weapon) just ended combat, stop here.
+  if (!combatState.active) return;
 
   // Hunter's Mark: track marked target for bonus damage
   if (currentId === 'player' && hasStatus('player', 'hunters_mark')) {
@@ -1166,6 +1363,24 @@ function enemyAI(enemyId) {
   if (!player) return;
   let ap = MAX_AP;
 
+  // #12: tick damage-over-time statuses (poison / bleed / Nightshade) on the enemy at
+  // the start of its turn, mirroring the player DOT loop in endPlayerTurn. The status
+  // duration was already decremented by tickStatuses() in processTurn, so applying the
+  // damage here can't double-tick. A DOT that kills the enemy ends its turn cleanly.
+  const enemyDots = (combatState.statusEffects[enemyId] || []).filter(s => s.dmgPerTurn);
+  if (enemyDots.length) {
+    enemyDots.forEach(s => {
+      if (enemy.hp <= 0) return;
+      const dmg = applyDamage(enemyId, s.dmgPerTurn);
+      enemy.hp = Math.max(0, enemy.hp - dmg);
+      addLog(`${s.icon} ${enemy.name} suffers ${dmg} ${s.name} damage! (${enemy.hp}/${enemy.maxHp} HP)`, 'combat');
+    });
+    updateCombatUI();
+    checkCombatEnd();
+    if (!combatState.active) return; // a DOT ended combat
+    if (enemy.hp <= 0) { advanceTurn(); return; } // DOT killed this enemy — end its turn
+  }
+
   // Rooted: skip turn
   if (isRooted(enemyId)) {
     addLog(`🌿 ${enemy.name} is ROOTED — cannot act!`, 'system');
@@ -1175,12 +1390,44 @@ function enemyAI(enemyId) {
 
   // Flee check
   if (enemy.flee && enemy.hp < enemy.maxHp * 0.4) {
-    const roll = Math.floor(Math.random()*20)+1;
-    if (roll > Math.floor(Math.random()*20)+1) {
+    const escape = COMBAT_RULES.rollInitiative({ bonus:enemy.dex || 0 });
+    const pursuit = COMBAT_RULES.rollInitiative({ bonus:player.statMods?.dex || 0 });
+    if (escape.total > pursuit.total) {
       addLog(`${enemy.icon} ${enemy.name} flees in terror!`, 'system');
+
+      // #21: was this the last living enemy? Capture BEFORE pruning so a last-enemy
+      // flee ends combat as a clean retreat — NOT a hollow "VICTORY!" with 0 XP.
+      const otherLiving = Object.values(combatState.combatants)
+        .filter(c => !c.isPlayer && c.hp > 0 && c.id !== enemyId);
+
+      // #21: adjust currentTurnIndex when removing an entry at/below the cursor
+      const removedIndex = combatState.turnOrder.indexOf(enemyId);
       delete combatState.combatants[enemyId];
       combatState.turnOrder = combatState.turnOrder.filter(id => id !== enemyId);
-      checkCombatEnd(); updateCombatUI();
+      if (removedIndex !== -1 && removedIndex < combatState.currentTurnIndex) {
+        combatState.currentTurnIndex--;
+      }
+
+      if (otherLiving.length === 0) {
+        // No enemies remain — end combat as a genuine end (fleeing enemy grants nothing)
+        combatState.active = false;
+        addLog('━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+        addLog('🏳 The last enemy fled. The fight is over.', 'system');
+        if (gameState.character && combatState.combatants['player']) {
+          gameState.character.hp = Math.max(1, combatState.combatants['player'].hp);
+        }
+        const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
+        if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+        updateCombatUI();
+        setTimeout(() => {
+          document.getElementById('combat-panel')?.remove();
+          if (window.updateCharacterPanel) updateCharacterPanel();
+          if (window.renderPlayerCard) renderPlayerCard();
+        }, 1500);
+        return;
+      }
+
+      updateCombatUI();
       setTimeout(advanceTurn, 800); return;
     }
   }
@@ -1194,10 +1441,15 @@ function enemyAI(enemyId) {
   } else {
     // Basic attack — check smoke_bomb debuff
     const atkMod = getAtkMod(enemyId);
-    const roll = Math.floor(Math.random()*20)+1;
     const playerAC = player.ac || 12;
-    if (roll + (enemy.atk||0) + atkMod >= playerAC || roll === 20) {
-      let dmg = Math.floor(Math.random()*8)+1 + (enemy.atk||0);
+    const attack = COMBAT_RULES.resolveAttack({
+      attackBonus:(enemy.attackBonus ?? enemy.atk ?? 0) + atkMod, targetAC:playerAC,
+      attackerConditions:(combatState.statusEffects[enemyId] || []).map(status => status.id),
+      targetConditions:(combatState.statusEffects.player || []).map(status => status.id),
+    });
+    const { roll } = attack;
+    if (attack.hit) {
+      const dmg = COMBAT_RULES.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:attack.crit }).total;
       const finalDmg = applyDamage('player', dmg);
       player.hp = Math.max(0, player.hp - finalDmg);
       if (gameState.character) gameState.character.hp = player.hp;
@@ -1230,9 +1482,10 @@ function castEnemySpell(enemy, spellId, player) {
       addLog(`😈 ${enemy.name} hurls Hellfire Bolt! ${finalDmg} fire damage!`, 'combat'); break;
     }
     case 'shadow_step': {
-      // Enemy teleports — gains evasion for 1 turn
-      addStatus(enemy.id, { id:'shadow_step_enemy', name:'Evasive', icon:'🌑', turnsLeft:1 });
-      enemy.ac += 3;
+      // Enemy teleports — gains evasion for 1 turn (acDelta reverted on expiry)
+      const acDelta = 3;
+      addStatus(enemy.id, { id:'shadow_step_enemy', name:'Evasive', icon:'🌑', turnsLeft:1, acDelta });
+      enemy.ac += acDelta;
       addLog(`🌑 ${enemy.name} vanishes into shadow! +3 AC for 1 turn.`, 'system'); break;
     }
     case 'savage_bite': {
@@ -1347,11 +1600,30 @@ function checkCombatEnd() {
   }
 }
 
+// #38: combat ids carry timestamp suffixes (captain_rhael_1718200000000) and some scenes
+// use short ids ('rhael'). Normalize to the dialogue.js NPC registry ids so dead-NPC
+// flags actually match the checks at dialogue.js:618.
+const NPC_ID_ALIASES = {
+  rhael: 'captain_rhael',
+  mourne: 'sister_mourne',
+  harren: 'sir_harren',
+  harren_fallen: 'sir_harren',
+  varek: 'elder_varek',
+};
+function normalizeNpcId(id, name) {
+  let base = (id || (name || '').toLowerCase().replace(/\s+/g, '_'));
+  base = base.replace(/_\d{10,}$/, ''); // strip generated timestamp suffix
+  return NPC_ID_ALIASES[base] || base;
+}
+
 function endCombat(victory) {
   // Guard against re-entry — the infinite loop happens when advanceTurn fires
   // via setTimeout after endCombat already ran
   if (!combatState.active) return;
   combatState.active = false;
+
+  // Clear any pending auto-end timer so it can't fire after combat ends
+  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
 
   // Identify who was just defeated (for story triggers and loot)
   const defeatedEnemies = Object.values(combatState.combatants).filter(c => !c.isPlayer);
@@ -1362,18 +1634,24 @@ function endCombat(victory) {
     defeatedEnemies.forEach(c => {
       totalXP += c.xp || 50;
       grantHolyPoints(2);
-      // ── Write death to world state so all NPCs know ──
+      // ── Write death to world state so all NPCs know (normalized ids — #38) ──
       if (!window.sceneState) window.sceneState = { flags: {} };
       if (!window.sceneState.flags) window.sceneState.flags = {};
-      const deadKey = 'npc_dead_' + (c.id || c.name.toLowerCase().replace(/\s+/g,'_'));
-      window.sceneState.flags[deadKey] = true;
-      window.sceneState.flags['killed_' + deadKey.replace('npc_dead_','')] = gameState.character?.name || 'player';
-      window.sceneState.flags['fought_' + (c.id || c.name.toLowerCase().replace(/\s+/g,'_'))] = true;
+      const normId = normalizeNpcId(c.id, c.name);
+      window.sceneState.flags['npc_dead_' + normId] = true;
+      window.sceneState.flags['killed_' + normId] = gameState.character?.name || 'player';
+      window.sceneState.flags['fought_' + normId] = true;
     });
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
     grantXP(totalXP);
-    if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
+    const questScene = window.sceneState?.currentScene || window.sceneState?._currentScene?.id || '';
+    if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds });
+    {
+      // #57: transition to the location's actual music track, not its id
+      const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
+      if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+    }
 
     // Sync player HP (victory — whatever they ended with, minimum 1)
     if (gameState.character && combatState.combatants['player']) {
@@ -1390,24 +1668,61 @@ function endCombat(victory) {
     setTimeout(() => {
       if (defeatedIds.some(id => id === 'elder_varek' || id?.startsWith('elder_varek'))) {
         if (window.runScene) window.runScene('chapter1_end_arrest');
+      } else if (defeatedEnemies.some(enemy => /voice below/i.test(enemy.name || '') || String(enemy.id || '').startsWith('the_voice_below'))) {
+        if (window.runScene) window.runScene('monastery_dungeon_cleared');
       }
     }, 2500);
+
+    // ── Resume the AI story after a won fight (Part 2) ──
+    if (window._postCombatContinue) {
+      const ctx = window._postCombatContinue;
+      window._postCombatContinue = null;
+      setTimeout(() => window.generateAIScene?.(ctx), 1500);
+    }
   } else {
+    // ── HARDCORE DEATH (Part 3) — defeat ends the run. No reprieve, no heal. ──
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
-    addLog(`💀 DEFEATED! You wake up, wounded but alive...`, 'combat');
+    addLog(`☠ You have fallen. Your Chronicle ends here.`, 'combat');
     grantHellPoints(3);
 
-    // Restore player to 20% HP — set BOTH the character object AND the combatant
-    // Order matters: set character first, then combatant, so no sync overwrites it
-    const restoreHp = Math.max(10, Math.floor((gameState.character?.maxHp || 100) * 0.2));
-    if (gameState.character) {
-      gameState.character.hp = restoreHp;
+    if (gameState.character) gameState.character.hp = 0;
+    gameState.dead = true;
+    if (combatState.combatants['player']) combatState.combatants['player'].hp = 0;
+
+    // Mark the run dead so Resume/autosave can't revive a corpse.
+    try { localStorage.setItem('ss_run_dead', '1'); } catch (e) {}
+    // Clear / mark the autosave slot dead so it can't be loaded back.
+    try {
+      const raw = localStorage.getItem('ss_saves_v1');
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.slots)) {
+          data.slots = data.slots.filter(s => s.id !== 'autosave_slot');
+          localStorage.setItem('ss_saves_v1', JSON.stringify(data));
+        }
+      }
+    } catch (e) {}
+
+    // No more story continuation or queued scenes for a dead character.
+    window._postCombatContinue = null;
+    window._pendingScene = null;
+
+    {
+      // #57: transition to the location's actual music track, not its id
+      const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
+      if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
     }
-    // Also set combatant so any accidental reads get the right value
-    if (combatState.combatants['player']) {
-      combatState.combatants['player'].hp = restoreHp;
-    }
-    if (window.AudioEngine) AudioEngine.transition(window.mapState?.currentLocation || 'vaelthar_city', 1500);
+
+    // Tear down the combat panel, then raise the death screen.
+    const deadName = gameState.character?.name || 'The fallen';
+    const deadLoc = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.name || 'Vaelthar';
+    setTimeout(() => {
+      document.getElementById('combat-panel')?.remove();
+      if (window.showDeathScreen) window.showDeathScreen(deadName, deadLoc);
+    }, 2200);
+
+    // #41 scene drain is skipped on death — the run is over. Return early.
+    return;
   }
 
   setTimeout(() => {
@@ -1416,7 +1731,127 @@ function endCombat(victory) {
     if (window.updateCharacterPanel) updateCharacterPanel();
     if (window.renderPlayerCard) renderPlayerCard();
   }, 2000);
+
+  // #41: drain a scene queued during combat once no conversation is active.
+  if (window._pendingScene && !window.npcConvState?.active) {
+    const scene = window._pendingScene;
+    window._pendingScene = null;
+    setTimeout(() => window.showScene?.(scene), 1200);
+  }
 }
+
+// ─── DEATH SCREEN (Part 3) — full-screen, run-ending ──────────────────────────
+window.showDeathScreen = function (name, locationName) {
+  // Remove any lingering game overlays first.
+  document.getElementById('combat-panel')?.remove();
+  document.getElementById('conv-panel')?.remove();
+  document.getElementById('scene-panel')?.remove();
+  document.getElementById('ss-death-screen')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'ss-death-screen';
+  overlay.style.cssText = `
+    position:fixed; inset:0; z-index:2600;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(20,4,4,0.97) 0%, rgba(2,1,1,0.99) 100%);
+    font-family:'Cinzel',serif; color:#c9a84c; text-align:center; padding:24px;
+    animation:ssDeathFade 1.4s ease;`;
+
+  const safeName = (name || 'The fallen').replace(/</g, '&lt;');
+  const safeLoc = (locationName || 'Vaelthar').replace(/</g, '&lt;');
+
+  overlay.innerHTML = `
+    <style>
+      @keyframes ssDeathFade { from { opacity:0; } to { opacity:1; } }
+      #ss-death-screen .ssd-skull { font-size:4.5rem; margin-bottom:8px; filter:drop-shadow(0 0 18px rgba(180,40,40,0.6)); }
+      #ss-death-screen h1 { font-size:2.4rem; letter-spacing:0.18em; color:#b8862f; margin:0 0 18px; text-shadow:0 0 24px rgba(120,20,20,0.6); }
+      #ss-death-screen .ssd-line { font-size:1.05rem; color:#cdb37a; opacity:0.85; max-width:540px; line-height:1.6; margin:0 0 34px; }
+      #ss-death-screen .ssd-line .ssd-name { color:#e0c270; }
+      #ss-death-screen .ssd-btns { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+      #ss-death-screen button {
+        font-family:'Cinzel',serif; font-size:1rem; letter-spacing:0.08em;
+        padding:14px 26px; cursor:pointer; color:#1a0f04;
+        background:linear-gradient(180deg,#d8b860 0%,#a8842f 100%);
+        border:1px solid #e8cd7a; border-radius:3px; box-shadow:0 4px 18px rgba(0,0,0,0.6);
+        transition:transform 0.15s, box-shadow 0.15s; }
+      #ss-death-screen button.ssd-secondary {
+        background:linear-gradient(180deg,#2a1d10 0%,#16100a 100%); color:#c9a84c; border:1px solid rgba(201,168,76,0.5); }
+      #ss-death-screen button:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,0.7); }
+    </style>
+    <div class="ssd-skull">☠</div>
+    <h1>YOUR CHRONICLE ENDS</h1>
+    <p class="ssd-line"><span class="ssd-name">${safeName}</span> fell in ${safeLoc}. Chapter I.</p>
+    <div class="ssd-btns">
+      <button id="ssd-new">⚔ New Chronicle</button>
+      <button id="ssd-load" class="ssd-secondary">📖 Load Chronicle</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#ssd-new').onclick = function () {
+    // A fresh run clears the death flag.
+    try { localStorage.removeItem('ss_run_dead'); } catch (e) {}
+    if (gameState) gameState.dead = false;
+    // Wipe the dead run's world state so the new chronicle starts clean (#5).
+    // COORDINATION: prefer window.resetWorldState (game.js) which resets the full world
+    // AND sceneState; fall back to resetSceneState alone if it isn't defined.
+    if (typeof window.resetWorldState === 'function') window.resetWorldState();
+    else if (typeof window.resetSceneState === 'function') window.resetSceneState();
+    overlay.remove();
+    if (window.combatState) window.combatState.active = false;
+    if (window.showScreen) showScreen('mode-select');
+    else if (window.startSoloMode) startSoloMode();
+  };
+  overlay.querySelector('#ssd-load').onclick = function () {
+    overlay.remove();
+    if (window.openLoadScreen) openLoadScreen();
+    else if (window.showScreen) showScreen('mode-select');
+  };
+};
+
+// ─── FLEE COMBAT (#15) ────────────────────────
+// A real, clean retreat: no defeat, no Hell Points, no HP change, no XP/loot.
+window.fleeCombat = function() {
+  if (!combatState.active) return;
+  combatState.active = false;
+
+  // Clear any pending auto-end timer
+  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
+
+  addLog('━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
+  addLog('💨 You break away and escape the fight.', 'system');
+
+  // Preserve current player HP back to the character (no penalty, no heal)
+  const player = combatState.combatants['player'];
+  if (player && gameState.character) {
+    gameState.character.hp = Math.max(1, player.hp);
+    gameState.character.mp = Math.max(0, player.mp);
+  }
+
+  // Restore the location's own music
+  const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
+  if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+
+  // Reset combat state cleanly
+  combatState.combatants = {};
+  combatState.turnOrder = [];
+  combatState.currentTurnIndex = 0;
+  combatState.statusEffects = {};
+  combatState.selectedSpell = null;
+  combatState.selectedTarget = null;
+  combatState.whoseTurn = null;
+  combatState.endedThisTurn = false;
+
+  // Fleeing abandons the fight — clear any post-combat continuation so a later
+  // unrelated victory doesn't resume this fled encounter (#8).
+  window._postCombatContinue = null;
+  window._pendingScene = null;
+
+  // Remove the combat panel and refresh the HUD
+  document.getElementById('combat-panel')?.remove();
+  if (window.updateCharacterPanel) updateCharacterPanel();
+  if (window.renderPlayerCard) renderPlayerCard();
+};
 
 // ─── LOOT TABLES ──────────────────────────────
 const LOOT_TABLES = {
@@ -1609,17 +2044,18 @@ function checkAutoAttack(text) {
   if (!attackWords.some(w => new RegExp('\\b' + w + '\\b', 'i').test(lower))) return false;
   if (combatState.active) return false;
 
-  // Extract target name
+  // Extract target name — strip attack words on word boundaries so "hitman" isn't mangled
   let targetName = lower;
-  attackWords.forEach(w => { targetName = targetName.replace(w, '').trim(); });
+  attackWords.forEach(w => { targetName = targetName.replace(new RegExp(`\\b${w}\\b`, 'gi'), ' '); });
+  targetName = targetName.replace(/\s+/g, ' ').trim();
   targetName = targetName.replace(/^(the|a|an)\s+/, '').trim();
 
   // Fearful NPCs might flee — auto-roll, no manual dice
   const fearfulNPCs = ['scribe', 'aldis', 'merchant', 'peasant', 'child', 'farmer'];
   const isFearful = fearfulNPCs.some(n => targetName.includes(n));
   if (isFearful) {
-    const playerRoll = Math.floor(Math.random()*20)+1;
-    const npcRoll = Math.floor(Math.random()*20)+1;
+    const playerRoll = COMBAT_RULES.rollInitiative({ bonus:COMBAT_RULES.abilityModifier(gameState.character?.stats?.dex || 10) }).total;
+    const npcRoll = COMBAT_RULES.rollInitiative().total;
     addLog(`🎲 ${gameState.character?.name} [${playerRoll}] vs ${targetName} flee roll [${npcRoll}]`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
     if (npcRoll > playerRoll) {

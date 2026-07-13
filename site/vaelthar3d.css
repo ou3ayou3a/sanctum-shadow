@@ -1,0 +1,97 @@
+/* =========================================================================
+   vaelthar3d.css — full-viewport 3D Vaelthar overlay + vt-* world UI
+   The canvas + overlay only render when <body> has class .vt-3d-active.
+   z-index map: canvas 1400 < overlay 1405 < vt-* world UI ~1406 < toggle 1410
+                << game panels (scene/combat/dialogue 1500) << modals (2000+).
+   ========================================================================= */
+
+/* ---- gold/dark palette (scoped, won't clash with game vars) ---- */
+:root{
+  --vt-ink:#0c0a08; --vt-panel:#161210; --vt-parch:#e8dcc0; --vt-parch-dim:#b3a489;
+  --vt-parch-faint:#7d715c; --vt-gold:#c9a24b; --vt-gold-bright:#e7c977;
+  --vt-gold-deep:#8c6d2a; --vt-crimson:#7c2a23;
+  --vt-line:rgba(201,162,75,0.22); --vt-line-soft:rgba(201,162,75,0.12);
+}
+
+/* ---- mount layers (hidden until active) ---- */
+#vaelthar-scene,
+#vaelthar-overlay{ display:none; }
+
+#vaelthar-scene{
+  position:fixed; inset:0; width:100vw; height:100vh;
+  z-index:1400; cursor:grab;
+  background:linear-gradient(180deg,#8c8a8a 0%,#6f6e6c 30%,#44423d 62%,#21201c 100%);
+}
+#vaelthar-scene:active{ cursor:grabbing; }
+
+#vaelthar-overlay{
+  position:fixed; inset:0; z-index:1405;
+  pointer-events:none; overflow:hidden;
+}
+
+/* only show when the body flags 3D as active */
+body.vt-3d-active #vaelthar-scene{ display:block; }
+body.vt-3d-active #vaelthar-overlay{ display:block; }
+
+/* world-space UI sits just above the overlay, below the game panels (1500) */
+.vt-nameplate, .vt-sign, .vt-prompt, .vt-toast{ z-index:1406; }
+
+/* ---- nameplates ---- */
+.vt-nameplate{
+  position:absolute; transform:translate(-50%,-100%); text-align:center; white-space:nowrap;
+  pointer-events:none; filter:drop-shadow(0 2px 6px rgba(0,0,0,.8)); transition:opacity .2s;
+}
+.vt-np-name{ font-family:'Cinzel',serif; font-weight:600; font-size:15px; letter-spacing:.08em; color:var(--vt-parch); }
+.vt-np-title{ font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--vt-gold); margin-top:1px; opacity:.92; }
+.vt-nameplate::after{ content:""; display:block; width:5px; height:5px; background:var(--vt-gold); transform:rotate(45deg); margin:4px auto 0; opacity:.55; box-shadow:0 0 8px rgba(201,162,75,.6); }
+.vt-np-active .vt-np-name{ color:var(--vt-gold-bright); text-shadow:0 0 14px rgba(231,201,119,.5); }
+.vt-np-active::after{ opacity:1; }
+
+/* ---- ambient building signs ---- */
+.vt-sign{ position:absolute; transform:translate(-50%,-50%); text-align:center; white-space:nowrap; pointer-events:none; }
+.vt-sign-name{ font-family:'Cinzel',serif; font-weight:600; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:var(--vt-parch-dim); }
+.vt-sign-sub{ font-size:10px; font-style:italic; letter-spacing:.1em; color:var(--vt-parch-faint); margin-top:1px; }
+
+/* ---- interaction prompt ---- */
+.vt-prompt{ position:absolute; left:50%; bottom:38px; transform:translateX(-50%); pointer-events:none; }
+.vt-prompt-btn{
+  pointer-events:auto; cursor:pointer; display:flex; align-items:center; gap:12px;
+  font-family:'EB Garamond','Crimson Text',serif; font-size:16px; color:var(--vt-parch);
+  background:linear-gradient(180deg,rgba(28,22,16,.92),rgba(12,10,8,.94));
+  border:1px solid var(--vt-gold-deep); border-radius:6px; padding:11px 18px 11px 13px;
+  box-shadow:0 10px 34px rgba(0,0,0,.55),inset 0 0 0 1px rgba(201,162,75,.12);
+  transition:border-color .15s,transform .1s;
+}
+.vt-prompt-btn:hover{ border-color:var(--vt-gold-bright); transform:translateY(-1px); }
+.vt-prompt-btn:active{ transform:translateY(0); }
+.vt-prompt-text b{ font-family:'Cinzel',serif; font-weight:600; letter-spacing:.04em; color:var(--vt-gold-bright); }
+.vt-prompt-sub{ display:block; font-size:12.5px; font-style:italic; color:var(--vt-parch-faint); margin-top:2px; }
+.vt-key{
+  flex:0 0 auto; width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+  font-family:'Cinzel',serif; font-size:13px; font-weight:600; color:#1a130a; border-radius:4px;
+  background:linear-gradient(180deg,var(--vt-gold-bright),var(--vt-gold)); box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
+}
+
+/* ---- toast ---- */
+.vt-toast{
+  position:absolute; left:50%; top:74px; transform:translateX(-50%); pointer-events:none;
+  max-width:560px; text-align:center; font-style:italic; font-size:15.5px; color:var(--vt-parch);
+  background:linear-gradient(180deg,rgba(20,16,11,.92),rgba(10,8,6,.94)); border:1px solid var(--vt-line);
+  border-radius:5px; padding:10px 20px; box-shadow:0 8px 30px rgba(0,0,0,.5); transition:opacity .4s;
+}
+
+/* ---- 3D / Text toggle button ---- */
+.vt-toggle-btn{
+  position:fixed; top:16px; right:16px; z-index:1410; display:none;
+  pointer-events:auto; cursor:pointer;
+  font-family:'Cinzel',serif; font-size:13px; font-weight:600; letter-spacing:.06em;
+  color:var(--vt-gold-bright);
+  background:linear-gradient(180deg,rgba(28,22,16,.94),rgba(12,10,8,.96));
+  border:1px solid var(--vt-gold-deep); border-radius:6px; padding:9px 15px;
+  box-shadow:0 8px 26px rgba(0,0,0,.55),inset 0 0 0 1px rgba(201,162,75,.14);
+  transition:border-color .15s,transform .1s,color .15s;
+}
+.vt-toggle-btn:hover{ border-color:var(--vt-gold-bright); color:#fff; transform:translateY(-1px); }
+.vt-toggle-btn:active{ transform:translateY(0); }
+/* shown only when the controller flags availability */
+.vt-toggle-btn.vt-show{ display:block; }

@@ -6,18 +6,35 @@
 const AudioEngine = (() => {
   let ctx = null;
   let masterGain = null;
+  let sfxGain = null;
   let currentTrack = null;
   let currentTrackId = null;
   let musicVolume = 0.35;
   let sfxVolume = 0.6;
   let enabled = true;
 
+  function loadPrefs() {
+    try {
+      const v = localStorage.getItem('ss_music_volume');
+      if (v !== null) musicVolume = Math.max(0, Math.min(1, parseFloat(v)));
+      const m = localStorage.getItem('ss_music_muted');
+      if (m !== null) enabled = m !== '1';
+    } catch (e) {}
+  }
+
   function init() {
+    // Re-entry guard — never create a second AudioContext
+    if (ctx) return true;
+    loadPrefs();
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       masterGain = ctx.createGain();
-      masterGain.gain.value = musicVolume;
+      masterGain.gain.value = enabled ? musicVolume : 0;
       masterGain.connect(ctx.destination);
+      // Dedicated SFX bus — affected by volume + mute
+      sfxGain = ctx.createGain();
+      sfxGain.gain.value = enabled ? sfxVolume * (musicVolume / 0.35) : 0;
+      sfxGain.connect(ctx.destination);
       return true;
     } catch (e) {
       console.warn('Web Audio not supported');
@@ -329,6 +346,11 @@ const AudioEngine = (() => {
   function play(trackId) {
     if (!enabled || !ctx) return;
     resume();
+    // Restore master volume — un-pause leaves masterGain ramped to 0 after stop()
+    if (masterGain) {
+      masterGain.gain.cancelScheduledValues(ctx.currentTime);
+      masterGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
+    }
     if (currentTrackId === trackId) return;
     stopAllNodes();
     currentTrackId = trackId;
@@ -371,11 +393,15 @@ const AudioEngine = (() => {
 
   function setVolume(vol) {
     musicVolume = Math.max(0, Math.min(1, vol));
-    if (masterGain) masterGain.gain.value = musicVolume;
+    if (masterGain && enabled) masterGain.gain.value = musicVolume;
+    if (sfxGain && enabled) sfxGain.gain.value = sfxVolume * (musicVolume / 0.35);
+    try { localStorage.setItem('ss_music_volume', String(musicVolume)); } catch (e) {}
   }
 
   function toggle() {
     enabled = !enabled;
+    try { localStorage.setItem('ss_music_muted', enabled ? '0' : '1'); } catch (e) {}
+    if (sfxGain) sfxGain.gain.value = enabled ? sfxVolume * (musicVolume / 0.35) : 0;
     if (!enabled) stop();
     else play(currentTrackId || 'city_tense');
     return enabled;
@@ -397,7 +423,7 @@ const AudioEngine = (() => {
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.08);
       n.connect(filter);
       filter.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sfxGain);
       n.start(now + i * 0.06);
       n.stop(now + i * 0.06 + 0.09);
     }
@@ -414,7 +440,7 @@ const AudioEngine = (() => {
       gain.gain.linearRampToValueAtTime(sfxVolume * 0.15, now + i * 0.07 + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.8);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sfxGain);
       osc.start(now + i * 0.07);
       osc.stop(now + i * 0.07 + 0.85);
     });
@@ -432,7 +458,7 @@ const AudioEngine = (() => {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sfxGain);
       osc.start(now);
       osc.stop(now + 1.6);
     });
@@ -450,7 +476,7 @@ const AudioEngine = (() => {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
     n.connect(filter);
     filter.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(sfxGain);
     n.start(now);
     n.stop(now + 0.45);
 
@@ -460,7 +486,7 @@ const AudioEngine = (() => {
     ringGain.gain.setValueAtTime(sfxVolume * 0.08, now + 0.01);
     ringGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
     ring.connect(ringGain);
-    ringGain.connect(ctx.destination);
+    ringGain.connect(sfxGain);
     ring.start(now + 0.01);
     ring.stop(now + 1.3);
   }
@@ -476,7 +502,7 @@ const AudioEngine = (() => {
       gain.gain.setValueAtTime(sfxVolume * 0.2, now + i * 0.12);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.5);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sfxGain);
       osc.start(now + i * 0.12);
       osc.stop(now + i * 0.12 + 0.55);
     });
@@ -491,7 +517,7 @@ const AudioEngine = (() => {
     gain.gain.setValueAtTime(sfxVolume * 0.06, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(sfxGain);
     osc.start(now);
     osc.stop(now + 0.2);
   }
@@ -511,6 +537,9 @@ const AudioEngine = (() => {
     getTrackId: () => currentTrackId,
   };
 })();
+
+// Export so the ~20 guarded `window.AudioEngine` call sites work
+window.AudioEngine = AudioEngine;
 
 // Initialize on first user interaction
 let audioInitialized = false;

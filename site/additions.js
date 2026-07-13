@@ -11,10 +11,17 @@ let musicStarted = false;
 function toggleMusic() {
   const bars = document.getElementById('music-bars');
   const btn = document.getElementById('music-toggle');
-  if (!musicStarted) return;
+  // Pre-game: first click STARTS the music instead of silently returning (#81)
+  if (!musicStarted) {
+    startGameMusic('city_tense');
+    musicEnabled = true;
+    if (btn) btn.textContent = '⏸';
+    bars?.classList.remove('paused');
+    return;
+  }
   musicEnabled = AudioEngine.toggle();
-  if (musicEnabled) { btn.textContent = '⏸'; bars?.classList.remove('paused'); }
-  else { btn.textContent = '▶'; bars?.classList.add('paused'); }
+  if (musicEnabled) { if (btn) btn.textContent = '⏸'; bars?.classList.remove('paused'); }
+  else { if (btn) btn.textContent = '▶'; bars?.classList.add('paused'); }
 }
 
 function setMusicVolume(val) {
@@ -126,7 +133,12 @@ Write 2-4 sentences of vivid DM narration describing EXACTLY what happens as a r
     addLog('📖 ' + narration, 'narrator');
     showDMStrip(narration, true);
     addToStoryHistory(actionText, succeeded ? 'succeeded' : 'failed', roll);
-    if (window.saveGame) window.saveGame(null, null, true); // autosave after each action
+    // Throttled autosave — at most once per 60s, routed to the single autosave slot (#7)
+    const now = Date.now();
+    if (window.saveGame && now - (window._lastActionAutosave || 0) > 60000) {
+      window._lastActionAutosave = now;
+      window.saveGame(null, 'autosave', true);
+    }
 
   } catch(e) {
     const fallback = getFallbackNarration(actionText, roll, succeeded);
@@ -142,35 +154,27 @@ function getFallbackNarration(action, roll, succeeded) {
   return `You fail. "${action}" doesn't go as planned. The world pushes back. You're not in immediate danger, but you've lost something — time, trust, or opportunity.`;
 }
 
-// ─── PATCH resolveAction to use AI narration ──
-const _origResolveAction = window.resolveAction;
-window.resolveAction = function(text, roll) {
-  const isCrit = roll === 20;
-  const isFumble = roll === 1;
-  const isSuccess = roll >= 10;
-
-  addLog(`🎲 You roll: [${roll}]${isCrit ? ' — CRITICAL SUCCESS!!' : isFumble ? ' — CRITICAL FAILURE!' : isSuccess ? ' — Success!' : ' — Failure!'}`, 'dice');
-  AudioEngine.sfx?.dice();
-
-  if (isCrit) grantHolyPoints(2);
-  if (isFumble) grantHellPoints(2);
-
-  // Trigger AI narration
-  setTimeout(() => narrateActionResult(text, roll, isSuccess || isCrit), 400);
-};
+// ─── (removed) stale resolveAction override (#4) ──
+// The modern DC-aware resolveAction(text, roll, actionType, dc, total, success)
+// in game.js is canonical. The old override here dropped those args, recomputed
+// success as roll>=10, and printed a duplicate contradictory dice line. Deleted.
 
 // ─── DM STRIP ─────────────────────────────────
+let _dmStripInterval = null;
 function showDMStrip(text, persist = false) {
   const strip = document.getElementById('dm-strip');
   const stripText = document.getElementById('dm-strip-text');
   if (!strip || !stripText) return;
+  // Cancel any running typewriter before starting a new one (#78)
+  if (_dmStripInterval) { clearInterval(_dmStripInterval); _dmStripInterval = null; }
   strip.style.display = 'flex';
   stripText.textContent = '';
   let i = 0;
-  const interval = setInterval(() => {
+  _dmStripInterval = setInterval(() => {
     if (i < text.length) { stripText.textContent += text[i]; i++; }
     else {
-      clearInterval(interval);
+      clearInterval(_dmStripInterval);
+      _dmStripInterval = null;
       if (!persist) setTimeout(() => { strip.style.display = 'none'; }, 14000);
     }
   }, 16);
@@ -178,7 +182,8 @@ function showDMStrip(text, persist = false) {
 
 // ─── LOCATION UPDATE ──────────────────────────
 function updateLocationPanel(locId) {
-  const loc = WORLD_LOCATIONS[locId];
+  // Accept either a location id or a location object
+  const loc = (locId && typeof locId === 'object') ? locId : WORLD_LOCATIONS[locId];
   if (!loc) return;
   const icon = document.getElementById('lm-icon');
   const name = document.getElementById('lm-name');
@@ -202,6 +207,9 @@ function updateLocationPanel(locId) {
   if (tnEl) tnEl.textContent = TRACK_NAMES[trackId] || loc.name;
   if (musicStarted) AudioEngine.transition(trackId, 2500);
 }
+// Alias — saves.js (and others) call updateLocationDisplay (#76)
+window.updateLocationDisplay = updateLocationPanel;
+window.updateLocationPanel = updateLocationPanel;
 
 // ─── PATCH travelToLocation ───────────────────
 const _origTravel = window.travelToLocation;
@@ -247,9 +255,17 @@ const _origInit = window.initGameScreen;
 window.initGameScreen = function() {
   if (_origInit) _origInit();
   setTimeout(() => {
-    startGameMusic('city_tense');
+    // When restoring a save, loadSaveSlot sets the location-correct music itself — don't
+    // stomp it with the hardcoded city_tense track (#7). Only start default music fresh.
+    const _loading = gameState._restoring || gameState._loadedThisSession;
+    if (!_loading) startGameMusic('city_tense');
     startAutosave();
     addSaveButton();
+
+    // Skip the hardcoded Vaelthar opening narration when restoring/loading a save (#6/#7).
+    // _restoring is cleared synchronously by loadSaveSlot before this deferred callback
+    // fires, so we also check the persistent _loadedThisSession flag.
+    if (_loading) return;
 
     // Opening DM narration
     const opening = `You stand in Vaelthar, a city holding its breath. The Covenant shattered three days ago — no one admits how. Guards watch the Church's torn banners with nervous eyes. Captain Rhael of the Watch stands near the gate, jaw tight. The Trembling Scribe has been seen outside the Archive, which is unusual. Where do you begin?`;
@@ -258,18 +274,12 @@ window.initGameScreen = function() {
 
 };
 
-// ─── ADD SAVE BUTTON TO UI ────────────────────
+// ─── ADD DM BUTTON TO UI ──────────────────────
+// The injected Save button was removed (#73). The static index.html Save button
+// (onclick="openSaveScreen()") is canonical and carries the #save-btn id now.
 function addSaveButton() {
   const qa = document.querySelector('.quick-actions');
-  if (!qa || document.getElementById('save-btn')) return;
-
-  const saveBtn = document.createElement('button');
-  saveBtn.id = 'save-btn';
-  saveBtn.className = 'qa-btn';
-  saveBtn.style.cssText = 'border-color:rgba(74,154,100,0.4);color:#4a9a6a';
-  saveBtn.textContent = '💾 Save';
-  saveBtn.onclick = () => saveGame(false);
-  qa.appendChild(saveBtn);
+  if (!qa || document.getElementById('dm-guide-btn')) return;
 
   const dmBtn = document.createElement('button');
   dmBtn.id = 'dm-guide-btn';
@@ -285,6 +295,15 @@ async function getDMGuidance() {
   const char = gameState.character;
   const loc = WORLD_LOCATIONS[mapState?.currentLocation || 'vaelthar_city'];
   if (!char || !loc) return;
+
+  // Busy/disabled state — prevents parallel API calls (#81)
+  const dmBtn = document.getElementById('dm-guide-btn');
+  if (dmBtn) {
+    if (dmBtn.disabled) return;
+    dmBtn.disabled = true;
+    dmBtn.style.opacity = '0.5';
+    dmBtn.style.cursor = 'wait';
+  }
 
   showDMStrip('📖 The Chronicle reflects on your journey...', false);
 
@@ -320,6 +339,8 @@ Write 2-3 sentences guiding them — be specific, name NPCs, suggest a next acti
     addLog('📖 DM: ' + text, 'narrator');
   } catch(e) {
     showDMStrip(loc.description, true);
+  } finally {
+    if (dmBtn) { dmBtn.disabled = false; dmBtn.style.opacity = ''; dmBtn.style.cursor = ''; }
   }
 }
 
@@ -371,32 +392,21 @@ function addResumeButton(save) {
   resumeBtn.id = 'resume-btn';
   resumeBtn.className = 'btn-primary';
   resumeBtn.style.cssText = 'background:linear-gradient(135deg,rgba(74,154,100,0.3),rgba(40,100,60,0.2));border-color:rgba(74,154,100,0.5);margin-top:8px';
-  resumeBtn.innerHTML = `⚔ Resume Chronicle<br><small style="font-size:0.7rem;opacity:0.7">${save.character.name} · ${CLASSES.find(c=>c.id===save.character.class)?.name || ''} · Saved: ${savedDate}</small>`;
+  const _esc = window.escapeHtml || (s => s);
+  resumeBtn.innerHTML = `⚔ Resume Chronicle<br><small style="font-size:0.7rem;opacity:0.7">${_esc(save.character.name)} · ${CLASSES.find(c=>c.id===save.character.class)?.name || ''} · Saved: ${savedDate}</small>`;
   resumeBtn.onclick = resumeGame;
   splashBtns.appendChild(resumeBtn);
 }
 
 function resumeGame() {
-  const loaded = loadGame();
-  if (!loaded) { toast('No save found.', 'error'); return; }
-
-  // Jump straight to game screen
-  showScreen('game');
-  initGameScreen();
-
-  // Restore log
-  const logEl = document.getElementById('game-log');
-  if (logEl && gameState.log?.length) {
-    gameState.log.forEach(entry => {
-      const div = document.createElement('div');
-      div.className = `log-entry ${entry.type || ''}`;
-      div.textContent = (entry.player ? `[${entry.player}] ` : '') + entry.text;
-      logEl.appendChild(div);
-    });
-    logEl.scrollTop = logEl.scrollHeight;
+  // Load the most recent save via the real loader (#5).
+  // loadSaveSlot handles screen launch, log replay, panel restore, etc.
+  const slots = (typeof getAllSaves === 'function') ? getAllSaves() : [];
+  if (!slots.length || typeof loadSaveSlot !== 'function') {
+    toast('No save found.', 'error');
+    return;
   }
-
-  updateLocationPanel(mapState?.currentLocation || 'vaelthar_city');
-  toast(`⚔ Chronicle resumed — welcome back, ${gameState.character.name}.`, 'holy');
-  addLog(`📜 The Chronicle resumes. ${gameState.character.name} returns to the battlefield.`, 'narrator');
+  // getAllSaves() returns newest-first; pick the most recent by timestamp to be safe.
+  const mostRecent = slots.slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+  loadSaveSlot(mostRecent.id);
 }

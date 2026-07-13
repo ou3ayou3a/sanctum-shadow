@@ -20,6 +20,14 @@ window.mp = {
   _receiving: false,
 };
 
+// #60: escape ALL peer-supplied text rendered via innerHTML. Uses the shared
+// escapeHtml from data.js; falls back to a minimal inline escaper if unavailable.
+function esc(str) {
+  if (typeof window.escapeHtml === 'function') return window.escapeHtml(str);
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ─── LOAD SOCKET.IO THEN INIT ─────────────────
 (function loadSocketIO() {
   if (window.io) { initMultiplayer(); return; }
@@ -60,20 +68,36 @@ function initMultiplayer() {
     const el = document.getElementById('mp-status');
     if (el) { el.innerHTML = '🟢 Server connected — ready to play'; el.style.color = '#4a9a6a'; }
 
+    // If we previously lost the connection in-session, log the recovery (#67).
+    if (window.mp._connLostShown) {
+      window.mp._connLostShown = false;
+      if (window.mp.sessionCode) {
+        window.mp._receiving = true;
+        window.addLog?.('✅ Reconnected to the server.', 'system');
+        window.mp._receiving = false;
+      }
+    }
+
+    // #68: flush events queued before the socket connected.
+    if (typeof flushQueuedStoryEvents === 'function') flushQueuedStoryEvents();
+
     // Rejoin if we had a session — retry with backoff in case server just restarted from disk
     const code = window.mp.sessionCode || gameState?.sessionCode;
     const char = gameState?.character;
     const name = window.mp._playerName || char?.name;
     if (code && name) {
       let attempt = 0;
+      window.mp._rejoinAcked = false; // reset for this reconnect cycle (#62)
       const tryRejoin = () => {
+        // Stop once a successful rejoin ack/session_joined arrived (#62).
+        if (window.mp._rejoinAcked) return;
         attempt++;
         console.log(`Rejoin attempt ${attempt} for session ${code}`);
         socket.emit('rejoin_session', { code, playerName: name, character: char || null });
-        // If still no session code after 2s (join_error cleared it), stop retrying
         if (attempt < 3) {
           setTimeout(() => {
-            if (!window.mp.sessionCode) return; // gave up
+            if (window.mp._rejoinAcked) return; // succeeded — stop retrying
+            if (!window.mp.sessionCode) return; // gave up (join_error cleared it)
             tryRejoin();
           }, 2000 * attempt);
         }
@@ -87,6 +111,13 @@ function initMultiplayer() {
     console.warn('MP disconnected');
     const el = document.getElementById('mp-status');
     if (el) { el.innerHTML = '🔴 Disconnected — reconnecting...'; el.style.color = '#c0392b'; }
+    // Surface the disconnect in-game (#67). Guard so it doesn't broadcast.
+    if (window.mp.sessionCode && !window.mp._connLostShown) {
+      window.mp._connLostShown = true;
+      window.mp._receiving = true;
+      window.addLog?.('⚠ Connection lost — attempting to reconnect...', 'system');
+      window.mp._receiving = false;
+    }
     // Never boot to lobby on disconnect — socket.io will auto-reconnect
   });
 
@@ -94,7 +125,21 @@ function initMultiplayer() {
     console.warn('MP connect error:', err.message);
     const el = document.getElementById('mp-status');
     if (el) { el.innerHTML = '🟡 Reconnecting...'; el.style.color = '#f39c12'; }
+    // Surface the connection trouble in-game once (#67), guarded from broadcast.
+    if (window.mp.sessionCode && !window.mp._connLostShown) {
+      window.mp._connLostShown = true;
+      window.mp._receiving = true;
+      window.addLog?.('⚠ Connection lost — attempting to reconnect...', 'system');
+      window.mp._receiving = false;
+    }
     // Don't kick to lobby — just wait for reconnect
+  });
+
+  socket.on('server_shutdown', ({ message } = {}) => {
+    const text = message || 'Server is restarting. Your campaign has been saved.';
+    toast(`⚠ ${text}`, 'info');
+    const originalLog = window.addLog?._orig || window.addLog;
+    originalLog?.(`⚠ ${text}`, 'system');
   });
 
   // ── Session created (host) ──
@@ -114,13 +159,19 @@ function initMultiplayer() {
   });
 
   // ── Session joined (joiner or rejoin) ──
-  socket.on('session_joined', ({ code, playerId, session }) => {
+  socket.on('session_joined', ({ code, playerId, session, isHost }) => {
+    // Stop the rejoin retry loop — a successful ack arrived (#62).
+    window.mp._rejoinAcked = true;
     window.mp.sessionCode = code;
     window.mp.playerId = playerId;
-    window.mp.isHost = false;
+    // Trust the server's host answer (#58) instead of forcing false — a
+    // rejoining host is migrated server-side and told it's host here.
+    window.mp.isHost = !!isHost;
     window.mp.session = session;
     gameState.sessionCode = code;
-    gameState.isHost = false;
+    gameState.isHost = !!isHost;
+    window.dispatchEvent(new CustomEvent('multiplayer:session-update', { detail:session }));
+    if (session?.campaignState) applyCampaignState(session.campaignState);
     document.querySelectorAll('.session-code-display').forEach(el => el.textContent = code);
     const big = document.getElementById('session-code-big');
     if (big) big.textContent = code;
@@ -130,7 +181,10 @@ function initMultiplayer() {
     // If already in the game screen (reconnecting after refresh), stay there
     if (gameState.activeScreen === 'game' && gameState.character) {
       toast(`🔄 Reconnected to session ${code}`, 'holy');
+      // Guard so the reconnect line isn't re-broadcast to the party (#67).
+      window.mp._receiving = true;
       addLog(`🔗 Reconnected to multiplayer session ${code}. Your party is here.`, 'system');
+      window.mp._receiving = false;
       // Re-send our character state to the server so party panel updates
       setTimeout(() => {
         if (gameState.character) {
@@ -144,6 +198,34 @@ function initMultiplayer() {
     } else {
       toast('Joined session ' + code, 'holy');
     }
+  });
+
+  // ── Host migrated to us (previous host dropped) ──
+  socket.on('host_migrated', ({ isHost }) => {
+    if (isHost) {
+      window.mp.isHost = true;
+      gameState.isHost = true;
+      window.mp._receiving = true;
+      addLog('👑 You are now the host of this session.', 'system');
+      window.mp._receiving = false;
+      toast('👑 You are now the host', 'holy');
+      setTimeout(() => mpBroadcastCampaignState('host_migrated'), 100);
+    }
+  });
+
+  // ── Authoritative player-state sync (inventory/gold after item use, #63) ──
+  socket.on('player_state', ({ playerId, inventory, gold, hp }) => {
+    if (playerId !== window.mp.playerId || !gameState.character) return;
+    if (Array.isArray(inventory)) gameState.character.inventory = inventory;
+    if (typeof gold === 'number') gameState.character.gold = gold;
+    if (typeof hp === 'number') gameState.character.hp = Math.max(0, hp);
+    if (typeof renderPlayerCard === 'function') renderPlayerCard();
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+  });
+
+  socket.on('campaign_state', (state) => {
+    applyCampaignState(state);
+    if (window.mp.session) window.mp.session.campaignState = state;
   });
 
   // ── Error ──
@@ -163,9 +245,31 @@ function initMultiplayer() {
     }
   });
 
+  socket.on('session_error', ({ msg } = {}) => {
+    toast(msg || 'The session could not complete that request.', 'error');
+    const previousReceiving = window.mp._receiving;
+    window.mp._receiving = true;
+    addLog(`⚠ ${msg || 'Session request rejected.'}`, 'system');
+    window.mp._receiving = previousReceiving;
+  });
+
   // ── Session state updates ──
   socket.on('session_update', (session) => {
     window.mp.session = session;
+    window.dispatchEvent(new CustomEvent('multiplayer:session-update', { detail:session }));
+    const nowHost = session?.host === window.mp.playerId;
+    if (window.mp.isHost !== nowHost) {
+      window.mp.isHost = nowHost;
+      gameState.isHost = nowHost;
+    }
+    if (session?.campaignState) applyCampaignState(session.campaignState);
+    if (document.getElementById('scene-panel') && window.sceneState?._votes) {
+      const connectedIds = new Set(Object.values(session.players || {}).filter(p => p?.connected !== false).map(p => p.id));
+      Object.keys(window.sceneState._votes).forEach(id => { if (!connectedIds.has(id)) delete window.sceneState._votes[id]; });
+      window.sceneState._playerCount = Math.max(1, connectedIds.size);
+      window.updateVoteDisplay?.();
+      if (window.mp.isHost) window.checkVoteResolution?.();
+    }
     updateSessionUI();
     updatePartyPanel();
     // If ready room is showing, update it
@@ -176,14 +280,22 @@ function initMultiplayer() {
     if (chatSection) chatSection.style.display = 'block';
   });
 
+  socket.on('world_position', (presence) => {
+    if (!presence || presence.playerId === window.mp.playerId) return;
+    window.dispatchEvent(new CustomEvent('multiplayer:world-position', { detail:presence }));
+  });
+
   // ── Game started — everyone launches ──
-  socket.on('game_started', () => {
+  socket.on('game_started', ({ lateJoin = false } = {}) => {
     if (window.launchGame) {
       window.launchGame();
-      // Start story engine after launch
-      setTimeout(() => {
-        if (window.startStoryEngine) window.startStoryEngine();
-      }, 1500);
+      // Exactly one story engine: the host. Other clients receive show_scene and
+      // campaign_state. Late joiners only hydrate the stored campaign snapshot.
+      if (window.mp.isHost && !lateJoin) {
+        setTimeout(() => {
+          if (window.startStoryEngine) window.startStoryEngine();
+        }, 1500);
+      }
     }
   });
 
@@ -200,7 +312,14 @@ function initMultiplayer() {
   });
 
   // ── Story event from other players ──
-  socket.on('story_event', ({ eventType, payload, fromPlayer }) => {
+  // #61: the WHOLE handler runs under the _receiving guard so anything it logs
+  // (addLog, showScene, etc.) is NOT re-broadcast back to the party.
+  socket.on('story_event', (msg = {}) => {
+    const { eventType, payload = {}, fromPlayer } = msg;
+    if (typeof eventType !== 'string') return;
+    const _prevReceiving = window.mp._receiving;
+    window.mp._receiving = true;
+    try {
     if (eventType === 'player_vote') {
       if (window.receiveVote) {
         window.receiveVote(payload.playerId, payload.playerName, payload.index, payload.roll);
@@ -215,26 +334,78 @@ function initMultiplayer() {
         window._sceneStartAt = startAt;
         window.showScene(payload.sceneData);
         window._sceneStartAt = 0;
+        if (payload.sceneData.id) window.recordQuestEvent?.(`scene:${payload.sceneData.id}`, { sceneId:payload.sceneData.id });
       }
     }
     if (eventType === 'scene_resolved') {
-      if (window.executeSceneOption) {
+      // The host is the only client that executes the option and rolls its check.
+      // Everyone else closes exactly their current panel and waits for the host's
+      // show_scene/campaign_state broadcasts. This works identically for 2..N players.
+      const resKey = payload.resolutionKey
+        || payload.resKey
+        || (payload.sceneId != null ? payload.sceneId + ':' + payload.index : null)
+        || ((window.sceneState?._currentScene?.id || window.sceneState?.currentScene) + ':' + payload.index);
+      if (window.mp.isHost) {
+        window._lastResolvedKey = resKey;
+      } else if (window._lastResolvedKey === resKey) {
+        // Duplicate broadcast — ignore.
+      } else {
+        window._lastResolvedKey = resKey;
         addLog(`🗳 The party chose: "${payload.label}"`, 'system');
-        setTimeout(() => window.executeSceneOption(payload.index), 600);
+        const ownedPanel = document.getElementById('scene-panel');
+        if (ownedPanel) ownedPanel.remove();
       }
     }
     if (eventType === 'scene_choice') {
-      const option = window.sceneState?._currentOptions?.[payload.index];
-      if (option) {
-        setTimeout(() => {
-          if (option.action) option.action();
-          else if (option.next && window.runScene) window.runScene(option.next);
-        }, 400);
-        setTimeout(() => {
-          const panel = document.getElementById('scene-panel');
-          if (panel) { panel.style.opacity = '0'; setTimeout(() => panel?.remove(), 400); }
-        }, 300);
+      // Legacy notification only. Never execute it: scene_resolved is canonical.
+    }
+    if (eventType === 'action_request' && window.mp.isHost) {
+      const actor = window.mp.session?.players?.[payload.actorId];
+      if (actor?.character && typeof window.resolveActionRequest === 'function') {
+        setTimeout(async () => {
+          const safeOptions = payload.options && typeof payload.options === 'object' ? payload.options : {};
+          await window.resolveActionRequest(String(payload.text || '').slice(0, 1000), {
+            ...safeOptions, character:actor.character, actorId:payload.actorId, authoritative:true,
+          });
+          mpBroadcastStoryEvent('action_state', {
+            actorId:payload.actorId,
+            character:{
+              hp:actor.character.hp, mp:actor.character.mp,
+              holyPoints:actor.character.holyPoints, hellPoints:actor.character.hellPoints,
+              conditions:actor.character.conditions || [], gold:actor.character.gold || 0,
+              inventory:actor.character.inventory || [],
+            },
+          });
+          mpBroadcastCampaignState('remote_action');
+        }, 0);
       }
+    }
+    if (eventType === 'action_state') {
+      const cached = window.mp.session?.players?.[payload.actorId]?.character;
+      if (cached && payload.character) Object.assign(cached, payload.character);
+      if (payload.actorId === window.mp.playerId && gameState.character && payload.character) {
+        Object.assign(gameState.character, payload.character);
+        window.renderPlayerCard?.();
+        window.renderInventory?.();
+      }
+      updatePartyPanel();
+    }
+    if (eventType === 'quest_completed') {
+      window.grantQuestReward?.(String(payload.questId || ''), Number(payload.xp) || 0);
+      window.renderPlayerCard?.();
+    }
+    if (eventType === 'npc_outcome' && window.mp.isHost) {
+      setTimeout(() => {
+        window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+        window.sceneState.flags = window.sceneState.flags || {};
+        window.sceneState.knownFacts = window.sceneState.knownFacts || {};
+        window.sceneState.flags[`talked_to_${payload.npcId}`] = true;
+        window.sceneState.knownFacts[`npc_${payload.npcId}`] = String(payload.fact || '').slice(0, 1200);
+        if (['captain_rhael','trembling_scribe'].includes(payload.npcId)) {
+          window.advanceQuest?.('c1q1', `Questioned ${payload.npcName || 'a witness'} about the broken Covenant.`);
+        }
+        mpBroadcastCampaignState(`npc:${payload.npcId}`);
+      }, 0);
     }
 
     // ── NPC Dialogue sync ──
@@ -269,6 +440,7 @@ function initMultiplayer() {
     }
     if (eventType === 'conv_response') {
       console.log('🎭 conv_response received');
+      window.dispatchEvent(new CustomEvent('npc:camera', { detail:{ shot:'npc' } }));
       const lineEl = document.getElementById('cp-npc-line');
       const typingEl = document.getElementById('cp-typing');
       if (typingEl) typingEl.style.display = 'none';
@@ -304,12 +476,13 @@ function initMultiplayer() {
             i++;
           } else {
             clearInterval(interval);
-            lineEl.innerHTML = text.replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
+            // #60: escape peer NPC speech BEFORE turning *asterisks* into <em>.
+            lineEl.innerHTML = esc(text).replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
             // Show read-only options
             const optEl = document.getElementById('cp-options');
             if (optEl && Array.isArray(payload.options) && payload.options.length) {
               optEl.innerHTML = payload.options.map(o =>
-                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${o?.text || o?.label || ''}</button>`
+                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${esc(o?.text || o?.label || '')}</button>`
               ).join('');
             }
           }
@@ -317,6 +490,7 @@ function initMultiplayer() {
       }
     }
     if (eventType === 'conv_player_action') {
+      window.dispatchEvent(new CustomEvent('npc:camera', { detail:{ shot:'player' } }));
       // Swap portrait to show who is speaking
       if (typeof updateConvPlayerPortrait === 'function') {
         updateConvPlayerPortrait(payload.playerName, payload.character || null);
@@ -325,7 +499,7 @@ function initMultiplayer() {
       const typingEl = document.getElementById('cp-typing');
       if (typingEl) typingEl.style.display = 'flex';
       const optEl = document.getElementById('cp-options');
-      if (optEl) optEl.innerHTML = `<div class="cp-thinking">${payload.playerName} said: "${payload.text}" — waiting for response...</div>`;
+      if (optEl) optEl.innerHTML = `<div class="cp-thinking">${esc(payload.playerName)} said: "${esc(payload.text)}" — waiting for response...</div>`;
       // Archive previous NPC line to transcript
       const lineEl = document.getElementById('cp-npc-line');
       const transcript = document.getElementById('cp-transcript');
@@ -337,6 +511,9 @@ function initMultiplayer() {
         transcript.scrollTop = transcript.scrollHeight;
         lineEl.textContent = '';
       }
+    }
+    if (eventType === 'conv_check' && typeof window.showDialogueCheck === 'function') {
+      window.showDialogueCheck(payload, true);
     }
     if (eventType === 'conv_close') {
       const p = document.getElementById('conv-panel');
@@ -400,19 +577,21 @@ function initMultiplayer() {
     }
 
     if (eventType === 'location_change') {
-      if (window.mp._receiving) return;
-      window.mp._receiving = true;
+      // Outer guard already has _receiving=true so travelToLocation won't re-broadcast.
       if (window.travelToLocation && WORLD_LOCATIONS?.[payload.locId]) {
         window.travelToLocation(WORLD_LOCATIONS[payload.locId]);
       }
-      window.mp._receiving = false;
+    }
+    } finally {
+      window.mp._receiving = _prevReceiving;
     }
   });
 
   // ── Combat ──
   socket.on('combat_started', (cs) => {
     window.mp.combatState = cs;
-    addLog('⚔ COMBAT BEGINS!', 'combat');
+    window.mp.combatSpectator = !cs?.combatants?.[window.mp.playerId];
+    (window.addLog._orig || window.addLog)('⚔ COMBAT BEGINS!', 'combat');
     startCombatFromServer(cs);
   });
 
@@ -423,29 +602,64 @@ function initMultiplayer() {
     syncMyHP(combatState);
   });
 
-  socket.on('combat_ended', ({ victory, xp, combatState }) => {
+  socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState }) => {
     window.mp.combatState = null;
+    window.mp.combatSpectator = false;
+    if (endedCombatState) Object.assign(window.combatState, endedCombatState);
+    window.combatState.active = false;
     if (victory) {
-      addLog(`⚔ VICTORY! +${xp} XP`, 'holy');
-      if (xp && window.grantXP) grantXP(Math.floor(xp / Math.max(1, Object.keys(window.mp.session?.players || {}).length)));
+      // #16: the server computes the authoritative per-player share (xpEach) over
+      // connected players who actually have a character. Use it directly so every
+      // client awards the SAME amount. Only fall back to the local computation if
+      // the server didn't send xpEach (older server / missing field).
+      let award;
+      if (xpEach !== undefined && xpEach !== null) {
+        award = xpEach;
+      } else {
+        // #68: split XP only among connected players who actually have a character —
+        // not lobby stragglers or disconnected players.
+        const players = Object.values(window.mp.session?.players || {});
+        const share = players.filter(p => p && p.connected && p.character).length || 1;
+        award = Math.floor(xp / share);
+      }
+      (window.addLog._orig || window.addLog)(`⚔ VICTORY! +${award || 0} XP each (${xp || 0} party XP)`, 'holy');
+      if (award && window.grantXP) grantXP(award);
+      const questScene = window.sceneState?.currentScene || window.sceneState?._currentScene?.id || '';
+      const enemies = Object.values(endedCombatState?.combatants || {}).filter(combatant => !combatant.isPlayer);
+      if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds:enemies.map(enemy => enemy.id) });
+      if (window.mp.isHost) {
+        if (enemies.some(enemy => /voice below/i.test(enemy.name || ''))) {
+          setTimeout(() => window.runScene?.('monastery_dungeon_cleared'), 800);
+        }
+      }
     } else {
-      addLog('💀 The party falls...', 'combat');
+      (window.addLog._orig || window.addLog)('💀 The party falls...', 'combat');
     }
     setTimeout(() => document.getElementById('combat-panel')?.remove(), 2000);
   });
 
   socket.on('player_turn_start', ({ playerId, playerName }) => {
     const mine = playerId === window.mp.playerId;
-    addLog(mine ? '⚔ YOUR TURN' : `⏳ ${playerName}'s turn`, 'system');
+    (window.addLog._orig || window.addLog)(mine ? '⚔ YOUR TURN' : `⏳ ${playerName}'s turn`, 'system');
     if (window.mp.combatState) {
       window.mp.combatState.currentTurnIndex = window.mp.combatState.turnOrder.indexOf(playerId);
       updateCombatFromServer(window.mp.combatState);
     }
   });
 
-  socket.on('enemy_turn_start', ({ enemy }) => {
-    addLog(`${enemy.icon} ${enemy.name} acts...`, 'system');
-    setTimeout(() => socket.emit('enemy_turn', { code: window.mp.sessionCode }), 800 + Math.random() * 400);
+  socket.on('enemy_turn_start', ({ enemy, seq }) => {
+    // #35: log the enemy-turn narration via the non-broadcasting path. 'system' is a
+    // MP_BROADCAST_TYPE, so a plain addLog here would make every client re-emit this
+    // line as game_log → K× duplicates per enemy turn with K players. The server
+    // already broadcasts enemy_turn_start to everyone, so each client just shows it
+    // locally once.
+    const _origLog = window.addLog._orig || window.addLog;
+    _origLog(`${enemy.icon} ${enemy.name} acts...`, 'system');
+    // #11: echo the seq back so the server resolves THIS enemy turn exactly once.
+    // The host drives it; the server has its own timeout fallback if the host is gone.
+    if (window.mp.isHost) {
+      setTimeout(() => socket.emit('enemy_turn', { code: window.mp.sessionCode, seq }), 800 + Math.random() * 400);
+    }
   });
 }
 
@@ -479,6 +693,156 @@ function mpChat(text) {
   window.mp.socket.emit('chat', { code: window.mp.sessionCode, text });
 }
 
+function buildCampaignState(reason = 'sync') {
+  const isSharedQuest = q => q && !String(q.id || '').startsWith('pq_');
+  const sharedQuestProgress = Object.fromEntries(Object.entries(gameState.questProgress || {}).filter(([id]) => !id.startsWith('pq_')));
+  const sharedFlags = Object.fromEntries(Object.entries(window.sceneState?.flags || {}).filter(([key]) => !key.startsWith('pq_')));
+  const sharedFacts = Object.fromEntries(Object.entries(window.sceneState?.knownFacts || {}).filter(([key]) => !key.startsWith('pq_')));
+  const discovered = window.WORLD_LOCATIONS
+    ? Object.values(window.WORLD_LOCATIONS).filter(l => l?.discovered).map(l => l.id)
+    : Object.keys(window.mapDiscovered || {}).filter(id => window.mapDiscovered[id]);
+  const current = window.sceneState?._currentScene;
+  const currentData = current && !current.personal ? {
+    id:current.id, location:current.location, locationIcon:current.locationIcon,
+    threat:current.threat, narration:current.narration, sub:current.sub,
+    personal:!!current.personal,
+    options:(current.options || []).map(o => ({
+      label:o.label, icon:o.icon, type:o.type, roll:o.roll,
+      cost:o.cost, next:o.next, nextFail:o.nextFail,
+    })),
+  } : null;
+  return {
+    schemaVersion: window.SanctumSchema?.CAMPAIGN_SCHEMA_VERSION || 1,
+    version: Date.now(), reason,
+    chapter: gameState.chapter || 1,
+    activeQuests: (gameState.activeQuests || []).filter(isSharedQuest),
+    completedQuests: (gameState.completedQuests || []).filter(isSharedQuest),
+    questProgress: sharedQuestProgress,
+    scene: {
+      currentScene: window.sceneState?.currentScene || 'arrival_vaelthar',
+      flags: sharedFlags,
+      knownFacts: sharedFacts,
+      npcStates: window.sceneState?.npcStates || {},
+      history: window.sceneState?.history || [],
+      lastNarration: window.sceneState?._lastNarration || '',
+      currentThreat: window.sceneState?.currentThreat || null,
+      currentData,
+    },
+    reputation: window.reputation || {},
+    worldClock: window.worldClock || { hour:8, day:1 },
+    map: { currentLocation: window.mapState?.currentLocation || 'vaelthar_city', discovered },
+  };
+}
+
+function applyCampaignState(state) {
+  if (!state || typeof state !== 'object') return;
+  state = window.SanctumSchema?.migrateCampaignState(state) || state;
+  if (window.mp._campaignVersion && (state.version || 0) <= window.mp._campaignVersion) return;
+  window.mp._campaignVersion = state.version || Date.now();
+  gameState.chapter = state.chapter || 1;
+  const localActive = (gameState.activeQuests || []).filter(q => String(q?.id || '').startsWith('pq_'));
+  const localCompleted = (gameState.completedQuests || []).filter(q => String(q?.id || '').startsWith('pq_'));
+  const localProgress = Object.fromEntries(Object.entries(gameState.questProgress || {}).filter(([id]) => id.startsWith('pq_')));
+  gameState.activeQuests = [...(Array.isArray(state.activeQuests) ? state.activeQuests : []), ...localActive];
+  gameState.completedQuests = [...(Array.isArray(state.completedQuests) ? state.completedQuests : []), ...localCompleted];
+  gameState.questProgress = { ...(state.questProgress && typeof state.questProgress === 'object' ? state.questProgress : {}), ...localProgress };
+  if (window.sceneState && state.scene) {
+    const localFlags = Object.fromEntries(Object.entries(window.sceneState.flags || {}).filter(([key]) => key.startsWith('pq_')));
+    const localFacts = Object.fromEntries(Object.entries(window.sceneState.knownFacts || {}).filter(([key]) => key.startsWith('pq_')));
+    window.sceneState.currentScene = state.scene.currentScene || window.sceneState.currentScene;
+    window.sceneState.flags = { ...(state.scene.flags || {}), ...localFlags };
+    window.sceneState.knownFacts = { ...(state.scene.knownFacts || {}), ...localFacts };
+    window.sceneState.npcStates = state.scene.npcStates || {};
+    window.sceneState.history = state.scene.history || [];
+    window.sceneState._lastNarration = state.scene.lastNarration || '';
+    window.sceneState.currentThreat = state.scene.currentThreat || null;
+    if (state.scene.currentData && gameState.activeScreen === 'game'
+        && !document.getElementById('scene-panel')
+        && !window.combatState?.active && !window.npcConvState?.active) {
+      const prevReceiving = window.mp._receiving;
+      window.mp._receiving = true;
+      try { window.showScene?.(state.scene.currentData); }
+      finally { window.mp._receiving = prevReceiving; }
+    }
+  }
+  if (state.reputation) window.reputation = { ...state.reputation };
+  if (state.worldClock) window.worldClock = { ...state.worldClock };
+  if (state.map) {
+    window.mapDiscovered = {};
+    (state.map.discovered || []).forEach(id => { window.mapDiscovered[id] = true; });
+    if (window.WORLD_LOCATIONS) {
+      Object.values(window.WORLD_LOCATIONS).forEach(loc => { if (loc?.id) loc.discovered = !!window.mapDiscovered[loc.id]; });
+    }
+    window.applyDiscoveredLocations?.(window.mapDiscovered);
+    if (window.mapState && state.map.currentLocation) window.mapState.currentLocation = state.map.currentLocation;
+    window.updateLocationPanel?.();
+  }
+  window.renderQuestList?.();
+  window.updateQuestCounter?.();
+  window.updateWorldClockUI?.();
+}
+
+function mpBroadcastCampaignState(reason = 'sync') {
+  if (!window.mp?.isHost || !window.mp?.socket || !window.mp.sessionCode) return;
+  clearTimeout(window.mp._campaignSyncTimer);
+  window.mp._campaignSyncTimer = setTimeout(() => {
+    const state = buildCampaignState(reason);
+    window.mp._campaignVersion = state.version;
+    window.mp.socket.emit('campaign_state', { code:window.mp.sessionCode, state });
+  }, 40);
+}
+
+function mpRequestAction(text, options = {}) {
+  if (!window.mp?.socket || !window.mp.sessionCode) return { pending:false };
+  window.mp.socket.emit('story_event', {
+    code:window.mp.sessionCode,
+    eventType:'action_request',
+    payload:{
+      actorId:window.mp.playerId,
+      actorName:gameState.character?.name || 'Unknown',
+      text:String(text || '').slice(0, 1000),
+      options:{
+        skill:options.skill, ability:options.ability, dc:options.dc,
+        advantage:!!options.advantage, disadvantage:!!options.disadvantage,
+      },
+    },
+  });
+  return { pending:true, authoritative:false };
+}
+
+function mpNotifyNPCOutcome(npc, speech) {
+  if (!window.mp?.sessionCode || !npc) return;
+  if (window.mp.isHost) {
+    mpBroadcastCampaignState(`npc:${npc.id}`);
+    return;
+  }
+  mpBroadcastStoryEvent('npc_outcome', {
+    npcId:npc.id, npcName:npc.name,
+    fact:String(speech || '').slice(0, 1200),
+    playerId:window.mp.playerId,
+  });
+}
+
+function mpSyncHostCharacter(character = gameState.character, playerId = window.mp?.playerId) {
+  if (!window.mp?.isHost || !window.mp?.socket || !window.mp.sessionCode || !character || !playerId) return;
+  window.mp.socket.emit('host_player_state', {
+    code:window.mp.sessionCode, playerId,
+    patch:{
+      hp:character.hp, mp:character.mp,
+      holyPoints:character.holyPoints, hellPoints:character.hellPoints,
+      conditions:character.conditions || [], gold:character.gold || 0,
+      inventory:character.inventory || [],
+    },
+  });
+}
+
+window.buildCampaignState = buildCampaignState;
+window.applyCampaignState = applyCampaignState;
+window.mpBroadcastCampaignState = mpBroadcastCampaignState;
+window.mpRequestAction = mpRequestAction;
+window.mpNotifyNPCOutcome = mpNotifyNPCOutcome;
+window.mpSyncHostCharacter = mpSyncHostCharacter;
+
 function mpBroadcastStoryEvent(eventType, payload) {
   const code = window.mp?.sessionCode || gameState?.sessionCode;
   if (!window.mp?.socket || !code) {
@@ -491,11 +855,16 @@ function mpBroadcastStoryEvent(eventType, payload) {
 // Expose globally so dialogue.js, story.js etc. can call it
 // This replaces the early stub set in index.html <head>
 window.mpBroadcastStoryEvent = mpBroadcastStoryEvent;
-// Flush any events queued before socket connected
-if (window._mpEventQueue?.length) {
-  console.log('📡 Flushing', window._mpEventQueue.length, 'queued story events');
-  window._mpEventQueue.forEach(e => mpBroadcastStoryEvent(e.eventType, e.payload));
-  window._mpEventQueue = [];
+
+// #68: flush any events queued before the socket existed. This MUST run after
+// the socket connects (it's invoked from the 'connect' handler), not at script
+// load — otherwise mpBroadcastStoryEvent bails (no connected socket) and drops them.
+function flushQueuedStoryEvents() {
+  if (window._mpEventQueue?.length) {
+    console.log('📡 Flushing', window._mpEventQueue.length, 'queued story events');
+    window._mpEventQueue.forEach(e => mpBroadcastStoryEvent(e.eventType, e.payload));
+    window._mpEventQueue = [];
+  }
 }
 
 // ─── PATCH addLog ─────────────────────────────
@@ -517,19 +886,9 @@ window.addLog = function(text, type = 'system', playerName = null) {
 };
 window.addLog._orig = _mpOrigAddLog;
 
-// ─── PATCH chooseSceneOption ──────────────────
-const _origChooseScene = window.chooseSceneOption;
-window.chooseSceneOption = function(index) {
-  if (_origChooseScene) _origChooseScene(index);
-  if (window.mp.sessionCode && window.mp.socket && !window.mp._receiving) {
-    const option = window.sceneState?._currentOptions?.[index];
-    mpBroadcastStoryEvent('scene_choice', {
-      index,
-      label: option?.label || '',
-      playerName: gameState.character?.name || 'Unknown',
-    });
-  }
-};
+// Scene choices are synchronized by the host-only vote resolution protocol.
+// The old scene_choice echo was removed because it executed callbacks a second
+// time on every client and scaled the bug with party size.
 
 // ─── PATCH travelToLocation ───────────────────
 const _origTravel_mp = window.travelToLocation;
@@ -590,6 +949,36 @@ window.castSelectedSpell = function() {
   }
 };
 
+// ─── PATCH combatMove ─────────────────────────
+// #63: route MOVE through the server like attack/spell/end-turn so AP stays
+// authoritative and the whole party sees it.
+const _origCombatMove = window.combatMove;
+window.combatMove = function() {
+  if (window.mp.sessionCode && window.mp.combatState) {
+    if (!isMyTurnMP()) { addLog('Not your turn!', 'system'); return; }
+    mpCombatAction('move', null, null);
+  } else {
+    if (_origCombatMove) _origCombatMove();
+  }
+};
+
+// ─── PATCH combatItem ─────────────────────────
+// #63: route ITEM through the server. The server applies the AP cost + heal
+// authoritatively and broadcasts a player_state sync (inventory/gold/hp).
+const _origCombatItem = window.combatItem;
+window.combatItem = function() {
+  if (window.mp.sessionCode && window.mp.combatState) {
+    if (!isMyTurnMP()) { addLog('Not your turn!', 'system'); return; }
+    // Pick the item locally so we can pass its name to the server (targetId slot).
+    const inv = gameState.character?.inventory || [];
+    const itemName = inv.find(i => typeof i === 'string' && i.toLowerCase().includes('potion'));
+    if (!itemName) { addLog('No items to use!', 'system'); return; }
+    mpCombatAction('item', itemName, null);
+  } else {
+    if (_origCombatItem) _origCombatItem();
+  }
+};
+
 // ─── PATCH finalizeCharacter ─────────────────
 const _origFinalizeChar = window.finalizeCharacter;
 window.finalizeCharacter = function() {
@@ -633,6 +1022,11 @@ function syncMyHP(cs) {
 function startCombatFromServer(cs) {
   Object.assign(combatState, cs);
   combatState.active = true;
+  if (window.mp.combatSpectator) {
+    renderSpectatorCombat(cs);
+    (window.addLog._orig || window.addLog)('👁 This encounter was already underway. You will join the next fight.', 'system');
+    return;
+  }
   // Auto-select first living enemy so Attack works immediately
   if (!combatState.selectedTarget) {
     const firstEnemy = Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
@@ -643,7 +1037,34 @@ function startCombatFromServer(cs) {
 
 function updateCombatFromServer(cs) {
   Object.assign(combatState, cs);
-  if (typeof updateCombatUI === 'function') updateCombatUI();
+  if (window.mp.combatSpectator) renderSpectatorCombat(cs);
+  else if (typeof updateCombatUI === 'function') updateCombatUI();
+}
+
+function renderSpectatorCombat(cs) {
+  let panel = document.getElementById('combat-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'combat-panel';
+    panel.className = 'combat-panel';
+    document.body.appendChild(panel);
+  }
+  const currentId = cs.turnOrder?.[cs.currentTurnIndex];
+  const current = cs.combatants?.[currentId];
+  const living = Object.values(cs.combatants || {}).filter(combatant => combatant.hp > 0);
+  panel.innerHTML = `
+    <div class="cp-combat-header">
+      <span class="cp-round">Round ${Number(cs.round) || 1}</span>
+      <div class="cp-whose-turn"><span>👁 SPECTATING — ${esc(current?.name || 'Combat')}</span></div>
+    </div>
+    <div class="cp-enemies">${living.map(combatant => {
+      const hp = combatant.boss ? '??? HP' : `${Math.max(0, combatant.hp)}/${combatant.maxHp}`;
+      return `<div class="combat-enemy ${combatant.isPlayer ? 'player' : ''}">
+        <div class="ce-portrait ce-portrait-icon">${esc(combatant.icon || (combatant.isPlayer ? '⚔' : '👹'))}</div>
+        <div class="ce-info"><span class="ce-name">${esc(combatant.name)}</span><span class="ce-hp-num">${hp}</span></div>
+      </div>`;
+    }).join('')}</div>
+    <div class="cp-enemy-thinking">You joined during this encounter and will enter combat next time.</div>`;
 }
 
 // ─── SESSION UI ───────────────────────────────
@@ -688,7 +1109,7 @@ function showMPWaitingScreen(playerName) {
       <div id="waiting-players" class="player-slots" style="margin:16px 0">
         <div class="player-slot filled">
           <span class="ps-icon">👤</span>
-          <span class="ps-name">${playerName}</span>
+          <span class="ps-name">${esc(playerName)}</span>
           <span class="ps-status">Waiting...</span>
         </div>
       </div>
@@ -719,7 +1140,7 @@ function updateSessionUI() {
     waitEl.innerHTML = Object.values(s.players).map(p => `
       <div class="player-slot filled ${!p.connected ? 'dim' : ''}">
         <span class="ps-icon">${p.ready ? '✓' : '👤'}</span>
-        <span class="ps-name">${p.name}</span>
+        <span class="ps-name">${esc(p.name)}</span>
         <span class="ps-status" style="color:${p.ready ? '#4a9a6a' : 'var(--text-dim)'}">
           ${p.ready ? 'Ready' : 'Waiting...'}
         </span>
@@ -737,7 +1158,7 @@ function updatePartyPanel() {
     const isMe = p.id === window.mp.playerId;
     return `<div class="pm-slot ${isMe ? 'me' : ''} ${!p.connected ? 'disconnected' : ''}">
       <div class="pm-name">
-        <span>${cls?.icon || '👤'} ${p.name}${isMe ? ' (You)' : ''}</span>
+        <span>${cls?.icon || '👤'} ${esc(p.name)}${isMe ? ' (You)' : ''}</span>
         <span style="color:var(--text-dim);font-size:0.7rem">${p.hp ?? '?'}/${p.maxHp ?? '?'}</span>
       </div>
       ${p.maxHp ? `<div class="pm-hp-bar"><div class="pm-hp-fill" style="width:${pct}%;background:${col}"></div></div>` : ''}
@@ -751,8 +1172,8 @@ function renderChatMessage(msg) {
   const d = document.createElement('div');
   d.className = 'chat-msg' + (msg.system ? ' system' : '');
   d.innerHTML = msg.system
-    ? `<span style="color:var(--text-dim);font-style:italic">${msg.text}</span>`
-    : `<span class="chat-from">${msg.from}:</span> <span class="chat-text">${msg.text}</span>`;
+    ? `<span style="color:var(--text-dim);font-style:italic">${esc(msg.text)}</span>`
+    : `<span class="chat-from">${esc(msg.from)}:</span> <span class="chat-text">${esc(msg.text)}</span>`;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
 }

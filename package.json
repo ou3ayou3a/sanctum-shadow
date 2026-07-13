@@ -2,7 +2,11 @@
   "name": "sanctum-shadow",
   "version": "2.0.0",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "npm test && node --check server.js && node --check lib/party-rules.js && node --check lib/session-security.js && node --check lib/session-store.js && node --check lib/world-presence.js && node --check site/rules.js && node --check site/schema.js && node --check site/quests.js && node --check site/ui.js && node --check site/game.js && node --check site/story.js && node --check site/combat.js && node --check site/saves.js && node --check site/multiplayer.js && node --check site/vaelthar-integration.js && node --check site/world3d/world-engine.js && node --check site/world3d/character-actor.js && node --check site/world3d/class-equipment.js && node --check site/world3d/npc-manager.js && node --check site/world3d/combat-controller.js && node --check site/world3d/ability-effects.js && node --check site/world3d/party-manager.js && node --check site/world3d/cinematic-director.js && node --check site/world3d/chronicle-adapter.js && node --check site/world3d/world-polish.js && node --check site/world3d/vaelthar-npcs.mjs && node --check site/world3d/zones/zone-profiles.mjs && node --check site/world3d/zones/vaelthar-courtyard.js && node --check site/world3d/zones/generic-zone.js && node --check site/world3d/zone-registry.js && node --check site/world3d/bootstrap.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.4"

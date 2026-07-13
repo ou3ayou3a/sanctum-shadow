@@ -430,15 +430,21 @@ function canUnlockSkill(char, skillId) {
     return { can: false, reason: `Need ${skill.cost} skill points (have ${char.skillPoints || 0})` };
   }
 
-  // Must be in chosen tree OR the base tree matches their chosen tree
-  // Player can only unlock skills in their chosen tree
+  // #81: skill trees mix at level 5 and 10 (per the rules screen's promise).
+  // Chosen tree is always open. Off-tree skills unlock at L5 (tiers 1-3) and L10 (tiers 4-5).
   const chosenTree = char.tree;
   const clsTreeData = SKILL_TREES[cls];
-  const skillTree = Object.keys(clsTreeData).find(treeId => 
+  const skillTree = Object.keys(clsTreeData).find(treeId =>
     clsTreeData[treeId].skills.some(s => s.id === skillId)
   );
   if (skillTree && chosenTree && skillTree !== chosenTree) {
-    return { can: false, reason: 'Not in your chosen skill tree' };
+    const lvl = char.level || 1;
+    if (lvl < 5) {
+      return { can: false, reason: 'Mix other trees at level 5' };
+    }
+    if ((skill.tier || 1) >= 4 && lvl < 10) {
+      return { can: false, reason: 'Higher off-tree skills unlock at level 10' };
+    }
   }
 
   return { can: true };
@@ -509,43 +515,66 @@ function renderSkillTreeSheet() {
   const chosenTree = char.tree;
   const points = char.skillPoints || 0;
 
+  const lvl = char.level || 1;
+  const esc = window.escapeHtml || (s => s);
+
   let html = `<div class="skt-header">
-    <span class="skt-points">${points > 0 ? `<span style="color:#8bc87a;animation:pulse 1s infinite">✨ ${points} point${points!==1?'s':''} to spend</span>` : `<span style="color:var(--text-dim)">0 points available</span>`}</span>
+    <span class="skt-points">${points > 0 ? `<span style="color:#8bc87a;animation:pulseGlow 1.5s infinite">✨ ${points} point${points!==1?'s':''} to spend</span>` : `<span style="color:var(--text-dim)">0 points available</span>`}</span>
   </div>`;
 
-  // Only show the chosen tree
-  const tree = treeData[chosenTree];
-  if (!tree) {
-    container.innerHTML = '<div style="color:var(--text-dim)">Select a skill tree at character creation.</div>';
-    return;
+  // #81: render ALL trees for this class. The chosen tree is fully open; other trees
+  // open for mixing at level 5 (tiers 1-3) and level 10 (tiers 4-5).
+  const treeIds = Object.keys(treeData);
+  if (!chosenTree) {
+    html += '<div style="color:var(--text-dim);margin-bottom:8px">Select a skill tree at character creation.</div>';
   }
+  const mixNote = lvl < 5
+    ? `<span class="skt-mix-note">🔒 Mix other trees at Lv5 & Lv10</span>`
+    : lvl < 10
+      ? `<span class="skt-mix-note">🔓 Other trees open (tiers I–III). Tiers IV–V at Lv10.</span>`
+      : `<span class="skt-mix-note">🔓 Full hybrid access unlocked.</span>`;
+  html += `<div class="skt-mix-row">${mixNote}</div>`;
 
-  html += `<div class="skt-tree">
-    <div class="skt-tree-name">${tree.icon} ${tree.name}</div>
-    <div class="skt-skills-row">`;
+  treeIds.forEach(treeId => {
+    const tree = treeData[treeId];
+    const isChosen = treeId === chosenTree;
 
-  tree.skills.forEach((skill, i) => {
-    const isUnlocked = unlocked.has(skill.id);
-    const { can } = canUnlockSkill(char, skill.id);
-    const prereqUnlocked = !skill.requires || unlocked.has(skill.requires);
+    html += `<div class="skt-tree ${isChosen ? '' : 'off-tree'}">
+      <div class="skt-tree-name">${tree.icon} ${esc(tree.name)}${isChosen ? ' <span class="skt-chosen-tag">PRIMARY</span>' : ''}</div>
+      <div class="skt-skills-row">`;
 
-    let state = 'locked';
-    if (isUnlocked) state = 'unlocked';
-    else if (can) state = 'available';
-    else if (prereqUnlocked && points < skill.cost) state = 'need-points';
+    tree.skills.forEach((skill, i) => {
+      const isUnlocked = unlocked.has(skill.id);
+      const { can } = canUnlockSkill(char, skill.id);
+      const prereqUnlocked = !skill.requires || unlocked.has(skill.requires);
 
-    html += `
-      <div class="skt-skill-wrap">
-        ${i > 0 ? '<div class="skt-connector"></div>' : ''}
-        <div class="skt-skill ${state}" onclick="unlockSkill('${skill.id}')" title="${skill.desc}">
-          <div class="skt-skill-icon">${skill.icon}</div>
-          <div class="skt-skill-name">${skill.name}</div>
-          <div class="skt-skill-cost">${isUnlocked ? '✓' : `${skill.cost}pt`}</div>
-        </div>
-      </div>`;
+      // Gate check for off-tree skills (independent of points/prereqs) for display.
+      let offTreeGated = false;
+      if (!isChosen && !isUnlocked) {
+        if (lvl < 5) offTreeGated = true;
+        else if ((skill.tier || 1) >= 4 && lvl < 10) offTreeGated = true;
+      }
+
+      let state = 'locked';
+      if (isUnlocked) state = 'unlocked';
+      else if (offTreeGated) state = 'locked';
+      else if (can) state = 'available';
+      else if (prereqUnlocked && points < skill.cost) state = 'need-points';
+
+      html += `
+        <div class="skt-skill-wrap">
+          ${i > 0 ? '<div class="skt-connector"></div>' : ''}
+          <div class="skt-skill ${state}" onclick="unlockSkill('${skill.id}')" title="${esc(skill.desc)}">
+            <div class="skt-skill-icon">${skill.icon}</div>
+            <div class="skt-skill-name">${esc(skill.name)}</div>
+            <div class="skt-skill-cost">${isUnlocked ? '✓' : (offTreeGated ? '🔒' : `${skill.cost}pt`)}</div>
+          </div>
+        </div>`;
+    });
+
+    html += `</div></div>`;
   });
 
-  html += `</div></div>`;
   container.innerHTML = html;
 }
 window.renderSkillTreeSheet = renderSkillTreeSheet;
@@ -583,6 +612,11 @@ const skillTreeCSS = `
 .skt-skill.unlocked .skt-skill-cost { color:#8bc87a; }
 .skt-skill.available .skt-skill-cost { color:#8bc87a; }
 @keyframes pulseGlow { 0%,100%{box-shadow:0 0 4px rgba(139,200,122,0.3)} 50%{box-shadow:0 0 12px rgba(139,200,122,0.6)} }
+.skt-mix-row { margin-bottom:10px; }
+.skt-mix-note { font-family:'IM Fell English','Palatino',serif; font-size:0.62rem; color:var(--text-dim); font-style:italic; }
+.skt-tree.off-tree { opacity:0.92; border-top:1px dashed rgba(201,168,76,0.12); padding-top:8px; margin-top:4px; }
+.skt-tree.off-tree .skt-tree-name { color:rgba(201,168,76,0.65); }
+.skt-chosen-tag { font-size:0.5rem; color:#8bc87a; border:1px solid rgba(139,200,122,0.4); padding:1px 5px; border-radius:8px; letter-spacing:0.08em; margin-left:6px; }
 `;
 const stStyle = document.createElement('style');
 stStyle.textContent = skillTreeCSS;

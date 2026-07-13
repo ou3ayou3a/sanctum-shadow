@@ -1,0 +1,15 @@
+export const VAELTHAR_NPCS=Object.freeze([
+  Object.freeze({id:'captain_rhael',name:'Captain Rhael',title:'Captain of the Watch',position:[3,0,-4.5],facing:2.7,race:'human',classId:'warrior',action:'dialogue'}),
+  Object.freeze({id:'trembling_scribe',name:'Aldis',title:'The Trembling Scribe',position:[-17,0,-1],facing:1.4,race:'human',classId:'mage',action:'dialogue'}),
+  Object.freeze({id:'sister_mourne',name:'Sister Mourne',title:'The Candle · Inquisitor',position:[13,0,-8],facing:2.8,race:'human',classId:'cleric',action:'dialogue'}),
+  Object.freeze({id:'screaming_preacher',name:'Brother Lect',title:'The Screaming Preacher',position:[19,0,-8],facing:-2.5,race:'human',classId:'cleric',action:'dialogue'}),
+  Object.freeze({id:'guard_north_1',dialogueId:'vaelthar_guard',name:'Watchman',title:'Royal Guard',position:[-3,0,-22],facing:0,race:'human',classId:'warrior',action:'dialogue',patrol:[[-3,-22],[-6,-12],[-3,-7]]}),
+  Object.freeze({id:'guard_north_2',dialogueId:'vaelthar_guard',name:'Watchman',title:'Royal Guard',position:[3,0,-22],facing:0,race:'orc',classId:'paladin',action:'dialogue',patrol:[[3,-22],[6,-12],[4,-7]]}),
+  Object.freeze({id:'guard_square',dialogueId:'vaelthar_guard',name:'Watchman',title:'Square Patrol',position:[-6,0,5],facing:1.2,race:'dwarf',classId:'warrior',action:'dialogue',patrol:[[-6,5],[-6,10],[0,12],[5,7]]}),
+  Object.freeze({id:'old_brennan',name:'Old Brennan',title:'Market Merchant',position:[7,0,10],facing:1.3,race:'human',classId:'rogue',action:'shop'}),
+  Object.freeze({id:'lyra_innkeeper',name:'Lyra',title:'Keeper of the Cup',position:[-18.6,0,14.6],facing:1.4,race:'human',classId:'ranger',action:'dialogue'}),
+  Object.freeze({id:'drunk_cartographer',name:'The Cartographer',title:'Deep in His Cups',position:[-15.5,0,11],facing:-.4,race:'human',classId:'mage',action:'dialogue'}),
+  Object.freeze({id:'nervous_merchant',name:'Nervous Merchant',title:'By the Hearth',position:[-13.5,0,13],facing:-1.5,race:'human',classId:'rogue',action:'dialogue'}),
+  Object.freeze({id:'cloaked_figure_1',name:'Cloaked Figure',title:'A Hushed Argument',position:[-17.7,0,10.2],facing:2.4,race:'dark_elf',classId:'rogue',action:'dialogue'}),
+  Object.freeze({id:'cloaked_figure_2',name:'Cloaked Figure',title:'“The Candle Did It”',position:[-16.2,0,10.2],facing:-2.4,race:'human',classId:'rogue',action:'dialogue'}),
+]);
