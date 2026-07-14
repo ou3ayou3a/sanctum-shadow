@@ -8,6 +8,7 @@ const architectureSource=fs.readFileSync(path.join(__dirname,'../site/world3d/ar
 const genericSource=fs.readFileSync(path.join(__dirname,'../site/world3d/zones/generic-zone.js'),'utf8');
 const vaeltharSource=fs.readFileSync(path.join(__dirname,'../site/world3d/zones/vaelthar-courtyard.js'),'utf8');
 const assetSliceSource=fs.readFileSync(path.join(__dirname,'../site/world3d/vaelthar-asset-slice.mjs'),'utf8');
+const productionSource=fs.readFileSync(path.join(__dirname,'../site/world3d/production-assets.mjs'),'utf8');
 const worldCss=fs.readFileSync(path.join(__dirname,'../site/world3d.css'),'utf8');
 
 test('the reusable world kit exposes every planned architectural category',()=>{
@@ -23,13 +24,15 @@ test('solid architecture registers navigation obstacles and semantic scene names
   for(const builder of['house','wall','tower','castle','temple','crypt'])assert.match(architectureSource,new RegExp(`function ${builder}\\([\\s\\S]*?obstacle\\(`));
 });
 
-test('generic zones keep procedural fallbacks while Vaelthar uses authored assets for its hero slice',()=>{
+test('generic zones keep procedural fallbacks while hero structures use Blender production assets',()=>{
   assert.match(genericSource,/createArchitectureKit/);
   assert.match(vaeltharSource,/createArchitectureKit/);
   assert.match(vaeltharSource,/buildVaeltharAssetSlice/);
-  for(const call of['architecture.wall','architecture.ruin'])assert.match(vaeltharSource,new RegExp(call.replace('.','\\.')));
-  for(const model of['House_1','Inn','Bell_Tower','Blacksmith'])assert.match(assetSliceSource,new RegExp(model));
-  for(const call of['nature.tree','nature.undergrowth','architecture.bridge','architecture.castle','architecture.ruin','architecture.crypt'])assert.match(genericSource,new RegExp(call.replace('.','\\.')));
+  assert.match(vaeltharSource,/architecture\.wall/);
+  for(const model of['house_a','house_b','house_c','tavern','merchant_shop','temple','city_gatehouse','castle_keep','ancient_ruin','cave_entrance'])assert.match(assetSliceSource,new RegExp(model));
+  for(const model of['tavern_interior','shop_interior','temple_interior','castle_interior','house_interior','dungeon_interior'])assert.match(productionSource,new RegExp(model));
+  assert.match(genericSource,/placeProductionAsset/);
+  for(const call of['nature.tree','nature.undergrowth','nature.rockFormation','nature.fogBank'])assert.match(genericSource,new RegExp(call.replace('.','\\.')));
 });
 
 test('the legacy text-scene artwork cannot cover the active 3D canvas',()=>{

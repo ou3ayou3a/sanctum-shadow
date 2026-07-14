@@ -1,0 +1,476 @@
+{
+  "version": 1,
+  "assets": {
+    "house_a": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/house_a.glb",
+      "footprint": [
+        6.4,
+        5.0
+      ],
+      "interactive": [],
+      "bytes": 733448
+    },
+    "house_b": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/house_b.glb",
+      "footprint": [
+        7.2,
+        5.6
+      ],
+      "interactive": [],
+      "bytes": 733572
+    },
+    "house_c": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/house_c.glb",
+      "footprint": [
+        5.8,
+        4.8
+      ],
+      "interactive": [],
+      "bytes": 387544
+    },
+    "merchant_shop": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/merchant_shop.glb",
+      "footprint": [
+        7.4,
+        5.8
+      ],
+      "interactive": [
+        "door",
+        "shop"
+      ],
+      "bytes": 750632
+    },
+    "tavern": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/tavern.glb",
+      "footprint": [
+        9.2,
+        9.0
+      ],
+      "interactive": [
+        "door",
+        "tavern"
+      ],
+      "bytes": 795296
+    },
+    "temple": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/temple.glb",
+      "footprint": [
+        11.5,
+        9.0
+      ],
+      "interactive": [
+        "door",
+        "temple"
+      ],
+      "bytes": 253424
+    },
+    "castle_tower": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/castle_tower.glb",
+      "footprint": [
+        5.0,
+        5.0
+      ],
+      "interactive": [],
+      "bytes": 649560
+    },
+    "city_gatehouse": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/city_gatehouse.glb",
+      "footprint": [
+        11.5,
+        5.2
+      ],
+      "interactive": [
+        "gate"
+      ],
+      "bytes": 1603320
+    },
+    "castle_wall": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/castle_wall.glb",
+      "footprint": [
+        9.5,
+        2.0
+      ],
+      "interactive": [],
+      "bytes": 246328
+    },
+    "castle_keep": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/castle_keep.glb",
+      "footprint": [
+        12.0,
+        10.0
+      ],
+      "interactive": [
+        "door",
+        "castle"
+      ],
+      "bytes": 863152
+    },
+    "stone_bridge": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/stone_bridge.glb",
+      "footprint": [
+        5.0,
+        9.5
+      ],
+      "interactive": [],
+      "bytes": 291852
+    },
+    "crypt": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/crypt.glb",
+      "footprint": [
+        7.0,
+        6.0
+      ],
+      "interactive": [
+        "door",
+        "crypt"
+      ],
+      "bytes": 71284
+    },
+    "ancient_ruin": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/ancient_ruin.glb",
+      "footprint": [
+        8.0,
+        7.0
+      ],
+      "interactive": [],
+      "bytes": 80712
+    },
+    "cave_entrance": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/cave_entrance.glb",
+      "footprint": [
+        8.0,
+        5.0
+      ],
+      "interactive": [
+        "cave"
+      ],
+      "bytes": 30412
+    },
+    "oak_tree": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/oak_tree.glb",
+      "footprint": [
+        3.5,
+        3.5
+      ],
+      "interactive": [],
+      "bytes": 82228
+    },
+    "forest_tree": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/forest_tree.glb",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "interactive": [],
+      "bytes": 82128
+    },
+    "dead_tree": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/dead_tree.glb",
+      "footprint": [
+        2.5,
+        2.5
+      ],
+      "interactive": [],
+      "bytes": 68560
+    },
+    "tavern_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/tavern_interior.glb",
+      "footprint": [
+        12,
+        9
+      ],
+      "interactive": [
+        "bar",
+        "tables",
+        "fireplace"
+      ],
+      "bytes": 605836
+    },
+    "shop_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/shop_interior.glb",
+      "footprint": [
+        9,
+        7
+      ],
+      "interactive": [
+        "counter",
+        "shelves"
+      ],
+      "bytes": 108664
+    },
+    "temple_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/temple_interior.glb",
+      "footprint": [
+        12,
+        12
+      ],
+      "interactive": [
+        "altar",
+        "sacred_flame"
+      ],
+      "bytes": 201428
+    },
+    "castle_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/castle_interior.glb",
+      "footprint": [
+        15,
+        14
+      ],
+      "interactive": [
+        "throne",
+        "banners"
+      ],
+      "bytes": 126704
+    },
+    "house_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/house_interior.glb",
+      "footprint": [
+        7.5,
+        6.5
+      ],
+      "interactive": [
+        "hearth",
+        "bed"
+      ],
+      "bytes": 117116
+    },
+    "dungeon_interior": {
+      "category": "interiors",
+      "url": "world3d/assets/production/interiors/dungeon_interior.glb",
+      "footprint": [
+        14,
+        16
+      ],
+      "interactive": [
+        "cells",
+        "torches"
+      ],
+      "bytes": 250708
+    },
+    "greatsword": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/greatsword.glb",
+      "footprint": [
+        22,
+        3
+      ],
+      "interactive": [],
+      "bytes": 42380
+    },
+    "mace": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/mace.glb",
+      "footprint": [
+        18,
+        18
+      ],
+      "interactive": [],
+      "bytes": 66860
+    },
+    "shield": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/shield.glb",
+      "footprint": [
+        36,
+        5
+      ],
+      "interactive": [],
+      "bytes": 81596
+    },
+    "holy_staff": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/holy_staff.glb",
+      "footprint": [
+        16,
+        16
+      ],
+      "interactive": [],
+      "bytes": 64320
+    },
+    "arcane_staff": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/arcane_staff.glb",
+      "footprint": [
+        16,
+        16
+      ],
+      "interactive": [],
+      "bytes": 64304
+    },
+    "dagger": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/dagger.glb",
+      "footprint": [
+        11,
+        3
+      ],
+      "interactive": [],
+      "bytes": 42380
+    },
+    "bow": {
+      "category": "equipment",
+      "url": "world3d/assets/production/equipment/bow.glb",
+      "footprint": [
+        46,
+        10
+      ],
+      "interactive": [],
+      "bytes": 22516
+    },
+    "character_human": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/human.glb",
+      "race": "human",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 1857180
+    },
+    "character_dwarf": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/dwarf.glb",
+      "race": "dwarf",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 1982372
+    },
+    "character_elf": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/elf.glb",
+      "race": "elf",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 2048896
+    },
+    "character_high_elf": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/high_elf.glb",
+      "race": "high_elf",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 2133712
+    },
+    "character_dark_elf": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/dark_elf.glb",
+      "race": "dark_elf",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 2198944
+    },
+    "character_orc": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/orc.glb",
+      "race": "orc",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 2235416
+    },
+    "character_goblin": {
+      "category": "characters",
+      "url": "world3d/assets/production/characters/goblin.glb",
+      "race": "goblin",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "Attack_Slash",
+        "Attack_Smite",
+        "Cast",
+        "Bow_Shot",
+        "Block",
+        "Dodge",
+        "Hit",
+        "Death"
+      ],
+      "bytes": 2302944
+    }
+  }
+}

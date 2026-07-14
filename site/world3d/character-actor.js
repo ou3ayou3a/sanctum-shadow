@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getRaceProfile } from './race-profiles.mjs';
 import { getClassProfile } from './class-profiles.mjs';
 import { equipClass,applyClassPose } from './class-equipment.js';
+import { productionRaceModel } from './production-assets.mjs';
 
 const MODEL_CACHE=new Map();
 async function loadModelTemplate(url){if(!MODEL_CACHE.has(url))MODEL_CACHE.set(url,new GLTFLoader().loadAsync(url).catch(error=>{MODEL_CACHE.delete(url);throw error;}));return MODEL_CACHE.get(url);}
@@ -11,22 +12,30 @@ async function loadModelTemplate(url){if(!MODEL_CACHE.has(url))MODEL_CACHE.set(u
 export class CharacterActor extends THREE.Group {
   constructor({ modelUrl, race = 'human', characterClass = 'warrior', scale = 1, rotationOffset = Math.PI } = {}) {
     super();
-    this.modelUrl = modelUrl; this.modelScale = scale; this.rotationOffset = rotationOffset;this.profile=getRaceProfile(race);this.race=this.profile.id;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.actionTime=0;this.actionDuration=.72;
+    this.profile=getRaceProfile(race);this.race=this.profile.id;this.modelUrl=productionRaceModel(this.race,modelUrl);this.productionModel=this.modelUrl.includes('/assets/production/characters/');this.modelScale = scale; this.rotationOffset = rotationOffset;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.actionTime=0;this.actionDuration=.72;
     this.mixer = null; this.actions = {}; this.activeAction = null; this.state = 'loading';
     this.path = []; this.speed = 2.5; this.arrivalRadius = .12; this.onArrive = null;
   }
 
   async load() {
     const template=await loadModelTemplate(this.modelUrl);const gltf={scene:cloneSkeleton(template.scene),animations:template.animations};
-    this.model = gltf.scene;const [width,height,depth]=this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
+    this.model = gltf.scene;const [width,height,depth]=this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
     const tint=new THREE.Color(this.profile.materialTint);
     this.model.traverse(o => { if (o.isMesh) {o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];for(const material of materials){if(material.color)material.color.multiply(tint);material.envMapIntensity=1.15;material.needsUpdate=true;}o.castShadow = true; o.receiveShadow = true; } });
-    this.add(this.model);this.applyRaceDetails();this.addSelectionRing();equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
+    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();this.addSelectionRing();await equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
     for (const clip of gltf.animations) {
       const name = clip.name.toLowerCase();
       if (name.includes('idle')) this.actions.idle = this.mixer.clipAction(clip);
       else if (name.includes('walk')) this.actions.walk = this.mixer.clipAction(clip);
       else if (name.includes('run')) this.actions.run = this.mixer.clipAction(clip);
+      else if (name.includes('death')) this.actions.death = this.mixer.clipAction(clip);
+      else if (name.includes('hit')) this.actions.hit = this.mixer.clipAction(clip);
+      else if (name.includes('dodge')) this.actions.dodge = this.mixer.clipAction(clip);
+      else if (name.includes('block')) this.actions.block = this.mixer.clipAction(clip);
+      else if (name.includes('bow')) this.actions.bow_shot = this.mixer.clipAction(clip);
+      else if (name.includes('cast')) this.actions.cast = this.mixer.clipAction(clip);
+      else if (name.includes('smite')) this.actions.attack_smite = this.mixer.clipAction(clip);
+      else if (name.includes('attack')||name.includes('slash')) this.actions.attack_slash = this.mixer.clipAction(clip);
     }
     this.setState('idle', true);
     return this;
@@ -74,11 +83,13 @@ export class CharacterActor extends THREE.Group {
     this.path.length = 0; this.setState('idle');
   }
 
-  playPrimaryAction(){if(!this.model||this.actionTime>0)return false;this.stop();this.actionTime=this.actionDuration;this.dispatchEvent({type:'classaction',action:this.classProfile.action});return true;}
+  actionForClass(){if(this.classProfile.pose==='smite')return this.actions.attack_smite;if(this.classProfile.pose==='cast'||this.classProfile.pose==='channel')return this.actions.cast;if(this.classProfile.pose==='draw')return this.actions.bow_shot;return this.actions.attack_slash;}
+  playOneShot(name,{returnToIdle=true}={}){const action=this.actions[name];if(!action)return false;this.stop();action.reset().setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;action.fadeIn(.08).play();if(this.activeAction&&this.activeAction!==action)this.activeAction.fadeOut(.08);this.activeAction=action;this.state=name;const duration=Math.max(.35,action.getClip().duration);clearTimeout(this.oneShotTimer);if(returnToIdle)this.oneShotTimer=setTimeout(()=>{if(this.state===name)this.setState('idle',true);},duration*1000);return true;}
+  playPrimaryAction(){if(!this.model||this.actionTime>0)return false;this.stop();const action=this.actionForClass();this.actionTime=action?Math.max(.55,action.getClip().duration):this.actionDuration;this.currentActionDuration=this.actionTime;this.usingAuthoredAction=!!action;if(action){action.reset().setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;action.fadeIn(.08).play();if(this.activeAction&&this.activeAction!==action)this.activeAction.fadeOut(.08);this.activeAction=action;this.state='attack';}this.dispatchEvent({type:'classaction',action:this.classProfile.action,impactDelay:Math.min(.52,this.actionTime*.56)});return true;}
 
   update(dt) {
     if (this.mixer) this.mixer.update(dt);
-    if(this.actionTime>0){this.actionTime=Math.max(0,this.actionTime-dt);const progress=1-this.actionTime/this.actionDuration;applyClassPose(this,this.classProfile,progress);if(this.actionTime===0&&this.classAura)this.classAura.material.opacity=0;}
+    if(this.actionTime>0){this.actionTime=Math.max(0,this.actionTime-dt);const progress=1-this.actionTime/Math.max(.001,this.currentActionDuration||this.actionDuration);if(!this.usingAuthoredAction)applyClassPose(this,this.classProfile,progress);if(this.actionTime===0){this.usingAuthoredAction=false;if(this.classAura)this.classAura.material.opacity=0;this.setState('idle',true);}}
     if(this.selectionRing)this.selectionRing.rotation.z+=dt*.35;
     if (!this.path.length) return;
     const target = this.path[0]; const delta = target.clone().sub(this.position); delta.y = 0;
@@ -97,7 +108,7 @@ export class CharacterActor extends THREE.Group {
   }
 
   dispose() {
-    this.stop(); if (this.mixer) this.mixer.stopAllAction();
+    this.stop();clearTimeout(this.oneShotTimer); if (this.mixer) this.mixer.stopAllAction();
     this.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); });
   }
 }

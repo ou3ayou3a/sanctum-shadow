@@ -20,12 +20,12 @@ export class WorldEngine extends EventTarget {
   async initialize() {
     this.renderer=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); this.renderer.shadowMap.enabled=true; this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.08;this.renderer.outputColorSpace=THREE.SRGBColorSpace;
+    this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.camera=new THREE.PerspectiveCamera(44,1,.1,180);this.camera.position.set(7.2,7.2,9.2);
     this.controls=new OrbitControls(this.camera,this.canvas);this.controls.enableDamping=true;this.controls.enablePan=false;this.controls.minDistance=5.5;this.controls.maxDistance=18;this.controls.minPolarAngle=.42;this.controls.maxPolarAngle=1.12;
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x10201d);this.scene.fog=new THREE.FogExp2(0x10201d,.025);
-    this.scene.add(new THREE.HemisphereLight(0xa2c9c1,0x162018,1.8));
-    const moon=new THREE.DirectionalLight(0xd8e9e2,4);moon.position.set(-9,18,10);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);moon.shadow.camera.left=-24;moon.shadow.camera.right=24;moon.shadow.camera.top=24;moon.shadow.camera.bottom=-24;moon.shadow.bias=-.0003;this.scene.add(moon);
+    this.scene.add(new THREE.HemisphereLight(0xc4d4bd,0x30281f,2.35));
+    const moon=new THREE.DirectionalLight(0xffefd2,2.8);moon.position.set(-9,18,10);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);moon.shadow.camera.left=-24;moon.shadow.camera.right=24;moon.shadow.camera.top=24;moon.shadow.camera.bottom=-24;moon.shadow.bias=-.0003;this.scene.add(moon);
     this.zone=this.zoneFactory();if(this.zone.scene){this.scene.background=new THREE.Color(this.zone.scene.background);this.scene.fog=new THREE.FogExp2(this.zone.scene.fog,this.zone.scene.fogDensity??.025);}this.scene.add(this.zone.root);this.worldLabels=[];this.worldLabelPosition=new THREE.Vector3();this.zone.root.traverse(object=>{if(Array.isArray(object.userData?.worldLabelBase))this.worldLabels.push(object);});
     this.navigation=new NavigationGrid({...this.zone.bounds,cellSize:.75,obstacles:this.zone.obstacles});
     this.interactionObjects=this.zone.interactables.map(i=>i.object);

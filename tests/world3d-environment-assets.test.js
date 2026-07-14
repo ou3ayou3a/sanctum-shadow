@@ -16,7 +16,7 @@ test('environment loader caches OBJ, glTF, and FBX templates and upgrades lighti
   assert.match(loader,/receiveShadow=true/);
 });
 
-test('the Vaelthar slice has local authored city, forest, cave, and license assets',()=>{
+test('the legacy source pack remains available as a documented fallback',()=>{
   const required=[
     'assets/environment/medieval-village/House_1.obj',
     'assets/environment/medieval-village/Inn.obj',
@@ -26,8 +26,8 @@ test('the Vaelthar slice has local authored city, forest, cave, and license asse
     'assets/environment/ASSET_SOURCES.md'
   ];
   for(const file of required)assert.ok(fs.statSync(path.join(root,file)).size>0,file);
-  assert.match(slice,/seeded\(0x5a17c1\)/);
-  assert.match(slice,/authored:thornwood-cave/);
+  assert.match(slice,/productionAssetSpec/);
+  assert.match(slice,/production:thornwood-cave/);
 });
 
 test('authored environment runtime subset stays below the initial 40 MB budget',()=>{
