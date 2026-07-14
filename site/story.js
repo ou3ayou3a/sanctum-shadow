@@ -396,6 +396,9 @@ function executeSceneOption(index, resolutionKey) {
     if (window.DNDRules?.logCheck) window.DNDRules.logCheck(check, option.roll.dc);
     else addLog(`🎲 ${option.roll.stat} check DC${option.roll.dc}: [${roll}] ${check.modifier>=0?'+':'-'} ${Math.abs(check.modifier)} = ${total} — ${crit?'CRITICAL!':fumble?'FUMBLE!':success?'Success!':'Failure!'}`, 'dice');
     if (window.AudioEngine) AudioEngine.sfx?.dice();
+    window.applyClaudeEffects?.(success ? option.effects : option.failureEffects, {
+      reason:`${success ? 'Successful' : 'Failed'} scene check: ${option.label}`,
+    });
     // ── failCombat: a failed roll makes the present hostiles attack for real (Part 2) ──
     // Inside a personal-quest memory with no real threat there are no present-day
     // foes — skip the default city_guard spawn and let normal fail narration run (#7).
@@ -416,6 +419,7 @@ function executeSceneOption(index, resolutionKey) {
       else if (option.next) setTimeout(() => runScene(option.next + '_fail'), 600);
     }
   } else {
+    window.applyClaudeEffects?.(option.effects, { reason:`Scene choice: ${option.label}` });
     if (option.action) option.action();
     else if (option.next) setTimeout(() => runScene(option.next), 400);
   }
@@ -580,6 +584,8 @@ When the player initiates violence, OR hostiles attack, emit ONE option with typ
 
 Generate the NEXT scene that logically follows from the current story progression. Respond with raw JSON only (no markdown):
 {
+  "schemaVersion": 1,
+  "kind": "scene",
   "narration": "2-3 sentence atmospheric description of what happens next, consistent with story so far AND continuing from WHAT JUST HAPPENED",
   "sub": "1 sentence of what seems most pressing",
   "location": "${loc?.name}",
@@ -587,17 +593,23 @@ Generate the NEXT scene that logically follows from the current story progressio
   "facts": {"survivor_name": "Kael", "binding_broken": false},
   "threat": {"hostiles": [{"type": "city_guard", "count": 3, "level": 1}, {"type": "captain", "count": 1, "level": 2}], "imminent": true},
   "options": [
-    {"icon": "💬", "label": "Specific action 1", "type": "talk", "next": "scene_id"},
-    {"icon": "🔍", "label": "Specific action 2", "type": "explore", "next": "scene_id"},
-    {"icon": "⚔", "label": "Cut them down", "type": "combat", "enemies": [{"type": "city_guard", "count": 3, "level": 1}]}
+    {"icon": "💬", "label": "Specific action 1", "type": "talk", "check": {"skill":"persuasion","ability":"cha","dc":13}, "effects":{"flags":{"ai_guard_convinced":true},"facts":{"ai_guard_testimony":"The guard names the courier."},"reputation":[{"faction":"city_watch","delta":1}],"resources":{"hp":0,"holy":0,"hell":0,"xp":0},"items":{"add":[],"remove":[]},"questEvents":[]}, "failureEffects":{"flags":{"ai_guard_suspicious":true},"reputation":[{"faction":"city_watch","delta":-1}]}},
+    {"icon": "🔍", "label": "Specific action 2", "type": "explore", "check": null, "effects":{"facts":{"ai_archive_examined":true}}},
+    {"icon": "⚔", "label": "Cut them down", "type": "combat", "check":null, "enemies": [{"type": "city_guard", "count": 3, "level": 1}], "effects":{"reputation":[{"faction":"city_watch","delta":-5}]}}
   ]
 }
 
 FIELD RULES:
 - "facts": object of NEW facts to remember this turn (names, whether a binding broke, an alliance formed, etc.). Use {} if nothing new.
 - "threat": { "hostiles": [ {"type","count","level"} ], "imminent": true } when hostiles are present/threatening; null when the scene is peaceful.
+- Every object must match schemaVersion 1 and kind "scene". Do not add fields outside this example.
+- A check is null or {"skill":"skill_id","ability":"str|dex|con|int|wis|cha","dc":5-30}.
+- "effects" apply when an option has no check or its check succeeds. "failureEffects" apply only when its check fails.
+- Effects may contain only: flags, facts, reputation, resources, items, questEvents. Use {} for no change. Never award more than 250 XP, 10 soul points, 30 HP, 10 reputation, or 3 items.
+- Every AI-created flag or fact key must begin with ai_. Protected campaign flags are controlled only by authored quest events.
+- Quest events must describe events that actually happened, using scene:<id>, outcome:<id>, or combat:victory:<id>. Never mark a quest complete directly.
 - An option may be a combat option: {"icon":"⚔","label":"Cut them down","type":"combat","enemies":[{"type","count","level"}]}.
-- An option with a "roll" may also set "failCombat": true — failing the roll makes the hostiles attack.
+- An option with a "check" may also set "failCombat": true — failing the check makes the hostiles attack.
 - If the scene is peaceful, set "threat": null and DO NOT emit any combat option.`;
 
   try {
@@ -607,12 +619,16 @@ FIELD RULES:
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1000,
+        response_contract: "scene.v1",
         messages: [{ role: "user", content: prompt }]
       })
     });
     const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || `Claude request failed (${response.status})`);
     const raw = data.content?.map(i => i.text || '').join('').trim();
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    const validation = window.ClaudeContract?.parseAndValidate('scene.v1', raw);
+    if (!validation?.ok) throw new Error(`Invalid scene response: ${validation?.errors?.join('; ') || 'contract unavailable'}`);
+    const parsed = validation.value;
     // Keep AI continuations of a personal memory isolated (no MP voting, no
     // present-day NPC bleed) by re-stamping the personal flag.
     if (inPQ) parsed.personal = true;
@@ -627,11 +643,10 @@ FIELD RULES:
     }
 
     // Wire up options with AI continuation. Combat options start a REAL fight (Part 2).
-    parsed.options = (parsed.options || []).map(opt => ({
-      ...opt,
-      action: () => {
+    parsed.options = (parsed.options || []).map(opt => {
+      const resolveOption = success => {
         window.sceneState.history.push(opt.label);
-        if (opt.type === 'combat' || opt.enemies) {
+        if (success && (opt.type === 'combat' || opt.enemies)) {
           // Real combat — not narration. Resume the story after victory.
           window._postCombatContinue = `The fight is over. Context: ${parsed.narration || ''}. The player chose: "${opt.label}".`;
           const spec = opt.enemies || window.sceneState.currentThreat?.hostiles || [{ type: 'bandit', count: 1, level: 1 }];
@@ -639,13 +654,21 @@ FIELD RULES:
           if (window.startCombat) startCombat(window.buildEnemiesFromSpec(spec));
           return;
         }
-        // Non-combat: continue from the AI's OWN new narration + the chosen label (don't loop).
-        generateAIScene(`Continuing. Just happened: ${parsed.narration || ''}. Player chose: "${opt.label}".`);
-      }
-    }));
+        const outcome=opt.check ? (success ? 'SUCCEEDED' : 'FAILED') : 'required no check';
+        generateAIScene(`Continuing. Just happened: ${parsed.narration || ''}. Player chose: "${opt.label}". The choice ${outcome}. Apply the established result and move forward; do not repeat the choice.`);
+      };
+      return {
+        ...opt,
+        roll:opt.check ? { stat:opt.check.ability.toUpperCase(), skill:opt.check.skill, dc:opt.check.dc } : null,
+        action:opt.check ? null : () => resolveOption(true),
+        onSuccess:opt.check ? () => resolveOption(true) : null,
+        onFail:opt.check ? () => resolveOption(false) : null,
+      };
+    });
 
     showScene(parsed);
   } catch(e) {
+    console.warn('Structured Claude scene rejected; using deterministic continuation.', e?.message || e);
     // Fallback: log a neutral DM line instead of resetting to arrival scene
     addLog(`*The situation develops. You take stock of what you know and decide what matters most.*`, 'narrator');
   }

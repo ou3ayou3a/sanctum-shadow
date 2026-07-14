@@ -228,6 +228,58 @@ function initMultiplayer() {
     if (window.mp.session) window.mp.session.campaignState = state;
   });
 
+  function deliverConversationState(state) {
+    window.mp._conversationState = state || null;
+    if (gameState?.activeScreen === 'game' && typeof window.applyRemoteConversationState === 'function') {
+      window.applyRemoteConversationState(state);
+    }
+  }
+
+  socket.on('conversation_state', deliverConversationState);
+  socket.on('conversation_update', (event = {}) => {
+    const {type,payload = {},conversation = null} = event;
+    if (typeof type !== 'string') return;
+    window.mp._conversationState = conversation;
+
+    // Only the host may commit shared state or another player's character effects.
+    if (window.mp.isHost && type === 'effects' && payload.effects) {
+      const actorRecord=window.mp.session?.players?.[payload.actorId];
+      const character=payload.actorId===window.mp.playerId ? gameState.character : actorRecord?.character;
+      if (character) {
+        window.applyClaudeEffects?.(payload.effects,{character,reason:payload.reason||'Multiplayer dialogue'});
+        window.mpSyncHostCharacter?.(character,payload.actorId);
+        mpBroadcastStoryEvent('action_state',{actorId:payload.actorId,character:{hp:character.hp,mp:character.mp,holyPoints:character.holyPoints,hellPoints:character.hellPoints,conditions:character.conditions||[],gold:character.gold||0,inventory:character.inventory||[]}});
+        window.mpBroadcastCampaignState?.(`dialogue_effects:${payload.npcId||'npc'}`);
+      }
+      return;
+    }
+    if (window.mp.isHost && type === 'outcome') {
+      if(!window.applyRemoteNPCOutcome?.(payload)){
+        window.sceneState=window.sceneState||{flags:{},knownFacts:{}};window.sceneState.flags=window.sceneState.flags||{};window.sceneState.knownFacts=window.sceneState.knownFacts||{};
+        window.sceneState.flags[`talked_to_${payload.npcId}`]=true;window.sceneState.knownFacts[`npc_${payload.npcId}`]=String(payload.fact||'').slice(0,1200);
+      }
+      if(['captain_rhael','trembling_scribe'].includes(payload.npcId))window.advanceQuest?.('c1q1',`Questioned ${payload.npcName||'a witness'} about the broken Covenant.`);
+      window.mpBroadcastCampaignState?.(`npc:${payload.npcId}`);
+      return;
+    }
+    if(window.mp.isHost&&type==='scene_break'){
+      window._mpPendingConversationScene=String(payload.sceneName||'').slice(0,80);
+      return;
+    }
+    if (window.mp.isHost && type === 'check') {
+      window.sceneState=window.sceneState||{flags:{},knownFacts:{}};window.sceneState.flags=window.sceneState.flags||{};
+      const key=`dialogue_${payload.skill||payload.ability||'check'}_${payload.npcId||'npc'}_${payload.success?'success':'failure'}`;
+      window.sceneState.flags[key]=true;
+      const actorRecord=window.mp.session?.players?.[payload.actorId];
+      const character=payload.actorId===window.mp.playerId?gameState.character:actorRecord?.character;
+      if(payload.crit&&character)character.conditions=Array.from(new Set([...(character.conditions||[]),'inspired']));
+      if(character)window.mpSyncHostCharacter?.(character,payload.actorId);
+      window.mpBroadcastCampaignState?.(`dialogue_check:${payload.npcId||'npc'}`);
+    }
+
+    if (typeof window.applyRemoteConversationUpdate === 'function') window.applyRemoteConversationUpdate(event);
+  });
+
   // ── Error ──
   socket.on('join_error', ({ msg }) => {
     // If already in-game, don't boot to lobby — just show a warning toast
@@ -296,6 +348,9 @@ function initMultiplayer() {
           if (window.startStoryEngine) window.startStoryEngine();
         }, 1500);
       }
+      setTimeout(()=>{
+        if(window.mp._conversationState&&typeof window.applyRemoteConversationState==='function')window.applyRemoteConversationState(window.mp._conversationState);
+      },500);
     }
   });
 
@@ -394,132 +449,6 @@ function initMultiplayer() {
       window.grantQuestReward?.(String(payload.questId || ''), Number(payload.xp) || 0);
       window.renderPlayerCard?.();
     }
-    if (eventType === 'npc_outcome' && window.mp.isHost) {
-      setTimeout(() => {
-        window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
-        window.sceneState.flags = window.sceneState.flags || {};
-        window.sceneState.knownFacts = window.sceneState.knownFacts || {};
-        window.sceneState.flags[`talked_to_${payload.npcId}`] = true;
-        window.sceneState.knownFacts[`npc_${payload.npcId}`] = String(payload.fact || '').slice(0, 1200);
-        if (['captain_rhael','trembling_scribe'].includes(payload.npcId)) {
-          window.advanceQuest?.('c1q1', `Questioned ${payload.npcName || 'a witness'} about the broken Covenant.`);
-        }
-        mpBroadcastCampaignState(`npc:${payload.npcId}`);
-      }, 0);
-    }
-
-    // ── NPC Dialogue sync ──
-    if (eventType === 'conv_open') {
-      console.log('🎭 conv_open received:', payload);
-      addLog(`💬 ${payload.playerName} approaches ${payload.npcName}...`, 'action');
-      // Open panel for all observers immediately
-      document.getElementById('conv-panel')?.remove();
-      if (window.renderConvPanel) {
-        const npc = {
-          id: payload.npcId,
-          name: payload.npcName,
-          title: payload.npcTitle || '',
-          portrait: payload.npcPortrait || '🧑',
-          faction: payload.npcFaction || '',
-          disposition: payload.disposition || 'neutral',
-        };
-        window.renderConvPanel(npc);
-        // Show typing indicator — NPC response is coming
-        const typingEl = document.getElementById('cp-typing');
-        if (typingEl) typingEl.style.display = 'flex';
-        const optEl = document.getElementById('cp-options');
-        if (optEl) optEl.innerHTML = '<div class="cp-thinking">Waiting for response...</div>';
-        // Mark as observer — disable input
-        const input = document.getElementById('conv-input');
-        if (input) { input.placeholder = '👁 Observing — you can watch but not type'; input.disabled = true; }
-        const sendBtn = document.querySelector('.cp-send');
-        if (sendBtn) sendBtn.style.display = 'none';
-      } else {
-        console.warn('⚠ renderConvPanel not available yet');
-      }
-    }
-    if (eventType === 'conv_response') {
-      console.log('🎭 conv_response received');
-      window.dispatchEvent(new CustomEvent('npc:camera', { detail:{ shot:'npc' } }));
-      const lineEl = document.getElementById('cp-npc-line');
-      const typingEl = document.getElementById('cp-typing');
-      if (typingEl) typingEl.style.display = 'none';
-      if (lineEl) {
-        // Archive previous line to transcript
-        const transcript = document.getElementById('cp-transcript');
-        if (lineEl.textContent.trim() && transcript) {
-          const entry = document.createElement('div');
-          entry.className = 'cp-transcript-entry';
-          entry.textContent = lineEl.textContent;
-          transcript.appendChild(entry);
-          transcript.scrollTop = transcript.scrollHeight;
-        }
-        lineEl.innerHTML = '';
-
-        const text = (payload.text && typeof payload.text === 'string') ? payload.text : '';
-        if (!text) {
-          lineEl.textContent = '*The NPC considers their response...*';
-          return;
-        }
-        const speed = payload.typewriterSpeed || 14;
-        // Calculate how many chars the sender has already typed based on elapsed time
-        const elapsed = payload.startedAt ? (Date.now() - payload.startedAt) : 0;
-        const charsAlreadyTyped = Math.min(Math.floor(elapsed / speed), text.length);
-
-        // Start at the same character the sender is currently on
-        let i = charsAlreadyTyped;
-        lineEl.textContent = text.substring(0, i); // catch up instantly
-
-        const interval = setInterval(() => {
-          if (i < text.length) {
-            lineEl.textContent += text[i];
-            i++;
-          } else {
-            clearInterval(interval);
-            // #60: escape peer NPC speech BEFORE turning *asterisks* into <em>.
-            lineEl.innerHTML = esc(text).replace(/\*([^*]+)\*/g, '<em class="npc-action">$1</em>');
-            // Show read-only options
-            const optEl = document.getElementById('cp-options');
-            if (optEl && Array.isArray(payload.options) && payload.options.length) {
-              optEl.innerHTML = payload.options.map(o =>
-                `<button class="cp-option" style="opacity:0.6;cursor:default;pointer-events:none">${esc(o?.text || o?.label || '')}</button>`
-              ).join('');
-            }
-          }
-        }, speed);
-      }
-    }
-    if (eventType === 'conv_player_action') {
-      window.dispatchEvent(new CustomEvent('npc:camera', { detail:{ shot:'player' } }));
-      // Swap portrait to show who is speaking
-      if (typeof updateConvPlayerPortrait === 'function') {
-        updateConvPlayerPortrait(payload.playerName, payload.character || null);
-      }
-      // Show that the active player said something — show typing indicator
-      const typingEl = document.getElementById('cp-typing');
-      if (typingEl) typingEl.style.display = 'flex';
-      const optEl = document.getElementById('cp-options');
-      if (optEl) optEl.innerHTML = `<div class="cp-thinking">${esc(payload.playerName)} said: "${esc(payload.text)}" — waiting for response...</div>`;
-      // Archive previous NPC line to transcript
-      const lineEl = document.getElementById('cp-npc-line');
-      const transcript = document.getElementById('cp-transcript');
-      if (lineEl?.textContent.trim() && transcript) {
-        const entry = document.createElement('div');
-        entry.className = 'cp-transcript-entry';
-        entry.textContent = lineEl.textContent;
-        transcript.appendChild(entry);
-        transcript.scrollTop = transcript.scrollHeight;
-        lineEl.textContent = '';
-      }
-    }
-    if (eventType === 'conv_check' && typeof window.showDialogueCheck === 'function') {
-      window.showDialogueCheck(payload, true);
-    }
-    if (eventType === 'conv_close') {
-      const p = document.getElementById('conv-panel');
-      if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
-    }
-
     // ── Inter-party contested rolls ──
     if (eventType === 'contest_challenge') {
       // Someone is challenging ME to a contested roll
@@ -810,13 +739,34 @@ function mpRequestAction(text, options = {}) {
   return { pending:true, authoritative:false };
 }
 
+function mpBeginConversation(payload = {}) {
+  if(!window.mp?.socket||!window.mp.sessionCode)return Promise.resolve({ok:true,conversation:null});
+  return new Promise(resolve=>{
+    let settled=false;
+    const timer=setTimeout(()=>{if(!settled){settled=true;resolve({ok:false,error:'The conversation server did not respond.'});}},5000);
+    window.mp.socket.emit('conversation_open',{code:window.mp.sessionCode,payload},response=>{
+      if(settled)return;settled=true;clearTimeout(timer);resolve(response&&typeof response==='object'?response:{ok:false,error:'Conversation request failed.'});
+    });
+  });
+}
+
+function mpSendConversationUpdate(type,payload={}){
+  if(!window.mp?.socket||!window.mp.sessionCode)return false;
+  const conversationId=payload.conversationId||window.npcConvState?.conversationId||window.mp._conversationState?.id;
+  if(!conversationId)return false;
+  window.mp.socket.emit('conversation_update',{code:window.mp.sessionCode,type,payload:{...payload,conversationId}},response=>{
+    if(response?.ok===false)console.warn('Conversation update rejected:',response.error);
+  });
+  return true;
+}
+
 function mpNotifyNPCOutcome(npc, speech) {
   if (!window.mp?.sessionCode || !npc) return;
   if (window.mp.isHost) {
     mpBroadcastCampaignState(`npc:${npc.id}`);
     return;
   }
-  mpBroadcastStoryEvent('npc_outcome', {
+  mpSendConversationUpdate('outcome', {
     npcId:npc.id, npcName:npc.name,
     fact:String(speech || '').slice(0, 1200),
     playerId:window.mp.playerId,
@@ -840,6 +790,8 @@ window.buildCampaignState = buildCampaignState;
 window.applyCampaignState = applyCampaignState;
 window.mpBroadcastCampaignState = mpBroadcastCampaignState;
 window.mpRequestAction = mpRequestAction;
+window.mpBeginConversation = mpBeginConversation;
+window.mpSendConversationUpdate = mpSendConversationUpdate;
 window.mpNotifyNPCOutcome = mpNotifyNPCOutcome;
 window.mpSyncHostCharacter = mpSyncHostCharacter;
 

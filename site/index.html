@@ -17,7 +17,7 @@ window.mpBroadcastStoryEvent = function(eventType, payload) {
 window.mp = window.mp || { sessionCode: null, socket: null, connected: false, playerId: null, isHost: false, session: null, combatState: null, _receiving: false };
 </script>
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
-<link rel="stylesheet" href="world3d.css?v=111">
+<link rel="stylesheet" href="world3d.css?v=117">
 </head>
 <body>
 <div id="app">
@@ -437,17 +437,19 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
 <script src="data.js?v=92"></script>
 <script src="rules.js?v=93"></script>
 <script src="schema.js?v=97"></script>
+<script src="claude-contract.js?v=1"></script>
+<script src="claude-effects.js?v=1"></script>
 <script src="quests.js?v=97"></script>
 <script src="audio.js?v=91"></script>
 <script src="map.js?v=111"></script>
-<script src="game.js?v=98"></script>
+<script src="game.js?v=113"></script>
 <script src="combat.js?v=97"></script>
 <script src="additions.js?v=91"></script>
-<script src="story.js?v=97"></script>
-<script src="dialogue.js?v=93"></script>
-<script src="romance.js?v=91"></script>
+<script src="story.js?v=113"></script>
+<script src="dialogue.js?v=113"></script>
+<script src="romance.js?v=113"></script>
 <script src="senses.js?v=91"></script>
-<script src="multiplayer.js?v=97"></script>
+<script src="multiplayer.js?v=113"></script>
 <script src="saves.js?v=97"></script>
 <script src="visuals.js?v=91"></script>
 <script src="shop.js?v=91"></script>
@@ -478,6 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="vaelthar-overlay"></div>
   <script src="vaelthar-integration.js?v=111"></script>
   <script src="ui.js?v=98"></script>
-  <script type="module" src="world3d/bootstrap.js?v=112"></script>
+  <script type="module" src="world3d/bootstrap.js?v=128"></script>
 </body>
 </html>

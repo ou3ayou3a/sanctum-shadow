@@ -9,6 +9,8 @@ const PartyRules = require('./lib/party-rules.js');
 const SessionSecurity = require('./lib/session-security.js');
 const SessionStore = require('./lib/session-store.js');
 const WorldPresence = require('./lib/world-presence.js');
+const ConversationSync = require('./lib/conversation-sync.js');
+const ClaudeContract = require('./site/claude-contract.js');
 const PACKAGE_VERSION = require('./package.json').version;
 console.log('Loading socket.io...');
 const { Server } = require('socket.io');
@@ -98,9 +100,6 @@ const MAX_MESSAGES = 40;
 const NPC_TIMEOUT_MS = 60000;
 
 app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured.' });
-
   const reqBody = (req.body && typeof req.body === 'object') ? req.body : {};
   const model = ALLOWED_MODELS.has(reqBody.model) ? reqBody.model : DEFAULT_MODEL;
   let maxTokens = parseInt(reqBody.max_tokens, 10);
@@ -109,6 +108,13 @@ app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
   let messages = Array.isArray(reqBody.messages) ? reqBody.messages : [];
   if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
   const system = typeof reqBody.system === 'string' ? reqBody.system : '';
+  const responseContract = typeof reqBody.response_contract === 'string' ? reqBody.response_contract : null;
+  if (responseContract && !ClaudeContract.isKnownContract(responseContract)) {
+    res.status(400).json({ error:'Unknown Claude response contract.', code:'UNKNOWN_AI_CONTRACT' });
+    return;
+  }
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'API key not configured.' });
 
   const body = JSON.stringify({ model, max_tokens: maxTokens, system, messages });
 
@@ -133,7 +139,23 @@ app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
       settled = true;
       // Forward the upstream HTTP status code instead of always 200.
       const status = response.statusCode || 502;
-      try { res.status(status).json(JSON.parse(data)); }
+      try {
+        const payload = JSON.parse(data);
+        if (status >= 200 && status < 300 && responseContract) {
+          const raw = Array.isArray(payload.content) ? payload.content.map(block => block?.text || '').join('').trim() : '';
+          const validation = ClaudeContract.parseAndValidate(responseContract, raw);
+          if (!validation.ok) {
+            res.status(502).json({
+              error:'Claude returned an invalid structured response.',
+              code:'INVALID_AI_RESPONSE',
+              contract:responseContract,
+              details:validation.errors.slice(0, 8),
+            });
+            return;
+          }
+        }
+        res.status(status).json(payload);
+      }
       catch (e) { res.status(502).json({ error: 'Invalid response from Anthropic' }); }
     });
   });
@@ -332,6 +354,14 @@ function sanitizeText(text) {
   return text.replace(/[<>]/g, '').slice(0, 2000);
 }
 
+function validateConversationEffects(effects) {
+  const validation = ClaudeContract.validate('npc_dialogue.v1', {
+    schemaVersion:1, kind:'npc_dialogue', speech:'The conversation changes the world.', sceneBreak:null,
+    options:[{ label:'Continue', type:'talk', check:null, effects }], effects:{},
+  });
+  return validation.ok ? validation.value.options[0].effects : null;
+}
+
 // Cap an array to its last N entries in place.
 function capLog(arr, cap = LOG_CAP) {
   if (Array.isArray(arr) && arr.length > cap) arr.splice(0, arr.length - cap);
@@ -396,7 +426,7 @@ io.on('connection', (socket) => {
       players: {
         [socket.id]: { id: socket.id, name, character: null, hp: null, maxHp: null, ready: false, connected: true }
       },
-      combatState: null, campaignState: null, log: [], chatLog: [], state: 'waiting',
+      combatState: null, campaignState: null, conversation:null, log: [], chatLog: [], state: 'waiting',
       createdAt: Date.now(), updatedAt:Date.now(),
     };
 
@@ -471,6 +501,7 @@ io.on('connection', (socket) => {
     socket.playerName = name;
     socket.emit('session_joined', { code, playerId: socket.id, session: s, isHost: s.host === socket.id });
     if (s.combatState?.active) socket.emit('combat_started', s.combatState);
+    if (s.conversation?.active) socket.emit('conversation_state', ConversationSync.publicState(s.conversation));
     broadcastSession(code);
     io.to(code).emit('chat_message', { system: true, text: `${name} reconnected.` });
   }));
@@ -509,6 +540,7 @@ io.on('connection', (socket) => {
     if (s.state === 'playing' || s.state === 'combat') {
       socket.emit('game_started', { code, lateJoin:true });
       if (s.campaignState) socket.emit('campaign_state', s.campaignState);
+      if (s.conversation?.active) socket.emit('conversation_state', ConversationSync.publicState(s.conversation));
       // Players joining mid-fight spectate the current round and are included
       // normally when the next encounter starts.
       if (s.combatState?.active) socket.emit('combat_started', s.combatState);
@@ -538,6 +570,12 @@ io.on('connection', (socket) => {
     const combatParty = PartyRules.connectedPlayers(s, { readyOnly:true });
     if (combatParty.length === 0) return;
     enemies = PartyRules.scaleEncounter(enemies, combatParty.length);
+
+    if (s.conversation?.active) {
+      const conversationId=s.conversation.id,controllerName=s.conversation.controllerName;
+      s.conversation=null;
+      io.to(s.code).emit('conversation_update',{type:'close',payload:{conversationId,graceful:false,controllerName},conversation:null});
+    }
 
     // Build full combatant list: all players + enemies
     const combatants = {};
@@ -795,12 +833,63 @@ io.on('connection', (socket) => {
     });
   }));
 
+  // ── Server-owned NPC conversation session ──
+  // One player is the designated speaker; everyone else receives the same
+  // ordered transcript and choices. The server rejects stale or forged updates.
+  socket.on('conversation_open', (request = {}, ack) => {
+    const reply = value => { if (typeof ack === 'function') ack(value); };
+    try {
+      const s = authorizedSession(socket, request.code);
+      if (!s || !allowSocketEvent(socket, 'conversation_open', 5, 5000)) { reply({ok:false,error:'Conversation request rejected.'}); return; }
+      const result = ConversationSync.begin(s, socket.id, request.payload || {});
+      if (!result.ok) { socket.emit('session_error',{msg:result.error}); reply(result); return; }
+      socket.to(s.code).emit('conversation_state', ConversationSync.publicState(result.state));
+      reply({ok:true,conversation:ConversationSync.publicState(result.state)});
+      saveSessionsToDisk();
+    } catch (error) {
+      console.error('[socket:conversation_open] handler error:', error?.message);
+      reply({ok:false,error:'Conversation could not be started.'});
+    }
+  });
+
+  socket.on('conversation_update', (request = {}, ack) => {
+    const reply = value => { if (typeof ack === 'function') ack(value); };
+    try {
+      const s = authorizedSession(socket, request.code);
+      if (!s || !allowSocketEvent(socket, 'conversation_update', 30, 5000)) { reply({ok:false,error:'Conversation update rejected.'}); return; }
+      const type = typeof request.type === 'string' ? request.type : '';
+      const payload = request.payload && typeof request.payload === 'object' ? {...request.payload} : {};
+      if (type === 'effects') {
+        const effects = validateConversationEffects(payload.effects);
+        if (!effects) { reply({ok:false,error:'Conversation effects were invalid.'}); return; }
+        payload.effects = effects;
+      }
+      const result = ConversationSync.update(s, socket.id, type, payload);
+      if (!result.ok) { socket.emit('session_error',{msg:result.error}); reply(result); return; }
+      const event = {type:result.type,payload:result.relay,conversation:ConversationSync.publicState(result.state)};
+      if (type === 'effects' || type === 'outcome' || type === 'scene_break') {
+        if (s.host && s.host !== socket.id) io.to(s.host).emit('conversation_update', event);
+      } else {
+        socket.to(s.code).emit('conversation_update', event);
+      }
+      reply({ok:true,revision:result.state?.revision || 0});
+      if (type === 'close') saveSessionsToDisk();
+    } catch (error) {
+      console.error('[socket:conversation_update] handler error:', error?.message);
+      reply({ok:false,error:'Conversation update failed.'});
+    }
+  });
+
   // ── Story event broadcast ──
   socket.on('story_event', safeHandler('story_event', ({ code, eventType, payload }) => {
     const s = authorizedSession(socket, code);
     if (!s || !allowSocketEvent(socket, 'story_event', 30, 5000)) return;
     if (typeof eventType !== 'string') return;
     if (eventType.length > 60) return;
+    if (eventType.startsWith('conv_') || eventType === 'npc_outcome') {
+      socket.emit('session_error',{msg:'Legacy conversation events are no longer accepted.'});
+      return;
+    }
     try { if (JSON.stringify(payload || {}).length > 50000) return; } catch { return; }
     const player = s.players[socket.id];
     socket.to(code).emit('story_event', { eventType, payload, fromPlayer: player?.name || 'Unknown' });
@@ -835,6 +924,11 @@ io.on('connection', (socket) => {
     const s = getSession(code);
     if (!s) return;
     if (s.players[socket.id]) {
+      if (s.conversation?.active && s.conversation.controllerId === socket.id) {
+        const conversationId=s.conversation.id,controllerName=s.conversation.controllerName;
+        s.conversation=null;
+        socket.to(code).emit('conversation_update',{type:'close',payload:{conversationId,graceful:false,controllerName},conversation:null});
+      }
       s.players[socket.id].connected = false;
       io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} disconnected. Waiting for reconnect...` });
       // If the host dropped, migrate host to a still-connected player so the

@@ -41,13 +41,13 @@ function isJesusInvocation(text) {
 }
 
 // ─── API CALL VIA SERVER ─────────────────────
-async function callClaude(system, messages, maxTokens = 600) {
+async function callClaude(system, messages, maxTokens = 600, responseContract = null) {
   if (window._npcOffline) return null;
   try {
     const res = await fetch('/api/npc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ system, messages, max_tokens: maxTokens }),
+      body: JSON.stringify({ system, messages, max_tokens: maxTokens, ...(responseContract ? { response_contract:responseContract } : {}) }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -661,7 +661,19 @@ window.npcConvState = {
   npc: null,
   history: [],
   currentOptions: [],
+  conversationId: null,
+  controllerId: null,
 };
+
+function isConversationController(){return !window.mp?.sessionCode||!window.npcConvState?.controllerId||window.npcConvState.controllerId===window.mp.playerId;}
+
+function applyDialogueChoiceEffects(effects,reason){
+  if(window.mp?.sessionCode&&!window.mp.isHost){
+    window.mpSendConversationUpdate?.('effects',{effects:effects||{},reason});
+    return {applied:false,reason:'host_pending',changes:[]};
+  }
+  return window.applyClaudeEffects?.(effects,{reason});
+}
 
 // ─── START CONVERSATION ───────────────────────
 async function startNPCConversation(npcIdOrName, playerOpener) {
@@ -689,6 +701,17 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
     return;
   }
 
+  let multiplayerConversation=null;
+  if(window.mp?.sessionCode&&typeof window.mpBeginConversation==='function'){
+    const opened=await window.mpBeginConversation({
+      npcId:npc.id,npcName:npc.name,npcTitle:npc.title,npcPortrait:npc.portrait,
+      npcFaction:npc.faction,disposition:npc.disposition,opener:playerOpener||`approaches ${npc.name}`,
+    });
+    if(!opened?.ok){addLog(`Conversation unavailable: ${opened?.error||'another party member is already speaking.'}`,'system');return;}
+    multiplayerConversation=opened.conversation;
+    window.mp._conversationState=multiplayerConversation;
+  }
+
   // If you fought this NPC and they survived — they remember it
   const foughtKey = 'fought_' + npc.id;
   if (flags[foughtKey] && !flags['reconciled_' + npc.id]) {
@@ -707,6 +730,8 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   window.npcConvState.npc = npc;
   window.npcConvState.history = [];
   window.npcConvState.turnCount = 0;
+  window.npcConvState.conversationId=multiplayerConversation?.id||null;
+  window.npcConvState.controllerId=multiplayerConversation?.controllerId||window.mp?.playerId||null;
 
   // Close any other open panels first — one thing at a time
   document.getElementById('shop-panel')?.remove();
@@ -717,19 +742,6 @@ async function startNPCConversation(npcIdOrName, playerOpener) {
   // Log the approach once — this is the single source of truth
   const charName = gameState.character?.name || 'Unknown';
   addLog(`${charName}: "${playerOpener || `approaches ${npc.name}`}"`, 'action', charName);
-
-  // Broadcast FIRST so friends see panel open before response arrives
-  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
-    window.mpBroadcastStoryEvent('conv_open', {
-      npcId: npc.id,
-      npcName: npc.name,
-      npcTitle: npc.title,
-      npcPortrait: npc.portrait,
-      npcFaction: npc.faction,
-      disposition: npc.disposition,
-      playerName: gameState.character?.name || 'Unknown',
-    });
-  }
 
   renderConvPanel(npc);
   await sendNPCMessage(playerOpener || `approaches ${npc.name}`, true);
@@ -813,8 +825,8 @@ async function sendNPCMessage(playerText, isOpener = false) {
     if (typeof updateConvPlayerPortrait === 'function') {
       updateConvPlayerPortrait(char?.name || 'You', char);
     }
-    if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
-      window.mpBroadcastStoryEvent('conv_player_action', {
+    if (window.mp?.sessionCode) {
+      window.mpSendConversationUpdate?.('player_action', {
         playerName: char?.name || 'Unknown',
         text: displayText,
         character: { portrait: char?.portrait || null, class: char?.class, race: char?.race },
@@ -898,21 +910,25 @@ ${window.getNPCRomanceContext ? window.getNPCRomanceContext(npc) : ''}
 CRITICAL RULES:
 0. IDENTITY — You are ${npc.name}. The player is ${char?.name}. NEVER swap these. Messages in brackets like [${char?.name} does X] describe the player's action — you react to them AS ${npc.name}. Never write dialogue or actions for ${char?.name} — only for yourself.
 1. Stay in character. You ARE ${npc.name}.
-2. Write dialogue naturally. Use *asterisks* for physical actions only.
-3. NEVER use markdown headers (# Title), bold (**text**), or horizontal rules (---). Plain text only.
-4. After dialogue, write OPTIONS: then 3-4 choices starting with •
-4. Options that need a skill check: add [ROLL:STAT:DC] e.g. [ROLL:CHA:13]
-5. OPTIONS THAT CHANGE STORY MUST REQUIRE A ROLL. Persuasion, intimidation, romance, convincing someone — always need [ROLL:CHA:DC]. Physical feats always need [ROLL:STR:DC] or [ROLL:DEX:DC].
+2. Write dialogue naturally in the speech field. You may use *asterisks* for your own physical actions only.
+3. Return raw JSON only. Never add markdown fences, headings, commentary, or text outside the JSON object.
+4. Provide 3-4 concrete player choices. A choice that needs a check uses check:{skill,ability,dc}; otherwise check is null.
+5. OPTIONS THAT CHANGE STORY MUST REQUIRE A CHECK. Persuasion, intimidation, romance, and convincing someone use an appropriate CHA skill. Physical feats use STR or DEX.
 6. Pure speech options (ask a question, say something) do NOT need rolls.
 7. Include an option to end conversation.
 8. NEVER treat player skill names, training styles, or class abilities as character names. If a player says "I use my Mignano training" — Mignano is a skill/technique, not a person.
 9. If the player addresses another NPC (like "I say to Rhael..."), respond AS that NPC if they are in the scene, or note that NPC isn't present.
 10. If the player is in a party, the NPC is aware of the whole group, not just the speaker.
-11. If the player has achieved their goal with this NPC, include [SCENE_BREAK:scene_name] at the very end of your response on its own line.
+11. If the player has achieved their goal with this NPC, set sceneBreak to a valid scene id; otherwise use null.
 12. NEVER break character. NEVER acknowledge being an AI.
-13. NEVER ask the player about their stats, modifiers, or dice rolls. The game system handles all rolls automatically. If a freeform action requires a check, use [ROLL:STAT:DC] in your response text and the system resolves it — you just narrate the outcome as if you already know whether they succeeded or failed based on context.
-14. When a player takes a freeform dramatic action (draws weapon, intimidates, seduces, sneaks), embed [ROLL:STAT:DC] directly in your narrative. Example: "*She watches you draw the blade.* [ROLL:STR:12] *The guard steps forward.*" — NEVER ask them to confirm their modifier.
-15. NEVER voice or narrate another NPC during this conversation. If the scene transitions to a new NPC (e.g. the player arrives at the Archive and meets the Scribe), end the conversation naturally — say your farewell, perhaps describe what the player sees as they leave, and let the player approach the new NPC themselves. Do NOT play both roles. Output [SCENE_BREAK:transition] if handing off to a new scene.`;
+13. NEVER ask the player about stats, modifiers, or dice rolls. The game system resolves checks before sending you their result.
+14. Never put roll tags or system directives inside speech.
+15. NEVER voice or narrate another NPC during this conversation. If handing off, end naturally and use sceneBreak.
+
+REQUIRED RESPONSE CONTRACT:
+{"schemaVersion":1,"kind":"npc_dialogue","speech":"Your in-character response","options":[{"label":"Ask about the evidence","type":"talk","check":null,"effects":{"facts":{"ai_asked_about_evidence":true}}},{"label":"Pressure them to reveal the name","type":"talk","check":{"skill":"intimidation","ability":"cha","dc":13},"effects":{"flags":{"ai_npc_pressured":true},"reputation":[{"faction":"city_watch","delta":-1}]},"failureEffects":{"flags":{"ai_npc_suspicious":true},"reputation":[{"faction":"city_watch","delta":-2}]}},{"label":"End conversation","type":"end","check":null,"effects":{}}],"sceneBreak":null,"effects":{"affection":0,"intimate":false,"married":false}}
+Choice effects may contain only: flags, facts, reputation, resources, items, and questEvents. Use failureEffects only with a check. Keep rewards modest and use {} when nothing changes.
+Only effects requested by the ROMANCE context may be non-default. affection must be an integer from -20 to 20.`;
 
   const charName = char?.name || 'The player';
   // Frame the message clearly so Claude always knows who is acting
@@ -925,7 +941,7 @@ CRITICAL RULES:
     ? [{ role: 'user', content: userMsg }]
     : [...history, { role: 'user', content: userMsg }];
 
-  let response = await callClaude(systemPrompt, messages, 500);
+  let response = await callClaude(systemPrompt, messages, 500, 'npc_dialogue.v1');
 
   // ── Optional response post-processor (e.g. romance affection tags) ──
   // Lets a layered system (romance.js) consume/strip its own inline tags and
@@ -941,12 +957,18 @@ CRITICAL RULES:
 
   hideTypingIndicator();
 
+  const structured = response ? window.ClaudeContract?.parseAndValidate('npc_dialogue.v1', response) : null;
+  if (response && !structured?.ok) {
+    console.warn('Structured Claude dialogue rejected; using local dialogue.', structured?.errors || 'contract unavailable');
+    response = null;
+  }
+
   if (!response) {
     const fallback = buildOfflineNPCReply(npc, userMsg);
     displayNPCLine(npc, fallback.speech, fallback.options);
     addLog(`${npc.name}: "${fallback.speech.replace(/^[^\"]*\"?/, '').substring(0, 100)}..."`, 'narrator');
-    if (window.mpBroadcastStoryEvent && window.mp?.sessionCode) {
-      window.mpBroadcastStoryEvent('conv_response', {
+    if (window.mp?.sessionCode) {
+      window.mpSendConversationUpdate?.('response', {
         npcName:npc.name, text:fallback.speech, options:fallback.options,
         startedAt:Date.now(), typewriterSpeed:14,
       });
@@ -955,9 +977,9 @@ CRITICAL RULES:
     return;
   }
 
-  // Check for scene break directive
-  const sceneBreakMatch = response.match(/\[SCENE_BREAK:([^\]]+)\]/);
-  let cleanResponse = response.replace(/\[SCENE_BREAK:[^\]]+\]/g, '').trim();
+  const npcPayload = structured.value;
+  const sceneBreakMatch = npcPayload.sceneBreak ? [npcPayload.sceneBreak, npcPayload.sceneBreak] : null;
+  let cleanResponse = npcPayload.speech;
 
   // ── Auto-resolve any [ROLL:STAT:DC] embedded in narrative text ──
   const inlineRollMatch = cleanResponse.match(/\[ROLL:(\w+):(\d+)\]/i);
@@ -977,7 +999,14 @@ CRITICAL RULES:
     history.push({ role: 'assistant', content: cleanResponse });
   }
 
-  const { speech, options } = parseNPCResponse(cleanResponse);
+  const speech = npcPayload.speech;
+  const options = npcPayload.options.map(option => ({
+    text:option.label,
+    type:option.type,
+    roll:option.check ? { stat:option.check.ability.toUpperCase(), skill:option.check.skill, dc:option.check.dc } : null,
+    effects:option.effects,
+    failureEffects:option.failureEffects,
+  }));
 
   // ── Write conversation outcomes back to world state ──
   _updateWorldFromConversation(npc, speech, cleanResponse);
@@ -985,8 +1014,8 @@ CRITICAL RULES:
 
   // Broadcast immediately with timestamp — receivers sync typewriter to same position
   const broadcastTime = Date.now();
-  if (window.mpBroadcastStoryEvent && (window.mp?.sessionCode || gameState?.sessionCode)) {
-    window.mpBroadcastStoryEvent('conv_response', {
+  if (window.mp?.sessionCode) {
+    window.mpSendConversationUpdate?.('response', {
       npcName: npc?.name,
       text: speech,
       options: options,
@@ -1008,8 +1037,9 @@ CRITICAL RULES:
     setTimeout(() => {
       addLog(`📖 *The conversation reaches a turning point...*`, 'system');
       window._pendingScene = null; // scene fires directly below, don't double-fire
+      if(window.mp?.sessionCode&&!window.mp.isHost)window.mpSendConversationUpdate?.('scene_break',{sceneName});
       closeConvPanel(false);
-      if (window.runScene) window.runScene(sceneName);
+      if((!window.mp?.sessionCode||window.mp.isHost)&&window.runScene)window.runScene(sceneName);
     }, 4000); // Give player time to read the response
   }
 }
@@ -1091,7 +1121,7 @@ async function resolveDialogueCheck(text,{ability,skill,dc}={}) {
   if(check.crit&&char)char.conditions=Array.from(new Set([...(char.conditions||[]),'inspired']));
   window.renderPlayerCard?.();
   window.autoSave?.();
-  if(window.mp?.sessionCode)window.mpBroadcastStoryEvent?.('conv_check',{...check,label:dialogueCheckLabel(check)});
+  if(window.mp?.sessionCode)window.mpSendConversationUpdate?.('check',{...check,label:dialogueCheckLabel(check),npcId:window.npcConvState.npc?.id});
   await showDialogueCheck(check);
   return check;
 }
@@ -1112,7 +1142,8 @@ async function pickNPCOption(index) {
   // "Ask why they won't leave the city" must NOT close the chat). Match the
   // explicit "end conversation" label, or a leave verb that STARTS the option /
   // stands as the whole phrase.
-  if (_isLeaveIntent(lower)) {
+  if (option.type === 'end' || _isLeaveIntent(lower)) {
+    applyDialogueChoiceEffects(option.effects,`Dialogue choice: ${option.text}`);
     addLog(`${char?.name} ends the conversation with ${window.npcConvState.npc?.name}.`, 'system');
     closeConvPanel();
     return;
@@ -1125,7 +1156,8 @@ async function pickNPCOption(index) {
   if (option.roll) {
     const stat = option.roll.stat.toLowerCase();
     const dc = option.roll.dc;
-    const check=await resolveDialogueCheck(option.text,{ability:stat,dc});
+    const check=await resolveDialogueCheck(option.text,{ability:stat,skill:option.roll.skill,dc});
+    applyDialogueChoiceEffects(check.success ? option.effects : option.failureEffects,`${check.success ? 'Successful' : 'Failed'} dialogue check: ${option.text}`);
     const resultMsg = `${framed} [Roll result: ${check.success ? 'SUCCESS' : 'FAILURE'} — ${check.total} vs DC${check.dc}; ${dialogueCheckLabel(check)}; ${check.proficient?'proficient':'not proficient'}; ${check.mode}${check.crit ? '; critical success' : check.fumble ? '; critical failure' : ''}]`;
     await sendNPCMessage(resultMsg);
     return;
@@ -1137,6 +1169,7 @@ async function pickNPCOption(index) {
   const isGrapple = ['tie', 'grab', 'grapple', 'restrain', 'shove', 'tackle'].some(w => lower.includes(w));
 
   if (isAttack) {
+    applyDialogueChoiceEffects(option.effects,`Dialogue choice: ${option.text}`);
     addLog(`⚔ ${char?.name} attacks ${npc.name}! Combat begins!`, 'combat');
     if (window.AudioEngine) AudioEngine.sfx?.sword?.();
     closeConvPanel(false);
@@ -1157,11 +1190,13 @@ async function pickNPCOption(index) {
 
   if (isGrapple) {
     const check=await resolveDialogueCheck(option.text,{ability:'str',skill:'athletics',dc:14});
+    applyDialogueChoiceEffects(check.success ? option.effects : option.failureEffects,`${check.success ? 'Successful' : 'Failed'} dialogue check: ${option.text}`);
     await sendNPCMessage(`${framed} [${check.success ? 'SUCCEEDED' : 'FAILED'} — ${dialogueCheckLabel(check)} ${check.total} vs DC${check.dc}; ${check.mode}]`);
     return;
   }
 
   // Normal option — always framed with player identity
+  applyDialogueChoiceEffects(option.effects,`Dialogue choice: ${option.text}`);
   await sendNPCMessage(framed);
 }
 
@@ -1262,30 +1297,55 @@ async function runFreeformNPCScene(npcName, action) {
 You are voicing ${npcName}, a citizen/NPC in ${loc?.name}.
 The player is ${char?.name}, a ${race?.name} ${cls?.name}.
 React authentically to their action. Be specific to this setting and this crisis.
-Write NPC dialogue, then OPTIONS: with 3-4 player choices. Some options can have [ROLL:STAT:DC].`;
+Return raw JSON matching this exact contract:
+{"schemaVersion":1,"kind":"npc_dialogue","speech":"In-character dialogue and actions","options":[{"label":"Ask a question","type":"talk","check":null,"effects":{}},{"label":"Try to persuade them","type":"talk","check":{"skill":"persuasion","ability":"cha","dc":12},"effects":{"facts":{"ai_citizen_helpful":true}},"failureEffects":{"flags":{"ai_citizen_wary":true}}},{"label":"End conversation","type":"end","check":null,"effects":{}}],"sceneBreak":null,"effects":{"affection":0,"intimate":false,"married":false}}
+Return 3-4 choices, no markdown and no text outside the JSON object.`;
 
   const genericNPC = { id: 'generic_' + npcName.replace(/\s/g, '_'), name: npcName, title: 'Citizen of Vaelthar', portrait: '👤', faction: 'unknown', disposition: 'neutral' };
+
+  let multiplayerConversation=null;
+  if(window.mp?.sessionCode&&typeof window.mpBeginConversation==='function'){
+    const opened=await window.mpBeginConversation({npcId:genericNPC.id,npcName:genericNPC.name,npcTitle:genericNPC.title,npcPortrait:genericNPC.portrait,npcFaction:genericNPC.faction,disposition:genericNPC.disposition,opener:action});
+    if(!opened?.ok){addLog(`Conversation unavailable: ${opened?.error||'another party member is already speaking.'}`,'system');return;}
+    multiplayerConversation=opened.conversation;window.mp._conversationState=multiplayerConversation;
+  }
 
   window.npcConvState.active = true;
   window.npcConvState.npc = genericNPC;
   window.npcConvState.history = [];
+  window.npcConvState.conversationId=multiplayerConversation?.id||null;
+  window.npcConvState.controllerId=multiplayerConversation?.controllerId||window.mp?.playerId||null;
 
   renderConvPanel(genericNPC);
   showTypingIndicator();
 
-  const text = await callClaude(systemPrompt, [{ role: 'user', content: `Player: "${action}"` }], 400);
+  const text = await callClaude(systemPrompt, [{ role: 'user', content: `Player: "${action}"` }], 400, 'npc_dialogue.v1');
   hideTypingIndicator();
 
-  if (!text) {
-    displayNPCLine(genericNPC, `*${npcName} looks at you blankly.*`, [{ text: 'End conversation', roll: null }]);
+  const validation = text ? window.ClaudeContract?.parseAndValidate('npc_dialogue.v1', text) : null;
+  if (!validation?.ok) {
+    if (text) console.warn('Structured freeform NPC response rejected.', validation?.errors || 'contract unavailable');
+    const fallbackSpeech=`*${npcName} looks at you blankly.*`,fallbackOptions=[{ text:'End conversation',type:'end',roll:null }];
+    displayNPCLine(genericNPC,fallbackSpeech,fallbackOptions);
+    if(window.mp?.sessionCode)window.mpSendConversationUpdate?.('response',{npcName,text:fallbackSpeech,options:fallbackOptions});
     return;
   }
 
-  window.npcConvState.history.push({ role: 'user', content: `Player: "${action}"` });
-  window.npcConvState.history.push({ role: 'assistant', content: text });
+  const payload = validation.value;
 
-  const { speech, options } = parseNPCResponse(text);
+  window.npcConvState.history.push({ role: 'user', content: `Player: "${action}"` });
+  window.npcConvState.history.push({ role: 'assistant', content: payload.speech });
+
+  const speech = payload.speech;
+  const options = payload.options.map(option => ({
+    text:option.label,
+    type:option.type,
+    roll:option.check ? { stat:option.check.ability.toUpperCase(), skill:option.check.skill, dc:option.check.dc } : null,
+    effects:option.effects,
+    failureEffects:option.failureEffects,
+  }));
   displayNPCLine(genericNPC, speech, options);
+  if(window.mp?.sessionCode)window.mpSendConversationUpdate?.('response',{npcName,text:speech,options});
   const firstSentence = speech.replace(/\*[^*]+\*/g, '').trim().split(/[.!?]/)[0].trim();
   addLog(`${npcName}: "${firstSentence}..."`, 'narrator');
 }
@@ -1419,7 +1479,15 @@ function renderConvPanel(npc) {
   } else {
     document.body.appendChild(panel);
   }
+  configureConversationControls();
   requestAnimationFrame(() => panel.style.opacity = '1');
+}
+
+function configureConversationControls(){
+  const canControl=isConversationController(),input=document.getElementById('conv-input'),send=document.querySelector('#conv-panel .cp-send'),close=document.querySelector('#conv-panel .cp-close');
+  if(input){input.disabled=!canControl;input.placeholder=canControl?'Say or do anything...':`Observing ${window.npcConvState?.controllerName||'the speaker'}…`;}
+  if(send)send.hidden=!canControl;
+  if(close){close.disabled=!canControl;close.title=canControl?'End conversation':'Only the active speaker can end this conversation';}
 }
 
 // ── Player portrait helpers ──
@@ -1459,6 +1527,7 @@ function updateConvPlayerPortrait(playerName, playerChar) {
     }
   }
   nameEl.textContent = playerName;
+  const classEl=side.querySelector('.cp-player-class');if(classEl)classEl.textContent=getClassLabel(playerChar);
   // Flash to signal speaker change
   side.style.outline = '1px solid var(--gold)';
   setTimeout(() => { if (side) side.style.outline = ''; }, 800);
@@ -1507,17 +1576,59 @@ function displayNPCLine(npc, speech, options) {
   }, 14);
 }
 
+function applyRemoteConversationState(state){
+  if(!state?.active){if(window.npcConvState?.active&&!isConversationController())closeConvPanel(false,false);return;}
+  if(state.controllerId===window.mp?.playerId&&window.npcConvState?.active)return;
+  const npc=resolveNPCFull(state.npc?.id)||state.npc;if(!npc)return;
+  window.npcConvState.active=true;window.npcConvState.npc=npc;window.npcConvState.history=[];
+  window.npcConvState.conversationId=state.id;window.npcConvState.controllerId=state.controllerId;window.npcConvState.controllerName=state.controllerName;
+  window.npcConvState.currentOptions=Array.isArray(state.options)?state.options:[];
+  renderConvPanel(npc);updateConvPlayerPortrait(state.controllerName,state.controllerCharacter);
+  if(state.line)displayNPCLine(npc,state.line,window.npcConvState.currentOptions);
+  else showTypingIndicator();
+  configureConversationControls();
+}
+
+function applyRemoteConversationUpdate(event={}){
+  const {type,payload={},conversation}=event;
+  const activeId=window.npcConvState?.conversationId;
+  if(type!=='close'&&activeId&&payload.conversationId!==activeId)return;
+  if(conversation?.active){
+    window.npcConvState.controllerId=conversation.controllerId;window.npcConvState.controllerName=conversation.controllerName;
+  }
+  if(type==='player_action'){
+    requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('npc:camera',{detail:{shot:'player'}})));
+    updateConvPlayerPortrait(payload.playerName,payload.character);
+    const line=document.getElementById('cp-npc-line'),transcript=document.getElementById('cp-transcript');
+    if(line?.textContent.trim()&&transcript){const entry=document.createElement('div');entry.className='cp-transcript-entry';entry.textContent=line.textContent;transcript.appendChild(entry);transcript.scrollTop=transcript.scrollHeight;line.textContent='';}
+    showTypingIndicator();
+    const options=document.getElementById('cp-options');if(options)options.textContent=`${payload.playerName} said: “${payload.text}” — waiting for response…`;
+  }else if(type==='response'){
+    hideTypingIndicator();
+    const npc=window.npcConvState?.npc;if(npc)displayNPCLine(npc,String(payload.text||''),Array.isArray(payload.options)?payload.options:[]);
+  }else if(type==='check'){
+    showDialogueCheck(payload,true);
+  }else if(type==='close'){
+    closeConvPanel(false,false);
+    if(window._mpPendingConversationScene){const scene=window._mpPendingConversationScene;window._mpPendingConversationScene=null;setTimeout(()=>window.runScene?.(scene),100);}
+  }
+  configureConversationControls();
+}
+window.applyRemoteConversationState=applyRemoteConversationState;
+window.applyRemoteConversationUpdate=applyRemoteConversationUpdate;
+
 function renderConvOptions(options) {
   const el = document.getElementById('cp-options');
   if (!el) return;
   const esc = window.escapeHtml || (s => s);
+  const canControl=isConversationController();
   el.innerHTML = options.map((opt, i) => `
-    <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}"
-      onclick="pickNPCOption(${i})">
+    <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}" ${canControl?`onclick="pickNPCOption(${i})"`:'disabled aria-disabled="true"'}>
       <span>${esc(opt.text)}</span>
       ${opt.roll ? `<span class="cp-roll-badge">🎲 ${esc(opt.roll.stat)} DC${esc(opt.roll.dc)}</span>` : ''}
     </button>
-  `).join('') + `<button class="cp-option cp-open-choice" type="button" aria-expanded="false" aria-controls="cp-freeform" onclick="toggleConvFreeform()"><span>Say something else…</span><span aria-hidden="true">⌨</span></button>`;
+  `).join('') + (canControl?`<button class="cp-option cp-open-choice" type="button" aria-expanded="false" aria-controls="cp-freeform" onclick="toggleConvFreeform()"><span>Say something else…</span><span aria-hidden="true">⌨</span></button>`:`<div class="cp-thinking">${esc(window.npcConvState?.controllerName||'Another player')} is leading this conversation.</div>`);
+  configureConversationControls();
 }
 
 function toggleConvFreeform(force) {
@@ -1601,16 +1712,27 @@ function _updateWorldFromConversation(npc, speech, fullResponse) {
   if (window.autoSave) window.autoSave();
 }
 
-function closeConvPanel(graceful = true) {
+function applyRemoteNPCOutcome(payload={}){
+  const npc=resolveNPCFull(payload.npcId)||window.npcConvState?.npc;
+  if(!npc)return false;
+  const speech=String(payload.fact||'').slice(0,1200);
+  _updateWorldFromConversation(npc,speech,speech);
+  return true;
+}
+window.applyRemoteNPCOutcome=applyRemoteNPCOutcome;
+
+function closeConvPanel(graceful = true, broadcast = true) {
   // Kill any running typewriter so it can't keep firing into the detached
   // line element after the panel is removed (garbled text / errors on close).
   if (window._npcTypeInterval) { clearInterval(window._npcTypeInterval); window._npcTypeInterval = null; }
 
   const p = document.getElementById('conv-panel');
   if (p) { p.style.opacity = '0'; setTimeout(() => p.remove(), 300); }
+  const shouldBroadcast=broadcast&&isConversationController()&&!!window.mp?.sessionCode;
   window.npcConvState.active = false;
   window.npcConvState.npc = null;
   window.npcConvState.history = [];
+  window.npcConvState.currentOptions=[];
 
   // Restore ACT box to normal
   const actionInput = document.getElementById('action-input');
@@ -1634,9 +1756,10 @@ function closeConvPanel(graceful = true) {
   }
 
   // Broadcast close to all party members
-  if ((window.mp?.sessionCode || gameState?.sessionCode) && window.mpBroadcastStoryEvent) {
-    window.mpBroadcastStoryEvent('conv_close', {});
-  }
+  if(shouldBroadcast)window.mpSendConversationUpdate?.('close',{graceful});
+  window.npcConvState.conversationId=null;
+  window.npcConvState.controllerId=null;
+  window.npcConvState.controllerName=null;
 }
 
 function factionLabel(f) {
@@ -1684,10 +1807,10 @@ Current location: ${loc?.name || 'Vaelthar'}
 Known NPCs in the world: ${knownNPCs}
 Player character: ${char?.name}, ${char?.class}
 
-Classify this action into EXACTLY ONE of these intents and respond with raw JSON only, no markdown:
-{ "intent": "talk", "npc_id": "<id from known NPCs>" }
-{ "intent": "combat", "target": "<enemy name>" }
-{ "intent": "action" }
+Classify this action into EXACTLY ONE intent and respond with raw JSON only, no markdown:
+{ "schemaVersion":1, "kind":"intent", "intent":"talk", "npcId":"<id from known NPCs>", "target":null }
+{ "schemaVersion":1, "kind":"intent", "intent":"combat", "npcId":null, "target":"<enemy name>" }
+{ "schemaVersion":1, "kind":"intent", "intent":"action", "npcId":null, "target":null }
 
 Rules:
 - "talk" = player wants to speak to, address, call over, interact with, or direct something at a specific NPC. Extract the NPC id from the known list.
@@ -1703,13 +1826,17 @@ Rules:
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 60,
+        response_contract: 'intent.v1',
         messages: [{ role: 'user', content: prompt }]
       })
     });
     const data = await res.json();
-    const raw = data.content?.[0]?.text?.trim() || '{}';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    if (!res.ok || data.error) throw new Error(data.error || `Intent request failed (${res.status})`);
+    const raw = data.content?.map(block => block.text || '').join('').trim() || '';
+    const allowedNpcIds = Object.values(NPC_REGISTRY || {}).map(npc => npc.id);
+    const validation = window.ClaudeContract?.parseAndValidate('intent.v1', raw, { allowedNpcIds });
+    if (!validation?.ok) throw new Error(`Invalid intent response: ${validation?.errors?.join('; ') || 'contract unavailable'}`);
+    return { intent:validation.value.intent, npc_id:validation.value.npcId, target:validation.value.target };
   } catch {
     return { intent: 'action' };
   }

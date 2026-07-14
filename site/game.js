@@ -1302,6 +1302,101 @@ async function resolveActionRequest(text, options = {}) {
 window.DNDRules = { skills:DND_SKILLS, inferSkill:inferActionSkill, rollCheck:rollActionCheck, logCheck:logActionCheck };
 window.resolveActionRequest = resolveActionRequest;
 
+function applyClaudeEffects(effects, options = {}) {
+  const inMultiplayer = !!window.mp?.sessionCode;
+  const authoritative = !inMultiplayer || !!window.mp?.isHost;
+  return window.ClaudeEffects?.apply(effects, {
+    authoritative,
+    character:options.character || gameState.character,
+    sceneState:window.sceneState,
+    reputation:window.reputation,
+    reason:options.reason || 'Story choice',
+    changeRep:window.changeRep,
+    grantXP:window.grantXP,
+    grantHoly:typeof grantHolyPoints === 'function' ? grantHolyPoints : null,
+    grantHell:typeof grantHellPoints === 'function' ? grantHellPoints : null,
+    recordQuestEvent:window.recordQuestEvent,
+    addLog,
+    render:() => {
+      renderPlayerCard?.();
+      window.updateCharacterPanel?.();
+      if (window.combatState?.active && window.combatState.combatants?.player && gameState.character) {
+        window.combatState.combatants.player.hp = gameState.character.hp;
+        window.updateCombatUI?.();
+      }
+    },
+    autoSave:window.autoSave,
+    broadcast:() => { if (window.mp?.isHost) window.mpBroadcastCampaignState?.('claude_effects'); },
+  }) || { applied:false, reason:'effect_engine_unavailable', changes:[] };
+}
+window.applyClaudeEffects = applyClaudeEffects;
+
+function safeEnvironmentToken(value, fallback = 'unknown') {
+  const token = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64);
+  return token || fallback;
+}
+
+async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, action, text } = {}) {
+  const label = String(targetLabel || 'the environment').trim().slice(0, 100) || 'the environment';
+  const customText = String(text || '').trim().slice(0, 240);
+
+  // Open-ended environmental actions use the same authoritative resolver as every
+  // other player-authored action. In multiplayer, non-host clients automatically
+  // hand the request to the Session Master through resolveActionRequest.
+  if (customText) {
+    const result = await resolveActionRequest(`${customText} (interacting with ${label})`);
+    if (!result?.pending && typeof window.generateAIScene === 'function') {
+      const outcome = result.free
+        ? 'The action required no check and occurred.'
+        : `The authoritative ${result.skill || result.ability || 'ability'} check ${result.success ? 'succeeded' : 'failed'} (${result.total} against DC ${result.dc}).`;
+      await window.generateAIScene(`Environmental interaction at ${label}. The player attempted: "${customText}". ${outcome} Narrate the concrete consequence, preserve that roll outcome, and offer only relevant next actions.`);
+    }
+    return {
+      ...result,
+      message:result?.pending ? 'Waiting for the Session Master.' : result?.success === false ? 'The attempt fails.' : 'The environment responds to your action.',
+    };
+  }
+
+  if (!action || typeof action !== 'object') return { success:false, message:'That environmental action is unavailable.' };
+  const actionLabel = String(action.label || 'Interact').trim().slice(0, 100);
+  const actionId = safeEnvironmentToken(action.id || actionLabel, 'interaction');
+  const onceKey = `ai_env_${safeEnvironmentToken(zoneId, 'zone')}_${safeEnvironmentToken(targetId, 'target')}_${actionId}`;
+  window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+  window.sceneState.flags = window.sceneState.flags || {};
+
+  if (action.once && window.sceneState.flags[onceKey]) {
+    return { success:true, repeated:true, message:'You have already learned everything this approach can reveal.' };
+  }
+
+  const checkConfig = action.check && typeof action.check === 'object' ? action.check : null;
+  const requestText = `${actionLabel} at ${label}`;
+  let result;
+  if (checkConfig) {
+    const ability = ['str','dex','con','int','wis','cha'].includes(checkConfig.ability) ? checkConfig.ability : undefined;
+    const dc = Number.isInteger(checkConfig.dc) ? Math.max(5, Math.min(30, checkConfig.dc)) : undefined;
+    result = await resolveActionRequest(requestText, { skill:checkConfig.skill, ability, dc });
+  } else {
+    result = await resolveActionRequest(requestText);
+  }
+
+  if (result?.pending) return { ...result, message:'Waiting for the Session Master.' };
+  const success = result?.success !== false;
+  const narration = String(success ? action.successText : action.failureText || '').trim().slice(0, 600)
+    || (success ? `Your interaction with ${label} reveals something useful.` : `The attempt leaves ${label} unchanged.`);
+  const effectResult = applyClaudeEffects(success ? action.effects : action.failureEffects, {
+    reason:`Environment: ${actionLabel}`,
+  });
+
+  if (success && action.once) {
+    window.sceneState.flags[onceKey] = true;
+    window.autoSave?.();
+    if (window.mp?.isHost) window.mpBroadcastCampaignState?.('environment_action');
+  }
+  addLog(narration, success ? 'narrator' : 'combat');
+  return { ...result, success, message:narration, effects:effectResult };
+}
+window.resolveEnvironmentalAction = resolveEnvironmentalAction;
+
 function classifyAction(text) {
   const t = text.toLowerCase();
 

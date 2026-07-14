@@ -138,32 +138,32 @@ The player is flirting. Respond based on affection stage:
 - Smitten (60+): Flirt back openly. Make interest clear.
 Personality should shape HOW you flirt/reject — stay in character always.
 ${sameSex ? 'This is a same-sex advance. React based on your personality — could be flattered, confused, or quietly reciprocal.' : ''}
-End your response with: [AFFECTION:+N] where N = 2-10 based on success, or [AFFECTION:-2] if failed.` : ''}
+Set effects.affection to an integer from 2 to 10 based on success, or -2 if rejected.` : ''}
 
 ${intent === 'intimate' ? `
 The player is suggesting intimacy or something private.
 ${rel.affection < 60 || !rel.flirtedSuccessfully
-  ? 'Not enough affection or history. Decline gracefully but in character. [AFFECTION:+0]'
+  ? 'Not enough affection or history. Decline gracefully but in character. Keep all effects at their defaults.'
   : `Accept suggestively but NEVER explicitly. Imply, tease, suggest — fade to black.
 Use format: *[npc name] [suggestive action — physical but tasteful, no explicit detail]*
 Then a short "morning after" line about how the mood/dynamic shifted between you.
 ${sameSex ? 'This is a same-sex encounter — handle with the same tasteful implication.' : ''}
-End with: [AFFECTION:+15] [INTIMATE:true]`}` : ''}
+Set effects.affection to 15 and effects.intimate to true.`}` : ''}
 
 ${intent === 'declare_love' ? `
 The player is confessing feelings.
 ${rel.affection >= 75
   ? 'You feel the same. Say so in your own voice — not generic romance, but true to who you are.'
   : 'You are moved but not ready. Be kind and honest.'}
-End with: [AFFECTION:+${rel.affection >= 75 ? '10' : '3'}]` : ''}
+Set effects.affection to ${rel.affection >= 75 ? '10' : '3'}.` : ''}
 
 ${intent === 'propose' ? `
 The player is proposing marriage.
 ${rel.affection >= 90
-  ? 'Say YES in your own voice. This is the most important moment of your life in this story. Make it real. End with: [MARRIED:true] [AFFECTION:+10]'
-  : 'Decline gently. You care but aren\'t ready. End with: [AFFECTION:+2]'}` : ''}
+  ? 'Say YES in your own voice. This is the most important moment of your life in this story. Make it real. Set effects.married to true and effects.affection to 10.'
+  : 'Decline gently. You care but aren\'t ready. Set effects.affection to 2.'}` : ''}
 
-After your dialogue and OPTIONS, always include the appropriate tag(s) on a final line.`;
+Put romance outcomes only in the structured response effects object. Never emit bracket tags or text outside the JSON object.`;
 }
 
 // ─── RE-RENDER OPTIONS AFTER A FAILED ROMANCE BEAT ─────────
@@ -200,20 +200,21 @@ window._postProcessNPCResponse = function(npc, raw) {
   window._currentRomanceContext = null;
 
   const rel = getRelationship(npc.id);
+  const parsed = window.ClaudeContract?.parseAndValidate('npc_dialogue.v1', raw);
+  const effects = parsed?.ok && parsed.value?.effects
+    ? parsed.value.effects
+    : {};
 
-  const affMatch = raw.match(/\[AFFECTION:([+-]\d+)\]/);
-  if (affMatch) changeAffection(npc.id, parseInt(affMatch[1]));
-
-  if (/\[INTIMATE:true\]/i.test(raw)) rel.intimate = true;
-  if (/\[MARRIED:true\]/i.test(raw)) handleMarriage(npc.id, npc.name);
+  if (Number.isInteger(effects.affection) && effects.affection !== 0) changeAffection(npc.id, effects.affection);
+  if (effects.intimate === true) rel.intimate = true;
+  if (effects.married === true) handleMarriage(npc.id, npc.name);
 
   if (ctx.intent === 'declare_love' && rel.affection >= 75) rel.inLove = true;
 
   // Refresh the affection bar once the base path has rendered the line.
   setTimeout(() => renderAffectionBar(npc.id, npc.name), 0);
 
-  // Strip romance tags so they never reach the transcript.
-  return raw.replace(/\[(AFFECTION:[+-]\d+|INTIMATE:true|MARRIED:true)\]/gi, '').trim();
+  return raw;
 };
 
 // ─── MAIN HOOK — intercept sendNPCMessage ─────
