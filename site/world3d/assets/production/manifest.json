@@ -9,7 +9,7 @@
         5.0
       ],
       "interactive": [],
-      "bytes": 733448
+      "bytes": 734688
     },
     "house_b": {
       "category": "environment",
@@ -19,7 +19,7 @@
         5.6
       ],
       "interactive": [],
-      "bytes": 733572
+      "bytes": 734800
     },
     "house_c": {
       "category": "environment",
@@ -29,7 +29,7 @@
         4.8
       ],
       "interactive": [],
-      "bytes": 387544
+      "bytes": 388988
     },
     "merchant_shop": {
       "category": "environment",
@@ -42,7 +42,109 @@
         "door",
         "shop"
       ],
-      "bytes": 750632
+      "bytes": 751868
+    },
+    "narrow_house": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/narrow_house.glb",
+      "footprint": [
+        4.35,
+        5.4
+      ],
+      "interactive": [
+        "door"
+      ],
+      "bytes": 934844
+    },
+    "row_house": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/row_house.glb",
+      "footprint": [
+        8.8,
+        4.65
+      ],
+      "interactive": [
+        "door"
+      ],
+      "bytes": 801556
+    },
+    "craft_workshop": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/craft_workshop.glb",
+      "footprint": [
+        8.2,
+        7.4
+      ],
+      "interactive": [
+        "door",
+        "workshop"
+      ],
+      "bytes": 459388
+    },
+    "merchant_warehouse": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/merchant_warehouse.glb",
+      "footprint": [
+        10.5,
+        7.5
+      ],
+      "interactive": [
+        "door",
+        "warehouse"
+      ],
+      "bytes": 221424
+    },
+    "guild_hall": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/guild_hall.glb",
+      "footprint": [
+        10.4,
+        8.2
+      ],
+      "interactive": [
+        "door",
+        "guild"
+      ],
+      "bytes": 796124
+    },
+    "street_chapel": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/street_chapel.glb",
+      "footprint": [
+        7.4,
+        7.0
+      ],
+      "interactive": [
+        "door",
+        "chapel"
+      ],
+      "bytes": 77276
+    },
+    "noble_estate": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/noble_estate.glb",
+      "footprint": [
+        11.2,
+        9.0
+      ],
+      "interactive": [
+        "door",
+        "estate"
+      ],
+      "bytes": 1035344
+    },
+    "raised_granary": {
+      "category": "environment",
+      "url": "world3d/assets/production/environment/raised_granary.glb",
+      "footprint": [
+        9.2,
+        7.0
+      ],
+      "interactive": [
+        "door",
+        "storage"
+      ],
+      "bytes": 159336
     },
     "tavern": {
       "category": "environment",
@@ -55,7 +157,7 @@
         "door",
         "tavern"
       ],
-      "bytes": 795296
+      "bytes": 796532
     },
     "temple": {
       "category": "environment",
@@ -68,7 +170,7 @@
         "door",
         "temple"
       ],
-      "bytes": 253424
+      "bytes": 254876
     },
     "castle_tower": {
       "category": "environment",
@@ -78,7 +180,7 @@
         5.0
       ],
       "interactive": [],
-      "bytes": 649560
+      "bytes": 649564
     },
     "city_gatehouse": {
       "category": "environment",
@@ -90,7 +192,7 @@
       "interactive": [
         "gate"
       ],
-      "bytes": 1603320
+      "bytes": 1603324
     },
     "castle_wall": {
       "category": "environment",
@@ -136,7 +238,7 @@
         "door",
         "crypt"
       ],
-      "bytes": 71284
+      "bytes": 72724
     },
     "ancient_ruin": {
       "category": "environment",

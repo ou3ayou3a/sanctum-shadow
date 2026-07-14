@@ -12,6 +12,8 @@ const AudioEngine = (() => {
   let musicVolume = 0.35;
   let sfxVolume = 0.6;
   let enabled = true;
+  let cityAmbience = null;
+  let pendingAmbience = null;
 
   function loadPrefs() {
     try {
@@ -35,6 +37,7 @@ const AudioEngine = (() => {
       sfxGain = ctx.createGain();
       sfxGain.gain.value = enabled ? sfxVolume * (musicVolume / 0.35) : 0;
       sfxGain.connect(ctx.destination);
+      if (pendingAmbience) setTimeout(() => startCityAmbience(pendingAmbience), 0);
       return true;
     } catch (e) {
       console.warn('Web Audio not supported');
@@ -530,8 +533,38 @@ const AudioEngine = (() => {
     setTimeout(() => createBell(440, ctx.currentTime, 0.1), 300);
   }
 
+  function stopCityAmbience() {
+    if (!cityAmbience) return;
+    for (const source of cityAmbience.sources) { try { source.stop(); } catch (e) {} }
+    for (const timer of cityAmbience.timers) clearInterval(timer);
+    try { cityAmbience.gain.disconnect(); } catch (e) {}
+    cityAmbience = null;
+  }
+
+  function ambiencePulse(frequency = 900, duration = .12, volume = .025) {
+    if (!ctx || !cityAmbience || !enabled) return;
+    const now=ctx.currentTime,osc=createOscillator('triangle',frequency),gain=ctx.createGain();gain.gain.setValueAtTime(volume,now);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);osc.connect(gain);gain.connect(cityAmbience.gain);osc.start(now);osc.stop(now+duration+.02);
+  }
+
+  function startCityAmbience(options = {}) {
+    pendingAmbience={...pendingAmbience,...options};
+    if (!ctx || pendingAmbience.zoneId !== 'vaelthar_city') { if (pendingAmbience.zoneId && pendingAmbience.zoneId !== 'vaelthar_city') stopCityAmbience(); return; }
+    if (cityAmbience) { updateCityAmbience(pendingAmbience); return; }
+    resume();const gain=ctx.createGain();gain.gain.value=.26;gain.connect(sfxGain);const sources=[],timers=[];
+    const makeLoop=(filterType,frequency,volume)=>{const seconds=3,buffer=ctx.createBuffer(1,ctx.sampleRate*seconds,ctx.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(.35+.65*Math.sin(i*.00017)**2);const source=ctx.createBufferSource(),filter=createFilter(filterType,frequency,.7),layerGain=ctx.createGain();source.buffer=buffer;source.loop=true;layerGain.gain.value=volume;source.connect(filter);filter.connect(layerGain);layerGain.connect(gain);source.start();sources.push(source);return layerGain;};
+    const crowd=makeLoop('bandpass',310,.11),wind=makeLoop('lowpass',720,.045),rain=makeLoop('highpass',1800,0);
+    timers.push(setInterval(()=>ambiencePulse(760+Math.random()*180,.09,.018),4300));
+    timers.push(setInterval(()=>{ambiencePulse(155,.18,.026);setTimeout(()=>ambiencePulse(210,.14,.018),115);},7900));
+    timers.push(setInterval(()=>ambiencePulse(440,.95,.028),17000));
+    cityAmbience={gain,sources,timers,crowd,wind,rain};updateCityAmbience(pendingAmbience);
+  }
+
+  function updateCityAmbience({hour=10,weather='clear',zoneId='vaelthar_city'}={}) {
+    pendingAmbience={hour,weather,zoneId};if(zoneId!=='vaelthar_city'){stopCityAmbience();return;}if(!cityAmbience){if(ctx)startCityAmbience(pendingAmbience);return;}const day=hour>=6&&hour<21,now=ctx.currentTime;cityAmbience.gain.gain.setTargetAtTime(enabled?.25:0,now,.4);cityAmbience.crowd.gain.setTargetAtTime(day?.12:.025,now,.5);cityAmbience.wind.gain.setTargetAtTime(weather==='rain'?.095:.042,now,.5);cityAmbience.rain.gain.setTargetAtTime(weather==='rain'?.12:0,now,.35);
+  }
+
   return {
-    init, play, transition, stop, toggle, setVolume,
+    init, play, transition, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,stopCityAmbience,
     sfx: { dice: sfx_dice, holy: sfx_holy, dark: sfx_dark, sword: sfx_sword, levelup: sfx_levelup, page: sfx_page, travel: sfx_travel },
     isEnabled: () => enabled,
     getTrackId: () => currentTrackId,

@@ -1,5 +1,5 @@
-import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=132';
-import { buildGenericZone } from './zones/generic-zone.js?v=132';
+import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=135';
+import { buildGenericZone } from './zones/generic-zone.js?v=135';
 
 const productionZones={vaelthar_city:buildVaeltharCourtyard};
 

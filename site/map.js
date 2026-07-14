@@ -411,6 +411,14 @@ let mapState = {
 // ─── #56: export map globals so other files' window.* guards work ──
 window.mapState = mapState;
 window.WORLD_LOCATIONS = WORLD_LOCATIONS;
+window.travelToWorldLocation = function(id) {
+  const location=window.WORLD_LOCATIONS?.[id];
+  if(!location)return false;
+  if(location.locked){window.toast?.(location.lockHint||`${location.name} is locked.`,'error');return false;}
+  window.world3dReturnLocation=window.mapState?.currentLocation||'vaelthar_city';
+  window.travelToLocation?.(location);
+  return true;
+};
 
 // ─── #1: mirror of discovered location ids for saving ──
 window.mapDiscovered = window.mapDiscovered || {};

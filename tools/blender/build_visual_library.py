@@ -224,7 +224,7 @@ def make_house(name="House_A", *, width=6.5, depth=5.3, stories=2, roof_color="r
     stone = mat("stone", roughness=0.9)
     plaster = mat("plaster_warm" if shop else "plaster", roughness=0.82)
     ground_height=2.45
-    upper_height=2.45 if stories>1 else 0
+    upper_height=2.35 * max(0, stories - 1)
     ground_width,ground_depth=width*.90,depth*.91
     upper_width,upper_depth=width+.42,depth+.34
     wall_height=.55+ground_height+upper_height
@@ -245,7 +245,7 @@ def make_house(name="House_A", *, width=6.5, depth=5.3, stories=2, roof_color="r
     door(root, 0, -ground_depth / 2 - 0.10, 1.48)
     box("DoorStoneLintel",(1.55,.28,.28),(0,-ground_depth/2-.03,2.68),stone,bevel=.06,parent=root)
     for floor in range(stories):
-        z = 1.65 + floor * 2.45
+        z = 1.65 + floor * 2.35
         face_depth=ground_depth if floor==0 else upper_depth
         face_width=ground_width if floor==0 else upper_width
         for x in (-width * 0.29, width * 0.29):
@@ -267,6 +267,105 @@ def make_tavern():
     box("TavernCanopy", (7.2, 2.1, 0.18), (0, -4.35, 3.05), mat("roof"), bevel=0.04, parent=root)
     sign = box("TavernSign", (1.65, 0.16, 1.05), (3.55, -3.75, 3.75), mat("timber_light"), bevel=0.1, parent=root)
     sign["ss_landmark"] = "tavern"
+    return root
+
+
+def make_narrow_house():
+    root = make_house("Narrow_House", width=4.35, depth=5.4, stories=3, roof_color="roof_blue")
+    box("HangingSign", (0.82, 0.12, 0.62), (1.62, -2.88, 3.15), mat("timber_light"), bevel=0.07, parent=root)
+    box("SignBracket", (0.08, 0.72, 0.08), (1.62, -2.58, 3.55), mat("metal", metallic=.66), bevel=.012, parent=root)
+    return root
+
+
+def make_row_house():
+    root = make_house("Row_House", width=8.8, depth=4.65, stories=2, roof_color="roof")
+    timber = mat("timber", roughness=.9)
+    for x in (-2.75, 2.75):
+        box("PartyWallPier", (.32, 5.0, 5.15), (x, 0, 2.58), timber, bevel=.025, parent=root)
+    door(root, -2.15, -2.23, 1.45, width=1.0, name="INTERACT_RowDoorA")
+    door(root, 2.15, -2.23, 1.45, width=1.0, name="INTERACT_RowDoorB")
+    return root
+
+
+def make_workshop():
+    root = make_house("Craft_Workshop", width=8.2, depth=6.2, stories=1, shop=True)
+    timber = mat("timber", roughness=.9)
+    stone = mat("stone_dark", roughness=.95)
+    box("WorkshopLeanTo", (4.1, 2.7, .18), (-1.6, -4.0, 2.65), mat("roof"), bevel=.04, rotation=(math.radians(11), 0, 0), parent=root)
+    for x in (-3.2, 0):
+        cylinder("WorkshopPost", .14, 2.5, (x, -4.0, 1.35), timber, vertices=8, parent=root)
+    box("Forge", (2.0, 1.35, 1.15), (2.45, -3.7, .58), stone, bevel=.09, parent=root)
+    box("ForgeChimney", (.85, .85, 4.0), (2.45, -2.25, 3.5), stone, bevel=.08, parent=root)
+    return root
+
+
+def make_warehouse():
+    root = root_object("Merchant_Warehouse")
+    stone = mat("stone", roughness=.94)
+    timber = mat("timber", roughness=.9)
+    plaster = mat("plaster", roughness=.88)
+    box("WarehouseFoundation", (10.5, 7.2, .72), (0, 0, .36), stone, bevel=.1, parent=root)
+    box("WarehouseBody", (9.8, 6.5, 5.8), (0, 0, 3.55), plaster, bevel=.07, parent=root)
+    timber_frame(root, 9.8, 6.5, 5.8, .65)
+    gable_roof(root, 10.8, 7.5, 6.45, 3.1, mat("roof"), "WarehouseRoof")
+    for x in (-1.0, 1.0):
+        door(root, x, -3.34, 1.75, width=1.75, height=3.35, name=f"INTERACT_WarehouseDoor_{x}")
+    box("HoistBeam", (.25, 2.1, .28), (0, -4.0, 6.0), timber, bevel=.03, parent=root)
+    cylinder("HoistWheel", .42, .12, (0, -4.95, 5.4), timber, vertices=12, rotation=(math.radians(90), 0, 0), parent=root)
+    return root
+
+
+def make_guildhall():
+    root = make_house("Guild_Hall", width=10.4, depth=7.0, stories=2, roof_color="roof_blue")
+    stone = mat("stone_light", roughness=.92)
+    timber = mat("timber_light", roughness=.88)
+    box("GuildSteps", (4.7, 2.0, .42), (0, -4.25, .21), stone, bevel=.08, parent=root)
+    for x in (-1.75, 1.75):
+        cylinder("GuildColumn", .25, 3.4, (x, -4.15, 1.9), stone, vertices=10, parent=root)
+    box("GuildPortico", (4.8, 2.15, .32), (0, -4.15, 3.55), timber, bevel=.06, parent=root)
+    box("GuildCrest", (1.8, .16, 1.45), (0, -3.68, 5.05), mat("metal_gold", metallic=.62), bevel=.12, parent=root)
+    return root
+
+
+def make_chapel():
+    root = root_object("Street_Chapel")
+    stone = mat("stone", roughness=.94)
+    light = mat("stone_light", roughness=.91)
+    box("ChapelFoundation", (7.4, 7.0, .55), (0, 0, .275), stone, bevel=.08, parent=root)
+    box("ChapelNave", (6.4, 5.9, 4.8), (0, .3, 2.85), light, bevel=.09, parent=root)
+    gable_roof(root, 7.0, 6.5, 5.25, 2.65, mat("roof_blue"), "ChapelRoof")
+    door(root, 0, -2.72, 1.5, width=1.45, height=2.85, name="INTERACT_ChapelDoor")
+    for x in (-2.15, 2.15):
+        box("LancetWindow", (.48, .10, 1.4), (x, -2.68, 3.45), mat("glass", emission=(.16,.32,.42,1)), bevel=.14, parent=root)
+    cone("ChapelBellSpire", .78, 0, 3.5, (0, .8, 8.1), mat("metal_gold", metallic=.62), vertices=8, parent=root)
+    return root
+
+
+def make_noble_house():
+    root = make_house("Noble_Estate", width=11.2, depth=8.0, stories=3, roof_color="roof_blue")
+    stone = mat("stone_light", roughness=.9)
+    timber = mat("timber_light", roughness=.86)
+    box("NobleBalcony", (5.2, 1.45, .22), (0, -4.65, 4.25), stone, bevel=.06, parent=root)
+    for x in (-2.25, 2.25):
+        cylinder("BalconySupport", .18, 3.2, (x, -4.62, 2.55), stone, vertices=10, parent=root)
+    box("BalconyRail", (5.2, .12, .72), (0, -5.25, 4.65), timber, bevel=.025, parent=root)
+    for x in (-4.65, 4.65):
+        cylinder("CornerOriel", .72, 6.4, (x, -3.35, 4.0), stone, vertices=10, parent=root)
+        cone("OrielRoof", 1.05, 0, 1.9, (x, -3.35, 8.05), mat("roof_blue"), vertices=10, parent=root)
+    return root
+
+
+def make_granary():
+    root = root_object("Raised_Granary")
+    stone = mat("stone", roughness=.95)
+    timber = mat("timber_light", roughness=.93)
+    for x in (-3.2, 0, 3.2):
+        for y in (-2.0, 2.0):
+            cylinder("GranaryPier", .32, 1.25, (x, y, .625), stone, vertices=10, parent=root)
+    box("GranaryBody", (8.4, 5.7, 4.4), (0, 0, 3.25), timber, bevel=.08, parent=root)
+    gable_roof(root, 9.2, 6.5, 5.45, 2.7, mat("roof"), "GranaryRoof")
+    door(root, 0, -2.94, 3.05, width=1.65, height=2.6, name="INTERACT_GranaryDoor")
+    box("GranaryRamp", (2.0, 3.2, .22), (0, -4.35, 1.1), timber, bevel=.05, rotation=(math.radians(18), 0, 0), parent=root)
     return root
 
 
@@ -841,6 +940,18 @@ def select_hierarchy(root):
 def export_glb(root, relative_path: str, *, animations=False):
     destination = OUTPUT / relative_path
     destination.parent.mkdir(parents=True, exist_ok=True)
+    # Custom authored meshes such as gable roofs need UVs so the browser's
+    # shared PBR material library can apply roof tile and masonry maps.
+    for child in [root, *root.children_recursive]:
+        if child.type != "MESH" or child.data.uv_layers:
+            continue
+        bpy.ops.object.select_all(action="DESELECT")
+        child.select_set(True)
+        bpy.context.view_layer.objects.active = child
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=.02)
+        bpy.ops.object.mode_set(mode="OBJECT")
     select_hierarchy(root)
     bpy.ops.export_scene.gltf(
         filepath=str(destination),
@@ -875,6 +986,14 @@ def build_environment():
     register("house_b", "environment", lambda: make_house("House_B", width=7.2, depth=5.6, stories=2, roof_color="roof_blue"), [7.2, 5.6])
     register("house_c", "environment", lambda: make_house("House_C", width=5.8, depth=4.8, stories=1), [5.8, 4.8])
     register("merchant_shop", "environment", lambda: make_house("Merchant_Shop", width=7.4, depth=5.8, stories=2, shop=True), [7.4, 5.8], interactive=["door", "shop"])
+    register("narrow_house", "environment", make_narrow_house, [4.35, 5.4], interactive=["door"])
+    register("row_house", "environment", make_row_house, [8.8, 4.65], interactive=["door"])
+    register("craft_workshop", "environment", make_workshop, [8.2, 7.4], interactive=["door", "workshop"])
+    register("merchant_warehouse", "environment", make_warehouse, [10.5, 7.5], interactive=["door", "warehouse"])
+    register("guild_hall", "environment", make_guildhall, [10.4, 8.2], interactive=["door", "guild"])
+    register("street_chapel", "environment", make_chapel, [7.4, 7.0], interactive=["door", "chapel"])
+    register("noble_estate", "environment", make_noble_house, [11.2, 9.0], interactive=["door", "estate"])
+    register("raised_granary", "environment", make_granary, [9.2, 7.0], interactive=["door", "storage"])
     register("tavern", "environment", make_tavern, [9.2, 9.0], interactive=["door", "tavern"])
     register("temple", "environment", make_temple, [11.5, 9.0], interactive=["door", "temple"])
     register("castle_tower", "environment", make_tower, [5.0, 5.0])

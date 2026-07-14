@@ -28,7 +28,8 @@ test('generic zones keep procedural fallbacks while hero structures use Blender 
   assert.match(genericSource,/createArchitectureKit/);
   assert.match(vaeltharSource,/createArchitectureKit/);
   assert.match(vaeltharSource,/buildVaeltharAssetSlice/);
-  assert.match(vaeltharSource,/architecture\.wall/);
+  assert.match(assetSliceSource,/production:curtain-wall/);
+  assert.match(assetSliceSource,/production:corner-tower/);
   for(const model of['house_a','house_b','house_c','tavern','merchant_shop','temple','city_gatehouse','castle_keep','ancient_ruin','cave_entrance'])assert.match(assetSliceSource,new RegExp(model));
   for(const model of['tavern_interior','shop_interior','temple_interior','castle_interior','house_interior','dungeon_interior'])assert.match(productionSource,new RegExp(model));
   assert.match(genericSource,/placeProductionAsset/);

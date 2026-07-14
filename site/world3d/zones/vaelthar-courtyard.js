@@ -5,6 +5,8 @@ import {getLandmarkActions} from '../environment-actions.mjs';
 import {createArchitectureKit} from '../architecture-kit.mjs';
 import {createNatureKit} from '../nature-kit.mjs';
 import {buildVaeltharAssetSlice} from '../vaelthar-asset-slice.mjs';
+import {createMedievalMaterialLibrary} from '../medieval-materials.mjs';
+import {createCityDetailKit} from '../city-detail-kit.mjs';
 import {VAELTHAR_CITY_SIZE,VAELTHAR_DISTRICT_PLAN,VAELTHAR_STREETS,VAELTHAR_BUILDING_PLOTS,VAELTHAR_MARKET_STALLS,VAELTHAR_TERRACES} from './vaelthar-city-plan.mjs';
 
 const COLORS={stone:0x3d342a,stoneDark:0x211d18,stoneLight:0x625441,plaster:0x78654c,timber:0x3d2b1c,roof:0x29201b,crimson:0x762d2a,gold:0xc5a554,market:0x6b4434};
@@ -23,17 +25,18 @@ async function applyForestGroundMaterial(mesh){const loader=new THREE.TextureLoa
 
 export function buildVaeltharCourtyard(){
   const root=new THREE.Group();root.name='Vaelthar — The Fractured Capital';const obstacles=[],interactables=[],flames=[],smoke=[];
+  const materialLibrary=createMedievalMaterialLibrary();
   const stone=mat(COLORS.stone),stoneDark=mat(COLORS.stoneDark),stoneLight=mat(COLORS.stoneLight),plaster=mat(COLORS.plaster),timber=mat(COLORS.timber),roof=mat(COLORS.roof),gold=mat(COLORS.gold,{metalness:.65,roughness:.3});
   const architecture=createArchitectureKit({root,obstacles,palette:{...COLORS,bark:COLORS.timber,leaf:0x304a35,leafDark:0x1d3225,glass:0xe6a85e,cloth:COLORS.crimson}});
   const nature=createNatureKit({root,obstacles,architecture,palette:{ground:0x28372f,soil:0x4b3d2e,rock:COLORS.stoneDark,leaf:0x294735,fog:0x687b72,water:0x315a61}}),terrain=nature.terrain({size:140,segments:52,flatRadius:66,amplitude:5,y:-.18,name:'vaelthar-hills'}),groundMaterialReady=applyForestGroundMaterial(terrain);
   const ground=addMesh(root,new THREE.PlaneGeometry(140,140),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),[0,-.03,0],[-Math.PI/2,0,0]);ground.name='navigation-ground';ground.castShadow=false;
-  const cityGround=addMesh(root,new THREE.PlaneGeometry(VAELTHAR_CITY_SIZE.width-1,VAELTHAR_CITY_SIZE.depth-1),new THREE.MeshStandardMaterial({map:packedEarth(),color:0x8f7958,roughness:1}),[0,0,0],[-Math.PI/2,0,0]);cityGround.name='city-packed-earth';cityGround.castShadow=false;
-  const roadTexture=cobbles(),roadMat=new THREE.MeshStandardMaterial({map:roadTexture,color:0xb19b79,roughness:1}),roadEdgeMat=new THREE.MeshStandardMaterial({map:packedEarth(),color:0x745b3c,roughness:1});for(const street of VAELTHAR_STREETS){const edge=roadRibbon(street.points,street.width+1.25,roadEdgeMat,.026),road=roadRibbon(street.points,street.width,roadMat,.042);edge.name=`street-edge:${street.id}`;road.name=`street:${street.id}`;edge.receiveShadow=road.receiveShadow=true;root.add(edge,road);}
-  const plazaTexture=cobbles();plazaTexture.repeat.set(.22,.22);const plazaMaterial=new THREE.MeshStandardMaterial({map:plazaTexture,color:0xa28e70,roughness:1});pavingPatch(root,[[-9,-5],[-4,-9],[6,-8],[10,-3],[9,7],[4,11],[-6,10],[-10,5]],plazaMaterial,.055,'covenant-square');
+  const cityGround=addMesh(root,new THREE.PlaneGeometry(VAELTHAR_CITY_SIZE.width-1,VAELTHAR_CITY_SIZE.depth-1),materialLibrary.material('mud',0x8f7958,{bumpScale:.055}),[0,0,0],[-Math.PI/2,0,0]);cityGround.name='city-packed-earth';cityGround.castShadow=false;
+  const roadMat=materialLibrary.material('cobble',0xb19b79,{bumpScale:.07}),roadEdgeMat=materialLibrary.material('mud',0x745b3c,{bumpScale:.065});for(const street of VAELTHAR_STREETS){const edge=roadRibbon(street.points,street.width+1.25,roadEdgeMat,.026),road=roadRibbon(street.points,street.width,roadMat,.042);edge.name=`street-edge:${street.id}`;road.name=`street:${street.id}`;edge.receiveShadow=road.receiveShadow=true;root.add(edge,road);}
+  const plazaMaterial=materialLibrary.material('cobble',0xa28e70,{bumpScale:.075});pavingPatch(root,[[-9,-5],[-4,-9],[6,-8],[10,-3],[9,7],[4,11],[-6,10],[-10,5]],plazaMaterial,.055,'covenant-square');
   const block=(x,z,w,h,d,material=stone,y=0,rotation=0,collision=true)=>{const mesh=addBox(root,x,z,w,h,d,material,y,rotation);if(collision)obstacles.push({x,z,hw:w/2,hd:d/2});return mesh;};
-  const wallLine=VAELTHAR_CITY_SIZE.wall;architecture.wall({x:-wallLine,z:0,width:78,depth:1.35,height:6.4,rotation:Math.PI/2,name:'west-city-wall'});architecture.wall({x:wallLine,z:0,width:78,depth:1.35,height:6.4,rotation:Math.PI/2,name:'east-city-wall'});architecture.wall({x:-22,z:-wallLine,width:34,depth:1.35,height:6.4,name:'northwest-city-wall'});architecture.wall({x:22,z:-wallLine,width:34,depth:1.35,height:6.4,name:'northeast-city-wall'});architecture.wall({x:-22,z:wallLine,width:34,depth:1.35,height:6.4,name:'southwest-city-wall'});architecture.wall({x:22,z:wallLine,width:34,depth:1.35,height:6.4,name:'southeast-city-wall'});
-  // Authored towers are loaded into the two open wall gaps by the asset slice.
-  for(const [x,z]of[[-wallLine,-wallLine],[-wallLine,wallLine],[wallLine,-wallLine],[wallLine,wallLine]])architecture.tower({x,z,radius:3.2,height:9,roofed:true,name:'corner-watchtower'});
+  const wallLine=VAELTHAR_CITY_SIZE.wall;
+  // The complete curtain wall, gates and corner towers are authored Blender
+  // assets loaded by the production slice below.
   const banners=bannerTexture();for(const [x,z,ry] of[[-4,-36.8,0],[4,-36.8,0],[-38.4,10,Math.PI/2],[38.4,-10,-Math.PI/2],[-4,37.8,Math.PI],[4,37.8,Math.PI]]){const banner=addMesh(root,new THREE.PlaneGeometry(1.6,3),new THREE.MeshStandardMaterial({map:banners,transparent:true,side:THREE.DoubleSide,roughness:.9}),[x,5,z],[0,ry,0]);banner.castShadow=false;}
 
   // Natural land beyond the walls: wooded hills, an eastern river, rocky banks, undergrowth, and drifting mist.
@@ -41,7 +44,8 @@ export function buildVaeltharCourtyard(){
 
   // Layered northern skyline: retaining terrace, ceremonial stairs, and the Crown Citadel beyond the playable wall.
   const citadelTerrace=VAELTHAR_TERRACES.find(item=>item.id==='citadel-rise');block(citadelTerrace.x,citadelTerrace.z,citadelTerrace.width,citadelTerrace.height,citadelTerrace.depth,mat(citadelTerrace.color),0,0,false);for(let i=0;i<6;i++)block(0,-36.5-i*.75,8+i*1.1,.28,.85,stoneLight,i*.28,0,false);const citadelLabel=labelSprite('CROWN CITADEL');citadelLabel.position.set(0,17,-43);root.add(citadelLabel);
-  const assetSlice=buildVaeltharAssetSlice({root,obstacles,buildingPlots:VAELTHAR_BUILDING_PLOTS});
+  const assetSlice=buildVaeltharAssetSlice({root,obstacles,buildingPlots:VAELTHAR_BUILDING_PLOTS,materialLibrary});
+  const cityDetails=createCityDetailKit({root,streets:VAELTHAR_STREETS,buildingPlots:VAELTHAR_BUILDING_PLOTS,materials:materialLibrary});
 
   // Covenant fountain, broken statue and Watch command post.
   const fountain=new THREE.Group();fountain.position.set(0,0,2);root.add(fountain);const basin=new THREE.Mesh(new THREE.TorusGeometry(2.2,.42,12,40),stoneLight);basin.rotation.x=Math.PI/2;basin.position.y=.38;basin.castShadow=true;fountain.add(basin);const water=new THREE.Mesh(new THREE.CircleGeometry(1.9,40),mat(0x4d8d87,{roughness:.2,metalness:.1,transparent:true,opacity:.75,emissive:0x174b45,emissiveIntensity:.55}));water.rotation.x=-Math.PI/2;water.position.y=.28;fountain.add(water);const statue=new THREE.Mesh(new THREE.CylinderGeometry(.35,.55,3.2,8),stone);statue.position.y=1.7;statue.rotation.z=.12;statue.castShadow=true;fountain.add(statue);obstacles.push({x:0,z:2,hw:2.3,hd:2.3});
@@ -85,6 +89,8 @@ export function buildVaeltharCourtyard(){
 
   function landmarkMessage(id){const messages={north_gate:'The Crown Gate is watched from both towers. Beyond it, the northern road disappears into smoke.',signing_hall:'The signing hall still smells of ash. Broken seals and scorched stone mark where the Covenant failed.',church_archive:'The Archive doors are sealed by Crown order. Fresh scratches surround the lock.',temple_quarter:'Incense and smoke mingle beneath the Temple spire. The district is tense but open.',watch_post:'Maps, arrest orders, and patrol routes cover the Watch table. Captain Rhael normally commands from here.',covenant_fountain:'Someone broke the treaty statue at the waist. Coins glitter beneath the dark water.',ash_market:'Merchants trade through eight crowded stalls, loaded carts, and the public auction well.',tarnished_cup:'Warm light spills across the Cupside tables outside the Tarnished Cup.',crown_citadel:'The Crown Citadel rises above a terraced northern ridge, visible from almost every district.',southward_square:'Couriers, masons, and incoming wagons crowd the broad square inside the southern gate.',south_gate:'The southern gate opens onto the Merchant Road. Wagon tracks leave the city, but few return.',thornwood_cave:'Cold air carries the smell of wet stone from a worked cave mouth beneath the birches. The passage continues beyond the current city patrol.'};return messages[id]||'Vaelthar watches in silence.';}
   function useLandmark(landmark,engine){
+    const destination={tarnished_cup:'tarnished_cup',temple_quarter:'temple_quarter',church_archive:'church_archive',south_gate:'merchant_road',thornwood_cave:'thornwood_passage'}[landmark.id];
+    if(destination){assetSlice.openDoor(landmark.id);engine.toast(`Entering ${window.WORLD_LOCATIONS?.[destination]?.name||landmark.label}…`,700);setTimeout(()=>window.travelToWorldLocation?.(destination),420);return;}
     if(landmark.action?.startsWith('scene:')&&typeof window.runScene==='function'){window.runScene(landmark.action.slice(6));return;}
     if(landmark.action==='shop'&&typeof window.openShop==='function'){window.openShop();return;}
     if(landmark.action==='map'&&typeof window.openWorldMap==='function'){window.openWorldMap();return;}
@@ -92,8 +98,8 @@ export function buildVaeltharCourtyard(){
   }
   for(const landmark of VAELTHAR_LANDMARKS){const [x,y,z]=landmark.position;const object=new THREE.Mesh(new THREE.CylinderGeometry(landmark.range*.72,landmark.range*.72,.5,18),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));object.position.set(x,.25,z);object.userData.interactionId=landmark.id;root.add(object);interactables.push({id:landmark.id,object,position:new THREE.Vector3(x,y,z),range:landmark.range,label:landmark.label,actions:[{id:'primary',icon:'◆',label:landmark.label,direct:true},...getLandmarkActions(landmark.id)],onInteract:engine=>useLandmark(landmark,engine)});}
 
-  return{id:'vaelthar_city',name:'Vaelthar — The Fractured Capital',root,ground,spawn:new THREE.Vector3(VAELTHAR_SPAWN.x,VAELTHAR_SPAWN.y,VAELTHAR_SPAWN.z),bounds:{...VAELTHAR_BOUNDS},obstacles,interactables,npcs:VAELTHAR_NPCS,scene:{background:0x1b2422,fog:0x1b2422,fogDensity:.014},ready:Promise.all([assetSlice.ready,groundMaterialReady]),
-    update(time){nature.update(time);assetSlice.update(time);water.material.emissiveIntensity=.45+Math.sin(time*1.8)*.12;for(let i=0;i<flames.length;i++)flames[i].intensity=5.5+Math.sin(time*8+i*1.7)*1.5;for(const puff of smoke){const cycle=(time*.16+puff.phase)%1;puff.mesh.position.y=puff.baseY+cycle*1.8;puff.mesh.position.x+=Math.sin(time*.3+puff.phase)*.0008;puff.mesh.material.opacity=.16*(1-cycle);puff.mesh.scale.setScalar(.8+cycle*.9);}},
+  return{id:'vaelthar_city',name:'Vaelthar — The Fractured Capital',root,ground,spawn:new THREE.Vector3(VAELTHAR_SPAWN.x,VAELTHAR_SPAWN.y,VAELTHAR_SPAWN.z),bounds:{...VAELTHAR_BOUNDS},obstacles,interactables,npcs:VAELTHAR_NPCS,scene:{background:0x1b2422,fog:0x1b2422,fogDensity:.014},ready:Promise.all([assetSlice.ready,groundMaterialReady]),setWetness:value=>cityDetails.setWetness(value),
+    update(time){nature.update(time);assetSlice.update(time);cityDetails.update(time);water.material.emissiveIntensity=.45+Math.sin(time*1.8)*.12;for(let i=0;i<flames.length;i++)flames[i].intensity=5.5+Math.sin(time*8+i*1.7)*1.5;for(const puff of smoke){const cycle=(time*.16+puff.phase)%1;puff.mesh.position.y=puff.baseY+cycle*1.8;puff.mesh.position.x+=Math.sin(time*.3+puff.phase)*.0008;puff.mesh.material.opacity=.16*(1-cycle);puff.mesh.scale.setScalar(.8+cycle*.9);}},
     dispose(){const geometries=new Set(),materials=new Set(),textures=new Set();root.traverse(o=>{if(o.userData?.environmentAssetShared)return;if(o.geometry)geometries.add(o.geometry);if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{materials.add(m);if(m.map)textures.add(m.map);});});for(const g of geometries)g.dispose();for(const t of textures)t.dispose();for(const m of materials)m.dispose();}
   };
 }

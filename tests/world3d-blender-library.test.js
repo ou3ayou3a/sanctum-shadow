@@ -18,12 +18,13 @@ test('the reproducible Blender source pipeline and editable library are present'
 
 test('the production manifest covers world architecture, interiors, equipment, and all launch races',()=>{
   assert.equal(manifest.version,1);
-  assert.equal(Object.keys(manifest.assets).length,37);
+  assert.equal(Object.keys(manifest.assets).length,45);
   const byCategory=Object.values(manifest.assets).reduce((result,asset)=>{
     result[asset.category]=(result[asset.category]||0)+1;
     return result;
   },{});
-  assert.deepEqual(byCategory,{environment:17,interiors:6,equipment:7,characters:7});
+  assert.deepEqual(byCategory,{environment:25,interiors:6,equipment:7,characters:7});
+  for(const building of['narrow_house','row_house','craft_workshop','merchant_warehouse','guild_hall','street_chapel','noble_estate','raised_granary'])assert.equal(manifest.assets[building].category,'environment');
   for(const race of['human','dwarf','elf','high_elf','dark_elf','orc','goblin']){
     const asset=manifest.assets[`character_${race}`];
     assert.equal(asset.race,race);

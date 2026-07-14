@@ -5,6 +5,9 @@ const ROOT='world3d/assets/production';
 export const PRODUCTION_ASSETS=Object.freeze({
   house_a:`${ROOT}/environment/house_a.glb`,house_b:`${ROOT}/environment/house_b.glb`,house_c:`${ROOT}/environment/house_c.glb`,
   merchant_shop:`${ROOT}/environment/merchant_shop.glb`,tavern:`${ROOT}/environment/tavern.glb`,temple:`${ROOT}/environment/temple.glb`,
+  narrow_house:`${ROOT}/environment/narrow_house.glb`,row_house:`${ROOT}/environment/row_house.glb`,craft_workshop:`${ROOT}/environment/craft_workshop.glb`,
+  merchant_warehouse:`${ROOT}/environment/merchant_warehouse.glb`,guild_hall:`${ROOT}/environment/guild_hall.glb`,street_chapel:`${ROOT}/environment/street_chapel.glb`,
+  noble_estate:`${ROOT}/environment/noble_estate.glb`,raised_granary:`${ROOT}/environment/raised_granary.glb`,
   castle_tower:`${ROOT}/environment/castle_tower.glb`,city_gatehouse:`${ROOT}/environment/city_gatehouse.glb`,castle_wall:`${ROOT}/environment/castle_wall.glb`,castle_keep:`${ROOT}/environment/castle_keep.glb`,
   stone_bridge:`${ROOT}/environment/stone_bridge.glb`,crypt:`${ROOT}/environment/crypt.glb`,ancient_ruin:`${ROOT}/environment/ancient_ruin.glb`,cave_entrance:`${ROOT}/environment/cave_entrance.glb`,
   oak_tree:`${ROOT}/environment/oak_tree.glb`,forest_tree:`${ROOT}/environment/forest_tree.glb`,dead_tree:`${ROOT}/environment/dead_tree.glb`,
@@ -33,7 +36,7 @@ export function productionRaceModel(race,fallback='prototype/assets/elf-ranger.g
 
 const INTERIOR_BY_LOCATION=Object.freeze({
   harren_hall:'castle_interior',monastery_cellar:'dungeon_interior',tower_antechamber:'dungeon_interior',
-  church_archive:'shop_interior',archive_scriptorium:'shop_interior'
+  church_archive:'shop_interior',archive_scriptorium:'shop_interior',temple_quarter:'temple_interior',thornwood_hut:'house_interior'
 });
 const INTERIOR_BY_KIT=Object.freeze({tavern:'tavern_interior',cellar:'dungeon_interior',archive:'shop_interior',dungeon:'dungeon_interior'});
 
