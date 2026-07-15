@@ -1,4 +1,4 @@
-import {placeEnvironmentAsset} from './environment-asset-loader.js';
+import {placeEnvironmentAsset,preloadEnvironmentAsset} from './environment-asset-loader.js?v=136';
 import {productionAssetSpec} from './production-assets.mjs';
 
 function registerObstacle(obstacles,{x,z,width,depth,rotation=0}){const c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));obstacles.push({x,z,hw:c*width/2+s*depth/2,hd:s*width/2+c*depth/2});}
@@ -6,6 +6,7 @@ function seeded(seed){let value=seed>>>0;return()=>{value=(value*1664525+1013904
 
 export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLibrary}){
   const animated=[],doors=[],jobs=[],failures=[];
+  jobs.push(preloadEnvironmentAsset(productionAssetSpec('tavern_interior')).catch(error=>{failures.push({name:'preload:tavern-interior',error});return null;}));
   const place=(spec,placement,{sway=0,doorId=null}={})=>{const job=placeEnvironmentAsset(root,spec,placement).then(object=>{materialLibrary?.apply(object);if(sway)animated.push({object,phase:placement.position[0]*.37+placement.position[2]*.19,strength:sway});if(doorId)object.traverse(child=>{if(/INTERACT.*Door/i.test(child.name))doors.push({id:doorId,object:child,closed:child.rotation.y,target:0,amount:0});});return object;}).catch(error=>{failures.push({name:placement.name,error});console.warn(`Environment asset failed: ${placement.name}`,error);return null;});jobs.push(job);return job;};
 
   for(const [index,plot] of buildingPlots.entries()){

@@ -10,7 +10,7 @@
   const QUEST_ARCS = Object.freeze({
     c1q1:{ objectives:[
       { id:'arrive', label:'Enter Vaelthar and identify the first leads.', events:['scene:arrival_vaelthar'] },
-      { id:'evidence', label:'Find evidence that the Covenant burning was deliberate.', events:['scene:covenant_hall_scene','scene:scribe_gives_document','scene:rhael_reveals_covenant'] },
+      { id:'evidence', label:'Find evidence that the Covenant burning was deliberate.', events:['scene:covenant_hall_scene','scene:scribe_gives_document','scene:rhael_reveals_covenant','scene:cupside_evidence_found','combat:victory:cupside_checkpoint'] },
       { id:'locate_varek', label:'Discover that Elder Varek is at Saint Aldric.', events:['scene:scribe_names_varek_location','scene:mourne_reveals_varek'] },
       { id:'confront_varek', label:'Reach the monastery and confront Elder Varek.', events:['scene:monastery_arrival'] },
       { id:'resolve', label:'Decide Elder Varek’s fate.', events:['scene:chapter1_end_arrest','scene:chapter1_end_surrender','scene:chapter1_end_rhael_leads'], completes:true },

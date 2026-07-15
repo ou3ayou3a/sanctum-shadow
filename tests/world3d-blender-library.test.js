@@ -28,7 +28,7 @@ test('the production manifest covers world architecture, interiors, equipment, a
   for(const race of['human','dwarf','elf','high_elf','dark_elf','orc','goblin']){
     const asset=manifest.assets[`character_${race}`];
     assert.equal(asset.race,race);
-    for(const clip of['Idle','Walk','Run','Attack_Slash','Attack_Smite','Cast','Bow_Shot','Block','Dodge','Hit','Death'])assert.ok(asset.animations.includes(clip),`${race}: ${clip}`);
+    for(const clip of['Idle','Walk','Run','Walk_Start','Walk_Stop','Turn_Left','Turn_Right','Interact','Weapon_Draw','Weapon_Sheathe','Combat_Idle','Attack_Slash','Attack_Smite','Cast','Bow_Shot','Block','Dodge','Hit','Death'])assert.ok(asset.animations.includes(clip),`${race}: ${clip}`);
   }
 });
 
@@ -47,8 +47,12 @@ test('every production GLB exists and the complete browser payload stays below 3
 test('characters and class equipment use the Blender library with procedural fallbacks',()=>{
   assert.match(actorSource,/productionRaceModel/);
   assert.match(actorSource,/playOneShot/);
-  for(const clip of['attack_slash','attack_smite','bow_shot','cast','block','dodge','hit','death'])assert.match(actorSource,new RegExp(clip));
+  for(const clip of['walk_start','walk_stop','turn_left','turn_right','interact','weapon_draw','weapon_sheathe','attack_slash','attack_smite','bow_shot','cast','block','dodge','hit','death'])assert.match(actorSource,new RegExp(clip));
+  assert.match(actorSource,/updateLocomotionBlend/);
+  assert.match(actorSource,/setEquipmentDrawn/);
   assert.match(equipmentSource,/GLTFLoader/);
   assert.match(equipmentSource,/world3d\/assets\/production\/equipment/);
+  assert.match(equipmentSource,/equipmentSlot='held'/);
+  assert.match(equipmentSource,/equipmentSlot='stowed'/);
   assert.match(equipmentSource,/procedural fallback/);
 });

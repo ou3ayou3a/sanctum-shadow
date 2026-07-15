@@ -568,7 +568,7 @@ function buildWorldMap() {
   const connLayer = svg.querySelector('#connections-layer');
   const drawn = new Set();
   Object.values(WORLD_LOCATIONS).forEach(loc => {
-    loc.connections.forEach(connId => {
+    for (const connId of loc?.connections || []) {
       const key = [loc.id, connId].sort().join('--');
       if (drawn.has(key)) return;
       drawn.add(key);
@@ -585,7 +585,7 @@ function buildWorldMap() {
       line.setAttribute('fill', 'none');
       line.setAttribute('stroke-dasharray', '4,3');
       connLayer.appendChild(line);
-    });
+    }
   });
 
   // Draw location nodes

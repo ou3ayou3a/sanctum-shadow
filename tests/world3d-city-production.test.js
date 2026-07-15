@@ -29,6 +29,7 @@ test('PBR materials, weather, day-night lighting, and obstruction fading are con
   assert.match(materials,/roughnessMap/);assert.match(materials,/bumpMap/);
   assert.match(atmosphere,/weatherFor/);assert.match(atmosphere,/worldClock/);assert.match(atmosphere,/weather:rain/);
   assert.match(obstruction,/intersectObjects\(this\.occluders,false\)/);assert.match(obstruction,/opacity=Math\.min/);
+  assert.match(obstruction,/while\(current&&current!==engine\.zone\.root\)/);
 });
 
 test('important interiors have physical exits, collisions, NPC positions, and hotspots',()=>{

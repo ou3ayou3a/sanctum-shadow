@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js';
+import {CharacterActor} from './character-actor.js?v=143';
 
 export class NPCManager{
   constructor(engine,configs=[]){this.engine=engine;this.configs=configs;this.records=[];this.modelUrl=engine.characterConfig.modelUrl;}
@@ -12,7 +12,7 @@ export class NPCManager{
     const interaction={id:`npc:${config.id}`,object:collider,position:actor.position,range:2.3,label:config.action==='shop'?`Trade with ${config.name}`:config.action==='ambient'?`Greet ${config.name}`:`Speak with ${config.name}`,onInteract:()=>this.interact(record)};
     const record={config,actor,collider,label,interaction,patrolIndex:0,nextPatrol:4+index*.7,lastSchedule:''};label.addEventListener('click',()=>{actor.stop();this.engine.goToInteraction(interaction);});this.records.push(record);this.engine.registerInteraction(interaction);this.applySchedule(record,true);
   }
-  interact(record){record.actor.stop();const config=record.config;if(config.action==='shop'){window.openShop?.();return;}if(config.action==='ambient'){this.engine.toast(config.ambientLine||`${config.name} nods, then returns to work.`,4200);return;}window.startNPCConversation?.(config.dialogueId||config.id);}
+  interact(record){record.actor.stop();record.actor.faceTarget(this.engine.actor);record.actor.playOneShot('interact');const config=record.config;if(config.action==='shop'){window.openShop?.();return;}if(config.action==='ambient'){this.engine.toast(config.ambientLine||`${config.name} nods, then returns to work.`,4200);return;}window.startNPCConversation?.(config.dialogueId||config.id);}
   activeAt(config,hour){if(!config.activeHours)return true;const[from,to]=config.activeHours;return from<=to?hour>=from&&hour<to:hour>=from||hour<to;}
   applySchedule(record,force=false){const hour=window.worldClock?.hour??10,{config,actor,collider,label}=record,active=this.activeAt(config,hour),slot=(config.schedule||[]).find(item=>hour>=item.from&&hour<item.to),key=`${active}:${slot?.from??'base'}`;if(!force&&key===record.lastSchedule)return;record.lastSchedule=key;actor.visible=collider.visible=active;if(!active){label.style.display='none';actor.stop();return;}if(slot?.position){const[x,z]=slot.position,path=this.engine.navigation.findPath(actor.position,{x,z});if(path.length)actor.moveAlong(path,{run:false});}record.activePatrol=slot?.patrol||config.patrol;record.nextPatrol=0;}
   update(dt,time){

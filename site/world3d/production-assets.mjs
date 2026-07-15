@@ -26,8 +26,8 @@ export function placeProductionAsset(root,id,placement={}){
 }
 
 export const RACE_MODEL_URLS=Object.freeze({
-  human:`${ROOT}/characters/human.glb`,dwarf:`${ROOT}/characters/dwarf.glb`,elf:`${ROOT}/characters/elf.glb`,high_elf:`${ROOT}/characters/high_elf.glb`,
-  dark_elf:`${ROOT}/characters/dark_elf.glb`,orc:`${ROOT}/characters/orc.glb`,goblin:`${ROOT}/characters/goblin.glb`
+  human:`${ROOT}/characters/human.glb?v=2`,dwarf:`${ROOT}/characters/dwarf.glb?v=2`,elf:`${ROOT}/characters/elf.glb?v=2`,high_elf:`${ROOT}/characters/high_elf.glb?v=2`,
+  dark_elf:`${ROOT}/characters/dark_elf.glb?v=2`,orc:`${ROOT}/characters/orc.glb?v=2`,goblin:`${ROOT}/characters/goblin.glb?v=2`
 });
 
 export function productionRaceModel(race,fallback='prototype/assets/elf-ranger.glb'){

@@ -5,6 +5,8 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const Rules = require('./site/rules.js');
+const TacticalCombat = require('./site/tactical-combat.js');
+const CombatPresentation = require('./site/combat-presentation.js');
 const PartyRules = require('./lib/party-rules.js');
 const SessionSecurity = require('./lib/session-security.js');
 const SessionStore = require('./lib/session-store.js');
@@ -548,7 +550,7 @@ io.on('connection', (socket) => {
   }));
 
   // ── Start combat (any player can trigger) ──
-  socket.on('start_combat', safeHandler('start_combat', ({ code, enemies, initiatorId }) => {
+  socket.on('start_combat', safeHandler('start_combat', ({ code, enemies, initiatorId, encounter }) => {
     const s = authorizedSession(socket, code);
     if (!s || !allowSocketEvent(socket, 'start_combat', 4, 5000)) return;
     if (s.state !== 'playing') return;
@@ -570,6 +572,10 @@ io.on('connection', (socket) => {
     const combatParty = PartyRules.connectedPlayers(s, { readyOnly:true });
     if (combatParty.length === 0) return;
     enemies = PartyRules.scaleEncounter(enemies, combatParty.length);
+    const encounterId = encounter?.id === 'cupside_checkpoint' ? 'cupside_checkpoint' : 'standard';
+    const tacticalCover = encounterId === 'cupside_checkpoint'
+      ? [{id:'cupside_barricade',x:0,z:3.1,radius:.82,type:'half'}]
+      : [];
 
     if (s.conversation?.active) {
       const conversationId=s.conversation.id,controllerName=s.conversation.controllerName;
@@ -580,6 +586,7 @@ io.on('connection', (socket) => {
     // Build full combatant list: all players + enemies
     const combatants = {};
     const turnOrder = [];
+    let playerPlacement = 0;
 
     Object.entries(s.players).forEach(([pid, p]) => {
       if (!p.character || !p.connected) return;
@@ -601,9 +608,12 @@ io.on('connection', (socket) => {
         attackAbility,
         attackBonus:attackMod + weaponAtk + proficiency,
         damageMod:attackMod + weaponAtk,
+        characterClass:String(char.class||'warrior').toLowerCase().replace(/[^a-z_-]/g,'').slice(0,24)||'warrior',
         type: 'player', isPlayer: true, boss: false,
         spells: char.spells || [], level: char.level || 1,
         icon: '⚔', initiative,
+        tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
+        position:{x:(playerPlacement-(combatParty.length-1)/2)*1.55,z:0},
         statMods: {
           str: strMod,
           dex: dexMod,
@@ -613,6 +623,7 @@ io.on('connection', (socket) => {
           cha: Rules.abilityModifier(char.stats?.cha || 10),
         }
       };
+      playerPlacement++;
       turnOrder.push({ id: pid, initiative });
     });
 
@@ -620,7 +631,9 @@ io.on('connection', (socket) => {
       const eid = 'enemy_' + i + '_' + Date.now();
       const initiative = Rules.rollInitiative({ bonus:e.dex || 0 }).total;
       combatants[eid] = {
-        ...e, id:eid, type:'enemy', isPlayer:false, ap:3, initiative,
+        ...e, id:eid, sourceId:String(e.id||'').replace(/[^a-z0-9_-]/gi,'').slice(0,64), type:'enemy', isPlayer:false, ap:3, initiative,
+        tacticalRole:['frontline','skirmisher','ranged','caster'].includes(e.tacticalRole)?e.tacticalRole:TacticalCombat.inferRole(e),
+        position:{x:(i-(enemies.length-1)/2)*2.05,z:5.5+(i%2)*.7},
         attackBonus:e.attackBonus ?? e.atk ?? 3,
         damageMod:e.damageMod ?? e.atk ?? 3,
       };
@@ -632,11 +645,13 @@ io.on('connection', (socket) => {
     s.combatState = {
       active: true, round: 1,
       combatants,
+      tactical:{encounterId,cover:tacticalCover,bounds:12,moveRange:TacticalCombat.DEFAULT_MOVE_RANGE},
       turnOrder: turnOrder.map(t => t.id),
       currentTurnIndex: 0,
       apRemaining: 3,
       _enemyTurnSeq: 0,        // increments per enemy turn (keyed dedupe)
       _enemyTurnProcessed: -1, // last seq the server has resolved
+      _presentationSeq: 0,
     };
     s.state = 'combat';
 
@@ -645,7 +660,7 @@ io.on('connection', (socket) => {
   }));
 
   // ── Combat action ──
-  socket.on('combat_action', safeHandler('combat_action', ({ code, action, targetId, spellId }) => {
+  socket.on('combat_action', safeHandler('combat_action', ({ code, action, targetId, spellId, position }) => {
     const s = authorizedSession(socket, code);
     if (!s || !s.combatState || !allowSocketEvent(socket, 'combat_action', 20, 5000)) return;
 
@@ -660,17 +675,22 @@ io.on('connection', (socket) => {
     const actor = cs.combatants[currentId];
     if (!actor) return;
     let logEntry = null;
+    let presentation = null;
     let stateSync = null; // {playerId, inventory, gold} broadcast for item use
 
     if (action === 'attack') {
       const target = cs.combatants[targetId];
       if (!target || typeof target.hp !== 'number' || target.hp <= 0) return;
-      const attack = Rules.resolveAttack({ attackBonus:actor.attackBonus ?? actor.atk ?? 0, targetAC:target.ac || 10 });
+      const tactical=TacticalCombat.validateAttack(actor,target,{cover:cs.tactical?.cover||[]});
+      if(!tactical.ok){socket.emit('error',{msg:tactical.reason==='out_of_range'?`Target is out of range (${tactical.distance?.toFixed(1)}m / ${tactical.range}m).`:'That target cannot be attacked.'});return;}
+      const attack = Rules.resolveAttack({ attackBonus:actor.attackBonus ?? actor.atk ?? 0, targetAC:(target.ac || 10)+tactical.coverBonus });
       const { roll, crit } = attack;
+      let damage=0;
       if (attack.hit) {
         const dmg = Rules.rollFormula('1d8', { modifier:actor.damageMod ?? actor.atk ?? 0, critical:crit }).total;
+        damage=dmg;
         target.hp = Math.max(0, target.hp - dmg);
-        logEntry = { type: 'combat', text: `⚔ ${crit ? 'CRITICAL HIT' : 'HIT'} — ${actor.name} attacks ${target.name}! [${roll}] — ${dmg} damage!` };
+        logEntry = { type: 'combat', text: `⚔ ${crit ? 'CRITICAL HIT' : 'HIT'} — ${actor.name} attacks ${target.name}${tactical.coverBonus?' through cover':''}! [${roll}] — ${dmg} damage!` };
         // Sync HP back if target is a player
         if (target.isPlayer && s.players[target.playerId]) {
           s.players[target.playerId].hp = target.hp;
@@ -678,6 +698,7 @@ io.on('connection', (socket) => {
       } else {
         logEntry = { type: 'system', text: `⚔ MISS — ${actor.name} misses ${target.name}! [${roll}]` };
       }
+      presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'attack',hit:attack.hit,crit,damage});
       cs.apRemaining--;
 
     } else if (action === 'spell') {
@@ -695,17 +716,21 @@ io.on('connection', (socket) => {
         actor.hp = Math.min(actor.maxHp, actor.hp + healAmt);
         if (actor.isPlayer && s.players[actor.playerId]) s.players[actor.playerId].hp = actor.hp;
         logEntry = { type: 'holy', text: `${spell.icon} ${actor.name} casts ${spell.name} — healed ${healAmt} HP!` };
+        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target:actor,action:'spell',spell,hit:true,healing:healAmt});
       } else {
         target.hp = Math.max(0, target.hp - dmg);
         if (target.isPlayer && s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
         logEntry = { type: 'combat', text: `${spell.icon} ${actor.name} casts ${spell.name} on ${target.name} — HIT — ${dmg} damage!` };
+        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:dmg});
       }
 
     } else if (action === 'move') {
-      // Reposition — costs 1 AP, no other effect (#63: route MOVE through server).
       if (cs.apRemaining < 1) return;
+      const movement=TacticalCombat.validateMove(actor.position,position,{maxDistance:cs.tactical?.moveRange||TacticalCombat.DEFAULT_MOVE_RANGE,bounds:cs.tactical?.bounds||12});
+      if(!movement.ok){socket.emit('error',{msg:movement.reason==='out_of_range'?'That move is too far.':'That position is outside the battlefield.'});return;}
+      actor.position=movement.position;
       cs.apRemaining--;
-      logEntry = { type: 'system', text: `🏃 ${actor.name} repositions on the battlefield.` };
+      logEntry = { type: 'system', text: `🏃 ${actor.name} moves ${movement.distance.toFixed(1)}m.` };
 
     } else if (action === 'item') {
       // Use a consumable — server applies AP cost + effect authoritatively (#63).
@@ -739,7 +764,7 @@ io.on('connection', (socket) => {
 
     if (players.length === 0) {
       cs.active = false; s.state = 'playing';
-      io.to(code).emit('combat_ended', { victory: false, combatState: cs });
+      io.to(code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
       broadcastSession(code);
       return;
     }
@@ -749,7 +774,7 @@ io.on('connection', (socket) => {
       const xp = Object.values(cs.combatants).filter(c=>!c.isPlayer).reduce((a,c)=>a+(c.xp||50),0);
       const sharers = Object.values(s.players).filter(p => p && p.connected && p.character).length || 1;
       const xpEach = Math.floor(xp / sharers);
-      io.to(code).emit('combat_ended', { victory: true, xp, xpEach, combatState: cs });
+      io.to(code).emit('combat_ended', { victory: true, xp, xpEach, combatState: cs, presentation, log:logEntry });
       broadcastSession(code);
       return;
     }
@@ -759,7 +784,7 @@ io.on('connection', (socket) => {
       advanceTurnServer(s);
     }
 
-    io.to(code).emit('combat_update', { combatState: cs, log: logEntry });
+    io.to(code).emit('combat_update', { combatState: cs, log: logEntry, presentation });
   }));
 
   // ── Enemy AI turn (any connected player may signal; server resolves once) ──
@@ -1007,31 +1032,47 @@ function processEnemyTurn(s, seq) {
 
   const playerTargets = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
   if (playerTargets.length === 0) return;
-  const target = playerTargets[Math.floor(Math.random()*playerTargets.length)];
+  const target = playerTargets.reduce((closest,candidate)=>{
+    if(!closest)return candidate;
+    return (TacticalCombat.distance(enemy.position,candidate.position)??Infinity)<(TacticalCombat.distance(enemy.position,closest.position)??Infinity)?candidate:closest;
+  },null);
 
-  const attack = Rules.resolveAttack({ attackBonus:enemy.attackBonus ?? enemy.atk ?? 0, targetAC:target.ac || 12 });
+  let tactical=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
+  if(!tactical.ok&&tactical.reason==='out_of_range'&&enemy.position&&target.position){
+    const desired=Math.max(0,(tactical.distance||0)-tactical.range+.15);
+    enemy.position=TacticalCombat.moveToward(enemy.position,target.position,Math.min(cs.tactical?.moveRange||TacticalCombat.DEFAULT_MOVE_RANGE,desired));
+    tactical=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
+  }
+  if(!tactical.ok){
+    const logEntry={type:'system',text:`${enemy.icon} ${enemy.name} advances but cannot reach ${target.name}.`};
+    s.log.push(logEntry);capLog(s.log);advanceTurnServer(s);io.to(s.code).emit('combat_update',{combatState:cs,log:logEntry});return;
+  }
+
+  const attack = Rules.resolveAttack({ attackBonus:enemy.attackBonus ?? enemy.atk ?? 0, targetAC:(target.ac || 12)+tactical.coverBonus });
   const { roll, crit } = attack;
-  let logEntry;
+  let logEntry,damage=0;
   if (attack.hit) {
     const dmg = Rules.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:crit }).total;
+    damage=dmg;
     target.hp = Math.max(0, target.hp - dmg);
     if (s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
     logEntry = { type: 'combat', text: `${enemy.icon} ${crit ? 'CRITICAL HIT' : 'HIT'} — ${enemy.name} attacks ${target.name}! [${roll}] — ${dmg} damage!` };
   } else {
     logEntry = { type: 'system', text: `${enemy.icon} MISS — ${enemy.name} misses ${target.name}! [${roll}]` };
   }
+  const presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor:enemy,target,action:'attack',hit:attack.hit,crit,damage});
   s.log.push(logEntry);
   capLog(s.log);
 
   const players = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
   if (players.length === 0) {
     cs.active = false; s.state = 'playing';
-    io.to(s.code).emit('combat_ended', { victory: false, combatState: cs });
+    io.to(s.code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
     broadcastSession(s.code); return;
   }
 
   advanceTurnServer(s);
-  io.to(s.code).emit('combat_update', { combatState: cs, log: logEntry });
+  io.to(s.code).emit('combat_update', { combatState: cs, log: logEntry, presentation });
 }
 
 // Validate a dice formula before evaluating it server-side (#66).

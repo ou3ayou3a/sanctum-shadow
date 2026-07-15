@@ -487,7 +487,7 @@ function initPlayerSpells(char) {
 }
 
 // ─── ENTER COMBAT ─────────────────────────────
-function startCombat(enemies) {
+function startCombat(enemies, encounter = {}) {
   const char = gameState.character;
   if (!char) return;
 
@@ -507,6 +507,8 @@ function startCombat(enemies) {
   combatState.turnOrder = [];
   combatState.selectedSpell = null;
   combatState.statusEffects = {}; // clear all statuses
+  const encounterId=encounter?.id==='cupside_checkpoint'?'cupside_checkpoint':'standard';
+  combatState.tactical={encounterId,cover:encounterId==='cupside_checkpoint'?[{id:'cupside_barricade',x:0,z:3.1,radius:.82,type:'half'}]:[],bounds:12,moveRange:window.TacticalCombat?.DEFAULT_MOVE_RANGE||4.5};
 
   const wisMod = COMBAT_RULES.abilityModifier(char.stats?.wis || 10);
   const strMod = COMBAT_RULES.abilityModifier(char.stats?.str || 10);
@@ -534,6 +536,8 @@ function startCombat(enemies) {
     isPlayer: true, boss: false,
     initiative: COMBAT_RULES.rollInitiative({ bonus:dexMod }).total,
     spells: char.spells || [],
+    tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
+    position:{x:0,z:0},
     statMods: { str:strMod, dex:dexMod, wis:wisMod, int:Math.floor(((char.stats?.int||10)-10)/2) },
   };
 
@@ -554,6 +558,8 @@ function startCombat(enemies) {
       spells: e.spells || [],
       level: e.level || 1,
       xp: e.xp || 50,
+      tacticalRole:['frontline','skirmisher','ranged','caster'].includes(e.tacticalRole)?e.tacticalRole:window.TacticalCombat?.inferRole?.(e)||'frontline',
+      position:{x:(i-(enemies.length-1)/2)*2.05,z:5.5+(i%2)*.7},
       initiative: COMBAT_RULES.rollInitiative({ bonus:e.dex || 0 }).total,
     };
   });
@@ -1154,8 +1160,10 @@ function rollDice(formula, statMod) {
   }).total;
 }
 
-function combatMove() {
+function combatMove(position) {
   if (combatState.apRemaining < 1) return;
+  const player=combatState.combatants.player;
+  if(position&&player?.position&&window.TacticalCombat){const movement=window.TacticalCombat.validateMove(player.position,position,{maxDistance:combatState.tactical?.moveRange||4.5,bounds:combatState.tactical?.bounds||12});if(!movement.ok){addLog('That movement is not valid on this battlefield.','system');return;}player.position=movement.position;}
   combatState.apRemaining--;
   if (window.classOnMove) classOnMove();
   addLog('🏃 You reposition on the battlefield.', 'system');
@@ -1647,6 +1655,12 @@ function endCombat(victory) {
     grantXP(totalXP);
     const questScene = window.sceneState?.currentScene || window.sceneState?._currentScene?.id || '';
     if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds });
+    if (defeatedIds.some(id => String(id).startsWith('cupside_sergeant'))) {
+      window.sceneState.flags.cupside_checkpoint_defeated = true;
+      window.sceneState.flags.cupside_checkpoint_cleared = true;
+      window.recordQuestEvent?.('combat:victory:cupside_checkpoint', { defeatedIds });
+      window.addLog?.('Cupside Lane is open. The illegal Church checkpoint will not be rebuilt tonight.', 'narrator');
+    }
     {
       // #57: transition to the location's actual music track, not its id
       const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;

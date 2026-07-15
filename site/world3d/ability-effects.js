@@ -9,6 +9,21 @@ export class AbilityEffects{
   disposeObject(root){root.traverse(object=>{object.geometry?.dispose();if(object.material)(Array.isArray(object.material)?object.material:[object.material]).forEach(material=>material.dispose());});root.removeFromParent();}
   flash(color=0xffffff){if(document.body.classList.contains('ui-reduce-motion'))return;const canvas=this.engine.canvas;canvas.animate?.([{filter:'brightness(1)'},{filter:`brightness(1.16) drop-shadow(0 0 8px #${new THREE.Color(color).getHexString()})`},{filter:'brightness(1)'}],{duration:220,easing:'ease-out'});}
 
+  present(presentation,source,target,{onImpact=null}={}){
+    if(!source)return false;
+    const data=presentation||{},actualTarget=data.selfTarget?source:(target||source),type=data.damageType||'physical',finish=()=>onImpact?.();
+    if(data.effect==='projectile'){
+      const travel=Math.max(.18,data.travelDuration||.42),speed=.52/travel;
+      this.projectile(source,actualTarget,type,{count:data.count||1,speed,onImpact:finish,scale:data.crit?1.35:1});
+      return true;
+    }
+    if(data.effect==='lightning'){this.lightning(source,actualTarget);finish();return true;}
+    if(data.effect==='heal'){this.heal(actualTarget);finish();return true;}
+    if(data.effect==='aura'){this.aura(actualTarget,type);finish();return true;}
+    if(data.effect==='movement'){this.shadowStep(source);finish();return true;}
+    this.slash(actualTarget,type,data.count||1);if(data.hit!==false)this.flash(colorFor(type));finish();return true;
+  }
+
   basicAttack(source,target,classId='warrior'){
     if(!source||!target)return;const ranged=classId==='mage'||classId==='ranger';
     if(ranged){this.projectile(source,target,classId==='mage'?'arcane':'physical',{count:classId==='mage'?2:1,speed:classId==='mage'?1.3:1});return;}

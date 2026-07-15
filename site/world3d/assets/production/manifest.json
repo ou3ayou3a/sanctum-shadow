@@ -449,6 +449,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -458,7 +466,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 1857180
+      "bytes": 2048920
     },
     "character_dwarf": {
       "category": "characters",
@@ -468,6 +476,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -477,7 +493,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 1982372
+      "bytes": 2174272
     },
     "character_elf": {
       "category": "characters",
@@ -487,6 +503,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -496,7 +520,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2048896
+      "bytes": 2241180
     },
     "character_high_elf": {
       "category": "characters",
@@ -506,6 +530,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -515,7 +547,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2133712
+      "bytes": 2326220
     },
     "character_dark_elf": {
       "category": "characters",
@@ -525,6 +557,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -534,7 +574,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2198944
+      "bytes": 2391660
     },
     "character_orc": {
       "category": "characters",
@@ -544,6 +584,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -553,7 +601,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2235416
+      "bytes": 2428348
     },
     "character_goblin": {
       "category": "characters",
@@ -563,6 +611,14 @@
         "Idle",
         "Walk",
         "Run",
+        "Walk_Start",
+        "Walk_Stop",
+        "Turn_Left",
+        "Turn_Right",
+        "Interact",
+        "Weapon_Draw",
+        "Weapon_Sheathe",
+        "Combat_Idle",
         "Attack_Slash",
         "Attack_Smite",
         "Cast",
@@ -572,7 +628,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2302944
+      "bytes": 2496088
     }
   }
 }

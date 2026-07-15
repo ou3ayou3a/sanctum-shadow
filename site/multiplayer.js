@@ -445,6 +445,21 @@ function initMultiplayer() {
       }
       updatePartyPanel();
     }
+    if(eventType==='environment_action_request'&&window.mp.isHost){
+      const actor=window.mp.session?.players?.[payload.actorId],action=window.getAuthoredEnvironmentAction?.(payload.zoneId,payload.targetId,payload.actionId);
+      const allowed=!!action&&(!action.requiresFlag||!!window.sceneState?.flags?.[action.requiresFlag]);
+      if(actor?.character&&action&&allowed&&typeof window.resolveEnvironmentalAction==='function')setTimeout(async()=>{
+        const result=await window.resolveEnvironmentalAction({zoneId:payload.zoneId,targetId:payload.targetId,targetLabel:payload.targetLabel,action,character:actor.character,authoritative:true});
+        action.onResolved?.(result,window.__world3d,window.__world3d?.zone?.interactables?.find(record=>record.id===payload.targetId));
+        window.mpSyncHostCharacter?.(actor.character,payload.actorId);
+        mpBroadcastStoryEvent('environment_action_result',{actorId:payload.actorId,targetId:payload.targetId,actionId:payload.actionId,success:result?.success!==false,message:String(result?.message||'').slice(0,600)});
+        mpBroadcastStoryEvent('action_state',{actorId:payload.actorId,character:{hp:actor.character.hp,mp:actor.character.mp,holyPoints:actor.character.holyPoints,hellPoints:actor.character.hellPoints,conditions:actor.character.conditions||[],gold:actor.character.gold||0,inventory:actor.character.inventory||[]}});
+        mpBroadcastCampaignState('environment_action');
+      },0);
+    }
+    if(eventType==='environment_action_result'&&payload.actorId===window.mp.playerId){
+      window.__world3d?.toast?.(payload.message||'The environment responds to the party.',4800);
+    }
     if (eventType === 'quest_completed') {
       window.grantQuestReward?.(String(payload.questId || ''), Number(payload.xp) || 0);
       window.renderPlayerCard?.();
@@ -524,18 +539,24 @@ function initMultiplayer() {
     startCombatFromServer(cs);
   });
 
-  socket.on('combat_update', ({ combatState, log }) => {
-    window.mp.combatState = combatState;
-    if (log) { const o = window.addLog._orig || window.addLog; o(log.text, log.type); }
-    updateCombatFromServer(combatState);
-    syncMyHP(combatState);
+  socket.on('combat_update', ({ combatState, log, presentation }) => {
+    const apply=()=>{
+      window.mp.combatState = combatState;
+      if (log) { const o = window.addLog._orig || window.addLog; o(log.text, log.type); }
+      updateCombatFromServer(combatState);
+      syncMyHP(combatState);
+    };
+    const controller=window.__world3d?.combatController;
+    if(!controller?.presentAuthoritativeUpdate(combatState,presentation,apply))apply();
   });
 
-  socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState }) => {
+  socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState, presentation, log }) => {
+    const finish=()=>{
     window.mp.combatState = null;
     window.mp.combatSpectator = false;
     if (endedCombatState) Object.assign(window.combatState, endedCombatState);
     window.combatState.active = false;
+    if(log){const o=window.addLog._orig||window.addLog;o(log.text,log.type);}
     if (victory) {
       // #16: the server computes the authoritative per-player share (xpEach) over
       // connected players who actually have a character. Use it directly so every
@@ -557,6 +578,14 @@ function initMultiplayer() {
       const enemies = Object.values(endedCombatState?.combatants || {}).filter(combatant => !combatant.isPlayer);
       if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds:enemies.map(enemy => enemy.id) });
       if (window.mp.isHost) {
+        if (enemies.some(enemy => String(enemy.sourceId || enemy.id || '').startsWith('cupside_sergeant'))) {
+          window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+          window.sceneState.flags = window.sceneState.flags || {};
+          window.sceneState.flags.cupside_checkpoint_defeated = true;
+          window.sceneState.flags.cupside_checkpoint_cleared = true;
+          window.recordQuestEvent?.('combat:victory:cupside_checkpoint', { defeatedIds:enemies.map(enemy => enemy.id) });
+          window.mpBroadcastCampaignState?.('cupside_checkpoint_victory');
+        }
         if (enemies.some(enemy => /voice below/i.test(enemy.name || ''))) {
           setTimeout(() => window.runScene?.('monastery_dungeon_cleared'), 800);
         }
@@ -565,6 +594,9 @@ function initMultiplayer() {
       (window.addLog._orig || window.addLog)('💀 The party falls...', 'combat');
     }
     setTimeout(() => document.getElementById('combat-panel')?.remove(), 2000);
+    };
+    const controller=window.__world3d?.combatController;
+    if(!controller?.presentAuthoritativeUpdate(endedCombatState,presentation,finish))finish();
   });
 
   socket.on('player_turn_start', ({ playerId, playerName }) => {
@@ -605,16 +637,16 @@ function mpJoinSession(code, playerName) {
   window.mp.socket.emit('join_session', { code: code.toUpperCase().trim(), playerName });
 }
 
-function mpStartCombat(enemies) {
+function mpStartCombat(enemies, encounter = {}) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
   const initiatorName = gameState.character?.name || 'Unknown';
   addLog(`⚔ ${initiatorName} initiates combat!`, 'combat');
-  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, initiatorId: window.mp.playerId });
+  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, encounter:{id:encounter?.id||'standard'}, initiatorId: window.mp.playerId });
 }
 
-function mpCombatAction(action, targetId, spellId) {
+function mpCombatAction(action, targetId, spellId, position) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
-  window.mp.socket.emit('combat_action', { code: window.mp.sessionCode, action, targetId, spellId });
+  window.mp.socket.emit('combat_action', { code: window.mp.sessionCode, action, targetId, spellId, position });
 }
 
 function mpChat(text) {
@@ -739,6 +771,12 @@ function mpRequestAction(text, options = {}) {
   return { pending:true, authoritative:false };
 }
 
+function mpRequestEnvironmentAction({zoneId,targetId,targetLabel,actionId}={}){
+  if(!window.mp?.socket||!window.mp.sessionCode)return{pending:false,success:false};
+  window.mp.socket.emit('story_event',{code:window.mp.sessionCode,eventType:'environment_action_request',payload:{actorId:window.mp.playerId,zoneId:String(zoneId||'').slice(0,64),targetId:String(targetId||'').slice(0,64),targetLabel:String(targetLabel||'').slice(0,100),actionId:String(actionId||'').slice(0,64)}});
+  return{pending:true,authoritative:false,message:'Waiting for the Session Master.'};
+}
+
 function mpBeginConversation(payload = {}) {
   if(!window.mp?.socket||!window.mp.sessionCode)return Promise.resolve({ok:true,conversation:null});
   return new Promise(resolve=>{
@@ -790,6 +828,7 @@ window.buildCampaignState = buildCampaignState;
 window.applyCampaignState = applyCampaignState;
 window.mpBroadcastCampaignState = mpBroadcastCampaignState;
 window.mpRequestAction = mpRequestAction;
+window.mpRequestEnvironmentAction = mpRequestEnvironmentAction;
 window.mpBeginConversation = mpBeginConversation;
 window.mpSendConversationUpdate = mpSendConversationUpdate;
 window.mpNotifyNPCOutcome = mpNotifyNPCOutcome;
@@ -853,12 +892,12 @@ window.travelToLocation = function(loc) {
 
 // ─── PATCH startCombat ────────────────────────
 const _origStartCombat = window.startCombat;
-window.startCombat = function(enemies) {
+window.startCombat = function(enemies, encounter = {}) {
   if (window.mp.sessionCode) {
     if (window.mp.combatState?.active) { addLog('⚔ Combat already in progress!', 'system'); return; }
-    mpStartCombat(enemies);
+    mpStartCombat(enemies, encounter);
   } else {
-    if (_origStartCombat) _origStartCombat(enemies);
+    if (_origStartCombat) _origStartCombat(enemies, encounter);
   }
 };
 
@@ -905,12 +944,12 @@ window.castSelectedSpell = function() {
 // #63: route MOVE through the server like attack/spell/end-turn so AP stays
 // authoritative and the whole party sees it.
 const _origCombatMove = window.combatMove;
-window.combatMove = function() {
+window.combatMove = function(position) {
   if (window.mp.sessionCode && window.mp.combatState) {
     if (!isMyTurnMP()) { addLog('Not your turn!', 'system'); return; }
-    mpCombatAction('move', null, null);
+    mpCombatAction('move', null, null, position);
   } else {
-    if (_origCombatMove) _origCombatMove();
+    if (_origCombatMove) _origCombatMove(position);
   }
 };
 

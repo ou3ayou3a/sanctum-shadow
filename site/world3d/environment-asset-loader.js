@@ -68,4 +68,6 @@ export async function placeEnvironmentAsset(root,spec,placement={}){
   const template=await loadTemplate(spec),object=fittedClone(template,placement);root.add(object);return object;
 }
 
+export async function preloadEnvironmentAsset(spec){await loadTemplate(spec);return assetKey(spec);}
+
 export function cachedEnvironmentAssetCount(){return TEMPLATE_CACHE.size;}

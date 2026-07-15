@@ -1,5 +1,5 @@
-import { WorldEngine } from './world-engine.js?v=135';
-import { buildZone } from './zone-registry.js?v=135';
+import { WorldEngine } from './world-engine.js?v=143';
+import { buildZone } from './zone-registry.js?v=140';
 
 let engine=null;let loading=null;
 const characterModel='prototype/assets/elf-ranger.glb';

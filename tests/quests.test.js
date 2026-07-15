@@ -25,6 +25,15 @@ test('alternate story paths satisfy the same objective exactly once', () => {
   assert.deepEqual(document.updates, []);
 });
 
+test('Cupside evidence and checkpoint combat satisfy the main evidence objective', () => {
+  const state = { activeQuestIds:['c1q1'], completedQuestIds:[], progress:{} };
+  const investigation = Quests.reduceQuestEvent(state, 'scene:cupside_evidence_found');
+  assert.equal(investigation.updates[0].objectiveId, 'evidence');
+
+  const combat = Quests.reduceQuestEvent(state, 'combat:victory:cupside_checkpoint');
+  assert.equal(combat.updates[0].objectiveId, 'evidence');
+});
+
 test('completion events return both the final objective and one completion', () => {
   const result = Quests.reduceQuestEvent({ activeQuestIds:['c1q4'], completedQuestIds:[], progress:{} }, 'combat:victory:merchant_road_ambush');
   assert.equal(result.updates[0].objectiveId, 'secure_road');

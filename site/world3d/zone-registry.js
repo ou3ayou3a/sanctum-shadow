@@ -1,7 +1,8 @@
-import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=135';
+import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=136';
+import { buildTarnishedCup } from './zones/tarnished-cup.js?v=140';
 import { buildGenericZone } from './zones/generic-zone.js?v=135';
 
-const productionZones={vaelthar_city:buildVaeltharCourtyard};
+const productionZones={vaelthar_city:buildVaeltharCourtyard,tarnished_cup:buildTarnishedCup};
 
 export function buildZone(locationId){
   const location=window.WORLD_LOCATIONS?.[locationId]||{id:locationId,name:String(locationId||'Unknown').replaceAll('_',' '),subtitle:'Uncharted Ground',type:'wilderness'};

@@ -1336,7 +1336,14 @@ function safeEnvironmentToken(value, fallback = 'unknown') {
   return token || fallback;
 }
 
-async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, action, text } = {}) {
+const AUTHORED_ENVIRONMENT_ACTIONS = new Map();
+function authoredEnvironmentKey(zoneId,targetId,actionId){return `${safeEnvironmentToken(zoneId,'zone')}:${safeEnvironmentToken(targetId,'target')}:${safeEnvironmentToken(actionId,'action')}`;}
+function registerAuthoredEnvironmentAction(zoneId,targetId,action){if(!action?.id)return false;AUTHORED_ENVIRONMENT_ACTIONS.set(authoredEnvironmentKey(zoneId,targetId,action.id),action);return true;}
+function getAuthoredEnvironmentAction(zoneId,targetId,actionId){return AUTHORED_ENVIRONMENT_ACTIONS.get(authoredEnvironmentKey(zoneId,targetId,actionId))||null;}
+window.registerAuthoredEnvironmentAction=registerAuthoredEnvironmentAction;
+window.getAuthoredEnvironmentAction=getAuthoredEnvironmentAction;
+
+async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, action, text, character, authoritative = false } = {}) {
   const label = String(targetLabel || 'the environment').trim().slice(0, 100) || 'the environment';
   const customText = String(text || '').trim().slice(0, 240);
 
@@ -1360,6 +1367,9 @@ async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, actio
   if (!action || typeof action !== 'object') return { success:false, message:'That environmental action is unavailable.' };
   const actionLabel = String(action.label || 'Interact').trim().slice(0, 100);
   const actionId = safeEnvironmentToken(action.id || actionLabel, 'interaction');
+  if(window.mp?.sessionCode&&!window.mp.isHost&&!authoritative&&typeof window.mpRequestEnvironmentAction==='function'){
+    return window.mpRequestEnvironmentAction({zoneId,targetId,targetLabel:label,actionId});
+  }
   const onceKey = `ai_env_${safeEnvironmentToken(zoneId, 'zone')}_${safeEnvironmentToken(targetId, 'target')}_${actionId}`;
   window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
   window.sceneState.flags = window.sceneState.flags || {};
@@ -1374,9 +1384,9 @@ async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, actio
   if (checkConfig) {
     const ability = ['str','dex','con','int','wis','cha'].includes(checkConfig.ability) ? checkConfig.ability : undefined;
     const dc = Number.isInteger(checkConfig.dc) ? Math.max(5, Math.min(30, checkConfig.dc)) : undefined;
-    result = await resolveActionRequest(requestText, { skill:checkConfig.skill, ability, dc });
+    result = await resolveActionRequest(requestText, { skill:checkConfig.skill, ability, dc, character, authoritative });
   } else {
-    result = await resolveActionRequest(requestText);
+    result = await resolveActionRequest(requestText, { character, authoritative });
   }
 
   if (result?.pending) return { ...result, message:'Waiting for the Session Master.' };
@@ -1384,7 +1394,7 @@ async function resolveEnvironmentalAction({ zoneId, targetId, targetLabel, actio
   const narration = String(success ? action.successText : action.failureText || '').trim().slice(0, 600)
     || (success ? `Your interaction with ${label} reveals something useful.` : `The attempt leaves ${label} unchanged.`);
   const effectResult = applyClaudeEffects(success ? action.effects : action.failureEffects, {
-    reason:`Environment: ${actionLabel}`,
+    reason:`Environment: ${actionLabel}`,character,
   });
 
   if (success && action.once) {
