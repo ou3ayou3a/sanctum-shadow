@@ -3,12 +3,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CharacterActor } from './character-actor.js?v=144';
 import { NavigationGrid } from './navigation-grid.mjs';
 import { NPCManager } from './npc-manager.js?v=144';
-import { Combat3DController } from './combat-controller.js?v=144';
+import { Combat3DController } from './combat-controller.js?v=145';
 import { AbilityEffects } from './ability-effects.js?v=141';
 import { Party3DManager } from './party-manager.js?v=144';
-import { Chronicle3DAdapter } from './chronicle-adapter.js';
+import { Chronicle3DAdapter } from './chronicle-adapter.js?v=145';
 import { WorldPolish } from './world-polish.js';
-import { CinematicDirector } from './cinematic-director.js?v=136';
+import { CinematicDirector } from './cinematic-director.js?v=145';
 import { CityAtmosphere } from './city-atmosphere.mjs?v=135';
 import { CameraObstruction } from './camera-obstruction.mjs?v=144';
 import { WorldPerformanceManager } from './world-performance.mjs?v=144';
@@ -87,18 +87,19 @@ export class WorldEngine extends EventTarget {
   goToInteraction(record,run=false){this.closeInteractionMenu();this.pendingInteraction=null;this.hidePrompt();const stop=this.interactionApproach(record);if(!stop){this.toast('There is no clear way to reach that interaction.');return;}this.moveActor(stop,run,()=>{this.actor.faceTarget(record.position);this.actor.playOneShot('interact');this.pendingInteraction=record;this.showPrompt(record);});}
   showPrompt(record){this.promptText.textContent=record.label;this.prompt.querySelector('button').setAttribute('aria-label',`Interact: ${record.label}`);this.prompt.hidden=false;}
   hidePrompt(){this.prompt.hidden=true;}
-  confirmInteraction(){const record=this.pendingInteraction;if(!record)return;this.pendingInteraction=null;this.hidePrompt();if(Array.isArray(record.actions)&&record.actions.length>1){this.openInteractionMenu(record);return;}const action=record.actions?.[0];if(action?.onSelect)action.onSelect(this,record);else record.onInteract?.(this,action);}
+  presentInteraction(record){if(!record||String(record.id).startsWith('npc:'))return;this.cinematicDirector?.playMoment('environment',this.actor,record.position,{duration:.82,caption:record.label});}
+  confirmInteraction(){const record=this.pendingInteraction;if(!record)return;this.pendingInteraction=null;this.hidePrompt();if(Array.isArray(record.actions)&&record.actions.length>1){this.openInteractionMenu(record);return;}this.presentInteraction(record);const action=record.actions?.[0];if(action?.onSelect)action.onSelect(this,record);else record.onInteract?.(this,action);}
   actionAvailable(action){return !action?.requiresFlag||!!window.sceneState?.flags?.[action.requiresFlag];}
   openInteractionMenu(record){this.activeInteraction=record;this.interactionTitle.textContent=record.label;this.interactionChoices.replaceChildren();for(const [index,action] of record.actions.entries()){const available=this.actionAvailable(action),button=document.createElement('button');button.type='button';button.dataset.envAction=String(index);button.disabled=!available;const icon=document.createElement('span');icon.textContent=action.icon||'◆';const copy=document.createElement('span');const label=document.createElement('strong');label.textContent=action.label;copy.appendChild(label);if(action.check||!available){const detail=document.createElement('small');detail.textContent=available?`${String(action.check.skill||action.check.ability).replaceAll('_',' ').toUpperCase()} · DC ${action.check.dc}`:'REQUIRES EVIDENCE';copy.appendChild(detail);}button.append(icon,copy);this.interactionChoices.appendChild(button);}this.customActionInput.value='';this.interactionMenu.hidden=false;}
   closeInteractionMenu(){if(this.interactionMenu)this.interactionMenu.hidden=true;this.activeInteraction=null;}
-  async selectInteractionAction(index){const record=this.activeInteraction,action=record?.actions?.[index];if(!record||!action)return;if(!this.actionAvailable(action)){this.toast('You have not found the evidence needed for that approach.');return;}this.closeInteractionMenu();if(action.direct){if(action.onSelect)action.onSelect(this,record);else record.onInteract?.(this,action);return;}const result=await window.resolveEnvironmentalAction?.({zoneId:this.zone.id,targetId:record.id,targetLabel:record.label,action});action.onResolved?.(result,this,record);if(result?.pending)this.toast('Waiting for the Session Master to resolve that action.');else if(result?.message)this.toast(result.message,4800);}
+  async selectInteractionAction(index){const record=this.activeInteraction,action=record?.actions?.[index];if(!record||!action)return;if(!this.actionAvailable(action)){this.toast('You have not found the evidence needed for that approach.');return;}this.closeInteractionMenu();this.presentInteraction(record);if(action.direct){if(action.onSelect)action.onSelect(this,record);else record.onInteract?.(this,action);return;}const result=await window.resolveEnvironmentalAction?.({zoneId:this.zone.id,targetId:record.id,targetLabel:record.label,action});action.onResolved?.(result,this,record);if(result?.pending)this.toast('Waiting for the Session Master to resolve that action.');else if(result?.message)this.toast(result.message,4800);}
 
   transitionToWorldLocation(id,label='the next area'){
     if(this.transitioning)return false;this.transitioning=true;this.actor?.stop();this.closeInteractionMenu();this.hidePrompt();
     const veil=document.createElement('div');veil.className='world3d-transition';veil.innerHTML=`<span>ENTERING</span><strong>${String(label).toUpperCase()}</strong>`;this.overlay.appendChild(veil);requestAnimationFrame(()=>veil.classList.add('visible'));
     window.setTimeout(()=>{if(!window.travelToWorldLocation?.(id)){veil.remove();this.transitioning=false;this.toast('The way forward is unavailable.');}},520);return true;
   }
-  async submitCustomEnvironmentAction(){const record=this.activeInteraction,text=this.customActionInput.value.trim();if(!record||!text)return;this.customActionInput.disabled=true;try{const result=await window.resolveEnvironmentalAction?.({zoneId:this.zone.id,targetId:record.id,targetLabel:record.label,text});if(result?.pending){this.closeInteractionMenu();this.toast('Waiting for the Session Master to resolve that action.');return;}this.customActionInput.value='';if(result?.message)this.toast(result.message,4800);}catch(error){console.error('Environmental action failed:',error);this.toast('That action could not be resolved. Please try again.');}finally{this.customActionInput.disabled=false;}}
+  async submitCustomEnvironmentAction(){const record=this.activeInteraction,text=this.customActionInput.value.trim();if(!record||!text)return;this.customActionInput.disabled=true;this.presentInteraction(record);try{const result=await window.resolveEnvironmentalAction?.({zoneId:this.zone.id,targetId:record.id,targetLabel:record.label,text});if(result?.pending){this.closeInteractionMenu();this.toast('Waiting for the Session Master to resolve that action.');return;}this.customActionInput.value='';if(result?.message)this.toast(result.message,4800);}catch(error){console.error('Environmental action failed:',error);this.toast('That action could not be resolved. Please try again.');}finally{this.customActionInput.disabled=false;}}
   playClassAction(){if(this.combatController?.active){this.combatController.attack();return;}if(this.actor.playPrimaryAction())this.toast(this.actor.classProfile.action,900);}
   registerInteraction(record){this.zone.interactables.push(record);this.interactionObjects.push(record.object);}
 

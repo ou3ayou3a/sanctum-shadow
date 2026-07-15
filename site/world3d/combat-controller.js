@@ -16,7 +16,7 @@ export class Combat3DController{
   isLocalTurn(){const state=this.state(),id=this.currentId(),local=localCombatantId();return !!state?.active&&(id===local||(!window.mp?.sessionCode&&state.combatants?.[id]?.isPlayer));}
 
   async start(){
-    if(this.active||this.starting)return;this.starting=true;this.active=true;document.body.classList.add('world3d-combat');this.engine.actor.stop();this.engine.pendingInteraction=null;this.engine.hidePrompt();this.engine.marker.visible=false;
+    if(this.active||this.starting)return;this.starting=true;this.active=true;this.victoryShown=false;document.body.classList.add('world3d-combat');this.engine.actor.stop();this.engine.pendingInteraction=null;this.engine.hidePrompt();this.engine.marker.visible=false;
     if(this.engine.npcManager){for(const record of this.engine.npcManager.records){record.actor.visible=false;record.collider.visible=false;record.label.style.display='none';}}
     this.makeRange();this.makeHud();
     const state=this.state(),origin=this.engine.actor.position.clone(),local=localCombatantId(),localPosition=state.combatants?.[local]?.position||state.combatants?.player?.position||{x:0,z:0};this.battleOrigin=origin.clone().sub(new THREE.Vector3(localPosition.x||0,0,localPosition.z||0));let ally=0,enemy=0;this.makeCover();
@@ -26,12 +26,12 @@ export class Combat3DController{
       const partyCharacter=window.mp?.session?.players?.[combatant.playerId||combatant.id]?.character;
       const angle=combatant.isPlayer?Math.PI/2+(ally++-.5)*.75:Math.PI+(enemy++-.5)*.62;
       const radius=combatant.isPlayer?2.2:4.7+Math.floor(enemy/4)*1.15;
-      const desired=combatant.position?this.battleOrigin.clone().add(new THREE.Vector3(combatant.position.x,0,combatant.position.z)):origin.clone().add(new THREE.Vector3(Math.sin(angle)*radius,0,Math.cos(angle)*radius));const cell=this.engine.navigation.nearestOpen(this.engine.navigation.cellAt(desired));const position=this.engine.navigation.pointAt(cell);
+      const desired=combatant.position?this.battleOrigin.clone().add(new THREE.Vector3(combatant.position.x,0,combatant.position.z)):origin.clone().add(new THREE.Vector3(Math.sin(angle)*radius,0,Math.cos(angle)*radius));const cell=this.engine.navigation.nearestOpen(this.engine.navigation.cellAt(desired)),position=cell?this.engine.navigation.pointAt(cell):desired;
       const actor=new CharacterActor({modelUrl:this.modelUrl,race:partyCharacter?.race||inferRace(combatant),characterClass:partyCharacter?.class||inferClass(combatant),scale:combatant.boss?1.12:.94});actor.position.set(position.x,0,position.z);actor.lookAt(origin.x,0,origin.z);actor.userData.combatantId=combatant.id;this.engine.scene.add(actor);
       try{await actor.load();actor.setCombatStance(true);actor.traverse(object=>{object.userData.combatantId=combatant.id;if(object.isMesh)object.castShadow=false;});}catch(error){console.warn('Combat actor could not load',displayName(combatant),error);}
       this.records.set(combatant.id,{combatant,actor,owned:true,label:this.makeLabel(combatant)});
     });
-    await Promise.all(tasks);this.starting=false;if(!this.state()?.active){this.stop();return;}this.sync(true);this.engine.toast('Combat: click the ground to spend 1 AP moving. Click an enemy to target.');
+    await Promise.all(tasks);this.starting=false;if(!this.state()?.active){this.stop();return;}this.sync(true);const firstEnemy=[...this.records.values()].find(record=>!record.combatant.isPlayer&&record.actor.visible);if(firstEnemy){this.lockAction(1.2);this.engine.cinematicDirector?.playMoment('combat_intro',this.engine.actor,firstEnemy.actor,{duration:1.15,caption:'ROLL FOR INITIATIVE',subcaption:displayName(firstEnemy.combatant)});}this.engine.toast('Combat: click the ground to spend 1 AP moving. Click an enemy to target.');
   }
 
   makeRange(){const material=new THREE.MeshBasicMaterial({color:0x79b9a0,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false});this.range=new THREE.Mesh(new THREE.CircleGeometry(MOVE_RANGE,64),material);this.range.rotation.x=-Math.PI/2;this.range.position.copy(this.engine.actor.position);this.range.position.y=.018;this.engine.scene.add(this.range);}
@@ -52,6 +52,7 @@ export class Combat3DController{
   beginSoloAction({action='attack',spell=null,targetId,resolve}){
     const targetRecord=this.records.get(targetId),source=this.engine.actor;if(!targetRecord?.actor)return false;
     const timing=source.playCombatAction({action,spell,target:targetRecord.actor});if(!timing)return false;
+    this.engine.cinematicDirector?.playMoment(action==='spell'?'spell':'attack',source,targetRecord.actor,{duration:Math.min(1.15,timing.impactDelay+.28)});
     this.lockAction(timing.recoveryDelay);
     this.schedule(()=>{
       const profile={...timing,hit:true};
@@ -65,6 +66,7 @@ export class Combat3DController{
   }
   beginMultiplayerAction({action='attack',spell=null,targetId,resolve}){
     const target=this.records.get(targetId)?.actor,timing=this.engine.actor.playCombatAction({action,spell,target});if(!timing)return false;
+    this.engine.cinematicDirector?.playMoment(action==='spell'?'spell':'attack',this.engine.actor,target,{duration:Math.min(1.15,timing.impactDelay+.28)});
     this.lockAction(timing.recoveryDelay+.18);this.pendingLocalPresentation={actorId:localCombatantId(),action,startedAt:performance.now(),timing};resolve?.();
     this.schedule(()=>{this.pendingLocalPresentation=null;},(timing.recoveryDelay+.18)*1000);return true;
   }
@@ -78,6 +80,7 @@ export class Combat3DController{
     this.presented.add(presentation.id);const localPending=this.pendingLocalPresentation?.actorId===presentation.actorId&&this.pendingLocalPresentation?.action===presentation.action;
     const timing=localPending?this.pendingLocalPresentation.timing:sourceRecord.actor.playCombatAction({action:presentation.action,spell:presentation.spell,target:targetRecord.actor,force:true});
     if(!timing)return false;
+    if(!localPending&&(presentation.actorId===localCombatantId()||presentation.targetId===localCombatantId()||sourceRecord.combatant.boss))this.engine.cinematicDirector?.playMoment(presentation.action==='spell'?'spell':'attack',sourceRecord.actor,targetRecord.actor,{duration:Math.min(1.15,(timing.impactDelay||.6)+.28)});
     const elapsed=localPending?(performance.now()-this.pendingLocalPresentation.startedAt)/1000:0;
     const releaseDelay=Math.max(0,(timing.releaseDelay||presentation.releaseDelay||0)-elapsed),travelDuration=presentation.travelDuration??timing.travelDuration??0;
     this.lockAction(Math.max(.12,(timing.recoveryDelay||presentation.recoveryDelay||.8)-elapsed));
@@ -108,7 +111,7 @@ export class Combat3DController{
     this.engine.abilityEffects?.syncStatuses(this.records,state.statusEffects);
     this.range.position.x=this.engine.actor.position.x;this.range.position.z=this.engine.actor.position.z;this.range.visible=this.isLocalTurn()&&(state.apRemaining||0)>0;this.renderHud(force);
   }
-  hitFeedback(record,damage,dead=false){if(dead){record.deathUntil=performance.now()+1600;record.actor.playOneShot('death',{returnToIdle:false});}else{const attacker=this.records.get(this.impactActorId||this.lastTurnId)?.actor;if(attacker){const recoil=record.actor.position.clone().sub(attacker.position).setY(0).normalize().multiplyScalar(.22);record.actor.position.add(recoil);}if(!record.actor.playOneShot('hit')){record.actor.scale.multiplyScalar(.92);setTimeout(()=>record.actor?.scale.multiplyScalar(1/.92),130);}}const text=document.createElement('div');text.className='world3d-damage';text.textContent=`−${damage}`;this.engine.overlay.appendChild(text);this.positionElement(text,record.actor.position,2.4);setTimeout(()=>text.remove(),900);}
+  hitFeedback(record,damage,dead=false){const attacker=this.records.get(this.impactActorId||this.lastTurnId)?.actor;this.engine.cinematicDirector?.addImpact(dead ? .15 : .075);if(dead){record.deathUntil=performance.now()+1600;record.actor.playOneShot('death',{returnToIdle:false});if(this.state()?.active===false&&!this.victoryShown){this.victoryShown=true;this.engine.cinematicDirector?.playMoment('victory',attacker||this.engine.actor,record.actor,{duration:1.45,caption:'VICTORY',subcaption:`${displayName(record.combatant)} defeated`});}else if(attacker)this.engine.cinematicDirector?.playMoment('finisher',attacker,record.actor,{duration:1.05});}else{if(attacker){const recoil=record.actor.position.clone().sub(attacker.position).setY(0).normalize().multiplyScalar(.22);record.actor.position.add(recoil);}if(!record.actor.playOneShot('hit')){record.actor.scale.multiplyScalar(.92);setTimeout(()=>record.actor?.scale.multiplyScalar(1/.92),130);}}const text=document.createElement('div');text.className='world3d-damage';text.textContent=`−${damage}`;this.engine.overlay.appendChild(text);this.positionElement(text,record.actor.position,2.4);setTimeout(()=>text.remove(),900);}
   positionElement(element,position,height=2.2){const projected=new THREE.Vector3(position.x,height,position.z).project(this.engine.camera),rect=this.engine.canvas.getBoundingClientRect();element.style.left=`${rect.left+(projected.x*.5+.5)*rect.width}px`;element.style.top=`${rect.top+(-projected.y*.5+.5)*rect.height}px`;}
   renderHud(){
     if(!this.hud)return;const state=this.state(),current=state.combatants?.[this.currentId()],local=state.combatants?.[localCombatantId()]||state.combatants?.player,target=state.combatants?.[state.selectedTarget];
@@ -122,7 +125,7 @@ export class Combat3DController{
     const state=this.state();if(state?.active&&!this.active){this.start();return;}if(!state?.active&&this.active&&performance.now()>=(this.endingUntil||0)){this.stop();return;}if(!this.active)return;for(const record of this.records.values())if(record.owned){record.actor.update(dt);if(record.targetPosition)record.actor.position.lerp(record.targetPosition,1-Math.exp(-dt*8));}this.sync();for(const record of this.records.values()){if(record.actor.visible){this.positionElement(record.label,record.actor.position,2.5*record.actor.profile.proportions[1]);record.label.style.display='block';const c=record.combatant,pct=Math.max(0,Math.round(c.hp/c.maxHp*100));record.label.textContent=`${displayName(c)} · ${c.boss?'???':`${pct}%`}`;}else record.label.style.display='none';}
   }
   stop(){
-    if(!this.active&&!this.starting)return;this.active=false;this.starting=false;this.actionLocked=false;this.actionLockUntil=0;this.endingUntil=0;this.pendingLocalPresentation=null;this.spellSignature='';for(const timer of this.presentationTimers)clearTimeout(timer);this.presentationTimers.clear();this.presented.clear();document.body.classList.remove('world3d-combat');this.engine.actor?.setCombatStance(false);this.engine.abilityEffects?.dispose();for(const record of this.records.values()){record.label.remove();if(record.owned){this.engine.scene.remove(record.actor);record.actor.dispose();}}this.records.clear();this.hp.clear();this.hud?.remove();this.hud=null;if(this.range){this.engine.scene.remove(this.range);this.range.geometry.dispose();this.range.material.dispose();this.range=null;}for(const object of this.coverMeshes||[]){this.engine.scene.remove(object);object.geometry.dispose();object.material.dispose();}this.coverMeshes=[];if(this.engine.npcManager)for(const record of this.engine.npcManager.records){record.actor.visible=true;record.collider.visible=true;}this.engine.toast('Combat ended. Exploration resumed.');
+    if(!this.active&&!this.starting)return;this.active=false;this.starting=false;this.actionLocked=false;this.actionLockUntil=0;this.endingUntil=0;this.pendingLocalPresentation=null;this.spellSignature='';this.victoryShown=false;for(const timer of this.presentationTimers)clearTimeout(timer);this.presentationTimers.clear();this.presented.clear();document.body.classList.remove('world3d-combat');if(this.engine.cinematicDirector?.mode==='moment')this.engine.cinematicDirector.exit({immediate:true});this.engine.actor?.setCombatStance(false);this.engine.abilityEffects?.dispose();for(const record of this.records.values()){record.label.remove();if(record.owned){this.engine.scene.remove(record.actor);record.actor.dispose();}}this.records.clear();this.hp.clear();this.hud?.remove();this.hud=null;if(this.range){this.engine.scene.remove(this.range);this.range.geometry.dispose();this.range.material.dispose();this.range=null;}for(const object of this.coverMeshes||[]){this.engine.scene.remove(object);object.geometry.dispose();object.material.dispose();}this.coverMeshes=[];if(this.engine.npcManager)for(const record of this.engine.npcManager.records){record.actor.visible=true;record.collider.visible=true;}this.engine.toast('Combat ended. Exploration resumed.');
   }
   dispose(){this.stop();}
 }
