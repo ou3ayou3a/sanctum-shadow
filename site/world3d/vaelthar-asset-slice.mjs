@@ -1,4 +1,4 @@
-import {placeEnvironmentAsset,preloadEnvironmentAsset} from './environment-asset-loader.js?v=136';
+import {placeEnvironmentAsset,placeEnvironmentAssetBatch,preloadEnvironmentAsset} from './environment-asset-loader.js?v=144';
 import {productionAssetSpec} from './production-assets.mjs';
 
 function registerObstacle(obstacles,{x,z,width,depth,rotation=0}){const c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));obstacles.push({x,z,hw:c*width/2+s*depth/2,hd:s*width/2+c*depth/2});}
@@ -8,6 +8,7 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
   const animated=[],doors=[],jobs=[],failures=[];
   jobs.push(preloadEnvironmentAsset(productionAssetSpec('tavern_interior')).catch(error=>{failures.push({name:'preload:tavern-interior',error});return null;}));
   const place=(spec,placement,{sway=0,doorId=null}={})=>{const job=placeEnvironmentAsset(root,spec,placement).then(object=>{materialLibrary?.apply(object);if(sway)animated.push({object,phase:placement.position[0]*.37+placement.position[2]*.19,strength:sway});if(doorId)object.traverse(child=>{if(/INTERACT.*Door/i.test(child.name))doors.push({id:doorId,object:child,closed:child.rotation.y,target:0,amount:0});});return object;}).catch(error=>{failures.push({name:placement.name,error});console.warn(`Environment asset failed: ${placement.name}`,error);return null;});jobs.push(job);return job;};
+  const placeBatch=(spec,placements,name)=>{const job=placeEnvironmentAssetBatch(root,spec,placements,{name}).then(object=>{if(object)materialLibrary?.apply(object);return object;}).catch(error=>{failures.push({name,error});console.warn(`Environment asset batch failed: ${name}`,error);return null;});jobs.push(job);return job;};
 
   for(const [index,plot] of buildingPlots.entries()){
     registerObstacle(obstacles,plot);
@@ -36,8 +37,10 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
   const wallSegments=[];
   for(const z of[-30,-20,-10,0,10,20,30])for(const x of[-39,39])wallSegments.push({x,z,rotation:Math.PI/2,name:`${x<0?'west':'east'}-${z}`});
   for(const x of[-31.5,-22,-12.5,12.5,22,31.5])for(const z of[-39,39])wallSegments.push({x,z,rotation:0,name:`${z<0?'north':'south'}-${x}`});
-  for(const segment of wallSegments){registerObstacle(obstacles,{...segment,width:9.5,depth:1.45});place(productionAssetSpec('castle_wall'),{name:`production:curtain-wall-${segment.name}`,position:[segment.x,0,segment.z],rotation:segment.rotation,size:[9.5,5.8,2]});}
-  for(const [x,z]of[[-39,-39],[-39,39],[39,-39],[39,39]]){registerObstacle(obstacles,{x,z,width:6.2,depth:6.2});place(productionAssetSpec('castle_tower'),{name:`production:corner-tower-${x}-${z}`,position:[x,0,z],rotation:0,size:[6.2,11.5,6.2]});}
+  for(const segment of wallSegments)registerObstacle(obstacles,{...segment,width:9.5,depth:1.45});
+  placeBatch(productionAssetSpec('castle_wall'),wallSegments.map(segment=>({name:`production:curtain-wall-${segment.name}`,position:[segment.x,0,segment.z],rotation:segment.rotation,size:[9.5,5.8,2]})),'production:instanced-curtain-walls');
+  const cornerTowers=[[-39,-39],[-39,39],[39,-39],[39,39]];for(const[x,z]of cornerTowers)registerObstacle(obstacles,{x,z,width:6.2,depth:6.2});
+  placeBatch(productionAssetSpec('castle_tower'),cornerTowers.map(([x,z])=>({name:`production:corner-tower-${x}-${z}`,position:[x,0,z],rotation:0,size:[6.2,11.5,6.2]})),'production:instanced-corner-towers');
 
   // The northern citadel is a layered authored silhouette rather than one inflated primitive castle.
   place(productionAssetSpec('castle_keep'),{name:'production:crown-citadel',position:[0,4,-51],rotation:0,size:[16,19,13.5]});

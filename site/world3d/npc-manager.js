@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=143';
+import {CharacterActor} from './character-actor.js?v=144';
 
 export class NPCManager{
   constructor(engine,configs=[]){this.engine=engine;this.configs=configs;this.records=[];this.modelUrl=engine.characterConfig.modelUrl;}

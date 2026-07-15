@@ -1,4 +1,4 @@
-import {placeEnvironmentAsset} from './environment-asset-loader.js';
+import {placeEnvironmentAsset} from './environment-asset-loader.js?v=144';
 
 const ROOT='world3d/assets/production';
 

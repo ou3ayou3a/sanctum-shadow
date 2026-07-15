@@ -3,8 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getRaceProfile } from './race-profiles.mjs';
 import { getClassProfile } from './class-profiles.mjs';
-import { equipClass,applyClassPose } from './class-equipment.js?v=143';
-import { productionRaceModel } from './production-assets.mjs?v=143';
+import { equipClass,applyClassPose } from './class-equipment.js?v=144';
+import { productionRaceModel } from './production-assets.mjs?v=144';
 import {WALK_SPEED,RUN_SPEED,advanceSpeed,angleDelta,locomotionBlend,normalizePresenceState,normalizeNetworkSpeed,turnState} from './locomotion.mjs';
 
 const MODEL_CACHE=new Map();

@@ -28,7 +28,7 @@ test('PBR materials, weather, day-night lighting, and obstruction fading are con
   for(const kind of['stone','plaster','roof','timber','metal','vegetation','cobble','mud'])assert.match(materials,new RegExp(`${kind}:`));
   assert.match(materials,/roughnessMap/);assert.match(materials,/bumpMap/);
   assert.match(atmosphere,/weatherFor/);assert.match(atmosphere,/worldClock/);assert.match(atmosphere,/weather:rain/);
-  assert.match(obstruction,/intersectObjects\(this\.occluders,false\)/);assert.match(obstruction,/opacity=Math\.min/);
+  assert.match(obstruction,/intersectObjects\(this\.occluders,false\)/);assert.match(obstruction,/MathUtils\.lerp\(material\.opacity,target,blend\)/);
   assert.match(obstruction,/while\(current&&current!==engine\.zone\.root\)/);
 });
 

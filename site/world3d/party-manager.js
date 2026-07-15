@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=143';
+import {CharacterActor} from './character-actor.js?v=144';
 
 function angleDelta(from,to){return Math.atan2(Math.sin(to-from),Math.cos(to-from));}
 function localLocation(){return window.mapState?.currentLocation||'vaelthar_city';}
