@@ -29,7 +29,7 @@ test('3D combat presentation exposes target health, initiative, AP, and hotkeys'
 
 test('city readability preserves daylight and fades full obstructing structures',()=>{
   const atmosphere=read('site/world3d/city-atmosphere.mjs');
-  assert.match(atmosphere,/toneMappingExposure=\.9\+daylight\*\.5/);
+  assert.match(atmosphere,/toneMappingExposure=INTERIOR_KITS\.has\(this\.kit\)\?1\.08:\.9\+daylight\*\.5/);
   const obstruction=read('site/world3d/camera-obstruction.mjs');
   assert.match(obstruction,/relatedMeshes\(mesh\)/);
   assert.match(obstruction,/this\.fade\(mesh\)\.target=\.045/);
