@@ -33,7 +33,7 @@
     c1q5:{ objectives:[
       { id:'find_aldran', label:'Find the heretic preacher in Mol.', events:['scene:mol_village_arrival','scene:aldran_meeting'] },
       { id:'hear_truth', label:'Learn what Aldran knows about the Covenant.', events:['scene:aldran_shares_intel'] },
-      { id:'decide_fate', label:'Protect Aldran or help him escape the Church.', events:['outcome:aldran_protected','outcome:aldran_escaped'], completes:true },
+      { id:'decide_fate', label:'Protect Aldran or help him escape the Church.', events:['outcome:aldran_protected','outcome:aldran_escaped','combat:victory:aldran_church_soldiers'], completes:true },
     ] },
     c1q6:{ objectives:[
       { id:'reach_fortress', label:'Reach Sir Harren’s fortress.', events:['scene:fortress_harren_arrival'] },
@@ -64,5 +64,16 @@
 
   function getObjectives(questId) { return (QUEST_ARCS[questId]?.objectives || []).map(objective => ({ ...objective, events:[...objective.events] })); }
 
-  return Object.freeze({ QUEST_ENGINE_VERSION, QUEST_ARCS, reduceQuestEvent, getObjectives });
+  function claimReward(character,questId,xp,grantXP){
+    if(!character||!questId)return false;
+    character.questRewardsClaimed=Array.isArray(character.questRewardsClaimed)?character.questRewardsClaimed:[];
+    if(character.questRewardsClaimed.includes(questId))return false;
+    character.questRewardsClaimed.push(questId);
+    const amount=Math.max(0,Number(xp)||0);
+    if(amount&&typeof grantXP==='function')grantXP(amount);
+    else character.xp=(Number(character.xp)||0)+amount;
+    return true;
+  }
+
+  return Object.freeze({ QUEST_ENGINE_VERSION, QUEST_ARCS, reduceQuestEvent, getObjectives, claimReward });
 });

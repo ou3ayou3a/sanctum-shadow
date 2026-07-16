@@ -45,6 +45,9 @@ app.use((req, res, next) => {
   if (req.path === '/server.js') { res.status(404).end(); return; }
   next();
 });
+// Keep the 3D runtime self-contained. The browser must not depend on a public
+// CDN being reachable before the world can initialize.
+app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules', 'three')));
 app.use(express.static(path.join(__dirname, 'site')));
 
 const httpRateEvents = new Map();
@@ -250,8 +253,8 @@ app.get('/api/portrait/status/:taskId', (req, res) => {
 // ─── SESSION STORE (in-memory + disk persistence) ───────────────
 // sessions[code] = { code, name, host, players:{id:{name,character,hp,ready}}, combatState, log:[], chatLog:[] }
 const fs = require('fs');
-const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
-const SESSIONS_TMP_FILE = path.join(__dirname, 'sessions.json.tmp');
+const SESSIONS_FILE = process.env.SESSIONS_FILE || path.join(__dirname, 'sessions.json');
+const SESSIONS_TMP_FILE = `${SESSIONS_FILE}.tmp`;
 
 let sessions = {};
 
@@ -384,6 +387,13 @@ function livePlayerCount(s) {
   return Object.values(s.players).filter(p => p && p.connected).length;
 }
 
+// Disconnected players retain their seat during the reconnect grace period.
+// Counting only live sockets lets a full party accept a replacement and then
+// exceed its advertised capacity when the original member reconnects.
+function reservedPlayerCount(s) {
+  return Object.values(s.players).filter(Boolean).length;
+}
+
 // Remove this socket from any previous session room/membership before (re)joining.
 function leavePreviousSession(socket, exceptCode) {
   const prev = socket.sessionCode;
@@ -447,7 +457,7 @@ io.on('connection', (socket) => {
     if (!code) { socket.emit('join_error', { msg: 'Invalid session code.' }); return; }
     const s = getSession(code);
     if (!s) { socket.emit('join_error', { msg: `Session "${code}" not found. Check the code or ask the host to recreate it.` }); return; }
-    if (livePlayerCount(s) >= s.maxPlayers) { socket.emit('join_error', { msg: 'Session is full.' }); return; }
+    if (reservedPlayerCount(s) >= s.maxPlayers) { socket.emit('join_error', { msg: 'Session is full.' }); return; }
     const name = sanitizeName(playerName);
 
     // Leave any previous session room/membership before joining this one.

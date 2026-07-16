@@ -906,10 +906,24 @@ function travelToLocation(loc) {
     return;
   }
 
+  // Story choices can ask the party to escort someone "back" to a place they
+  // are already standing in. Treat that as an immediate arrival, not a fresh
+  // journey: rerolling encounters here produced duplicate ambushes and could
+  // stack them underneath reward/level-up panels.
+  if (!loc?.id || loc.id === mapState.currentLocation) {
+    closeOverlay('map-overlay');
+    window._travelEncounterFired = false;
+    window._travelEncounterScheduled = false;
+    if (loc?.name) addLog(`📍 Already at ${loc.name}.`, 'system');
+    window.resumePendingArrivalScene?.();
+    return false;
+  }
+
   closeOverlay('map-overlay');
 
   // #16: reset the per-trip encounter flag so exactly one system fires
   window._travelEncounterFired = false;
+  window._travelEncounterScheduled = false;
 
   // Discover location
   WORLD_LOCATIONS[loc.id].discovered = true;
@@ -948,15 +962,55 @@ function travelToLocation(loc) {
       ? 0.85  // Dungeons — almost certain
       : Math.min(0.25 + loc.danger * 0.12, 0.75); // Roads/outposts — scales with danger
     if (Math.random() < encounterChance) {
+      window._travelEncounterScheduled = true;
       setTimeout(() => {
         // #16: if the travel.js encounter system already fired this trip, skip ours
-        if (window._travelEncounterFired) return;
+        if (window._travelEncounterFired) {
+          window._travelEncounterScheduled = false;
+          return;
+        }
         window._travelEncounterFired = true;
-        triggerEncounter(loc);
+        window._travelEncounterScheduled = false;
+        if (!triggerEncounter(loc)) {
+          window._travelEncounterFired = false;
+          window.resumePendingArrivalScene?.();
+        }
       }, 2200);
     }
   }
+  return true;
 }
+
+function queueArrivalScene(sceneId) {
+  if (!sceneId || typeof window.runScene !== 'function') return false;
+  const blocked = window._travelEncounterScheduled
+    || window.combatState?.active
+    || document.getElementById('ambush-panel')
+    || document.getElementById('travel-encounter-panel');
+  if (blocked) {
+    window._pendingArrivalScene = sceneId;
+    return false;
+  }
+  window.runScene(sceneId);
+  return true;
+}
+
+function resumePendingArrivalScene() {
+  const sceneId = window._pendingArrivalScene;
+  if (!sceneId || typeof window.runScene !== 'function') return false;
+  if (window._travelEncounterScheduled
+    || window.combatState?.active
+    || document.getElementById('ambush-panel')
+    || document.getElementById('travel-encounter-panel')
+    || document.getElementById('scene-panel')
+    || window.npcConvState?.active) return false;
+  window._pendingArrivalScene = null;
+  window._travelEncounterFired = false;
+  window.runScene(sceneId);
+  return true;
+}
+window.queueArrivalScene = queueArrivalScene;
+window.resumePendingArrivalScene = resumePendingArrivalScene;
 
 async function narrateLocation(loc) {
   const char = gameState.character;
@@ -992,28 +1046,35 @@ async function narrateLocation(loc) {
     const flags = window.sceneState?.flags || {};
     const id = loc.id;
 
-    // Mol Village — Heretic's Torch
-    if (id === 'mol_village' && !flags.arrived_mol && window.runScene) {
-      window.runScene('mol_village_arrival');
+    // Mol Village — Heretic's Torch. A player can discover Mol before c1q5 is
+    // activated, which legitimately sets `arrived_mol` while the quest engine
+    // ignores the (then inactive) scene milestone. Once c1q5 becomes active,
+    // replay the arrival if its first objective is still incomplete so that an
+    // early visit or interrupted scene can never strand the campaign at 0/3.
+    const molQuestActive = (window.gameState?.activeQuests || []).some(quest => quest.id === 'c1q5');
+    const molArrivalIncomplete = !window.gameState?.questProgress?.c1q5?.objectives?.find_aldran;
+    if (id === 'mol_village' && window.runScene
+      && (!flags.arrived_mol || (molQuestActive && molArrivalIncomplete))) {
+      queueArrivalScene('mol_village_arrival');
     }
     // Thornwood Gate — Missing Cartographer
     if (id === 'thornwood_gate' && !flags.cartographer_quest_started && window.runScene) {
-      window.runScene('cartographer_missing');
+      queueArrivalScene('cartographer_missing');
     }
     // Merchant Road — Blood investigation
     if (id === 'merchant_road' && !flags.merchant_road_quest_started && window.runScene) {
-      window.runScene('merchant_road_investigation');
+      queueArrivalScene('merchant_road_investigation');
     }
     // Fortress Harren — Knight Who Kneels
     if (id === 'fortress_harren' && !flags.arrived_fortress && window.runScene) {
-      window.runScene('fortress_harren_arrival');
+      queueArrivalScene('fortress_harren_arrival');
     }
     // Monastery — if chapter1_finale not set and Varek quest active, trigger dungeon first
     if (id === 'monastery_aldric' && !flags.entered_monastery_dungeon && !flags.chapter1_finale && window.runScene) {
       if (flags.knows_varek_location || flags.chapter1_finale) {
-        window.runScene('monastery_arrival');
+        queueArrivalScene('monastery_arrival');
       } else {
-        window.runScene('monastery_dungeon_entry');
+        queueArrivalScene('monastery_dungeon_entry');
       }
     }
     // Monastery — if knows Varek is here, go to finale.
@@ -1024,7 +1085,7 @@ async function narrateLocation(loc) {
     // This block now only covers the case block 1 skipped (e.g. the player
     // already entered the monastery dungeon, then returns knowing Varek's spot).
     if (id === 'monastery_aldric' && flags.knows_varek_location && !flags.chapter1_finale && !flags.chapter1_complete && window.runScene) {
-      setTimeout(() => window.runScene('monastery_arrival'), 1500);
+      setTimeout(() => queueArrivalScene('monastery_arrival'), 1500);
     }
   }, 2000);
 }
@@ -1165,11 +1226,11 @@ const AMBUSH_TEMPLATES = {
 
 // ─── AMBUSH TRIGGER ──────────────────────────
 function triggerEncounter(loc) {
-  if (!loc.encounters?.length || combatState?.active) return;
+  if (!loc.encounters?.length || combatState?.active) return false;
 
   const encounterKey = loc.encounters[Math.floor(Math.random() * loc.encounters.length)];
   const template = AMBUSH_TEMPLATES[encounterKey];
-  if (!template) return;
+  if (!template) return false;
 
   const flavor = template.flavor[Math.floor(Math.random() * template.flavor.length)];
   const enemies = template.enemies();
@@ -1183,6 +1244,7 @@ function triggerEncounter(loc) {
 
   // Show ambush decision panel
   showAmbushPanel(template, enemies, canPersuade, isBossEncounter);
+  return true;
 }
 
 function showAmbushPanel(template, enemies, canPersuade, isBossEncounter) {
@@ -1278,6 +1340,8 @@ function attemptAmbushPersuade() {
     grantHolyPoints(3);
     addLog(`☩ +3 Holy Points — You turned the blade without drawing yours.`, 'holy');
     if (window.AudioEngine) AudioEngine.transition(WORLD_LOCATIONS[mapState?.currentLocation]?.music || 'city_tense', 1000);
+    window._travelEncounterFired = false;
+    window.resumePendingArrivalScene?.();
   } else {
     // Anything less than 20 fails — no matter how high the CHA mod
     addLog(`❌ [${roll}] — Not enough. They don't believe you, or they don't care. The attack comes.`, 'combat');

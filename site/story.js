@@ -72,6 +72,7 @@ function showScene(sceneData) {
     ? (Object.values(window.mp?.session?.players || {}).filter(p => p && p.connected !== false).length || 1)
     : 1;
   const isPersonal = !!(sceneData.personal); // Personal quests: no voting, solo execution
+  const hasDialogue = (sceneData.options || []).some(option => option?.type === 'talk');
 
   // Safe HTML escaper for AI-sourced / dynamic strings interpolated into innerHTML.
   const _esc = window.escapeHtml || (s => s);
@@ -114,11 +115,17 @@ function showScene(sceneData) {
       <div class="sp-options" id="sp-options">${optionsHTML}${notNowHTML}</div>
       <div class="sp-free-action">
         <span class="sp-free-hint">${isPersonal
-          ? '🔖 This is your personal story — pick an option, or type your own action in the bar below.'
-          : isMP
-            ? '🗳 All players vote — majority wins, ties broken by dice'
-            : '✦ Pick an option above — or type your own action in the bar below.'
+          ? '🔖 This is your personal story — choose an option or speak in your own words.'
+          : hasDialogue
+            ? '✦ Choose an option, or say something else in your own words.'
+            : isMP
+              ? '🗳 All players vote — majority wins, ties broken by dice.'
+              : '✦ Choose an option above. Open-ended actions appear when you interact directly with the world.'
         }</span>
+        ${hasDialogue ? `<form class="sp-input-row" onsubmit="submitSceneFreeAction(event); return false;">
+          <input class="sp-free-input" maxlength="600" autocomplete="off" aria-label="Say something else" placeholder="Say something else…">
+          <button class="sp-free-send" type="submit" aria-label="Send custom dialogue">↵</button>
+        </form>` : ''}
       </div>
     </div>
   `;
@@ -175,6 +182,44 @@ function showScene(sceneData) {
     window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene, startedAt: sceneStartedAt });
   }
 }
+
+async function submitSceneFreeAction(event) {
+  event?.preventDefault?.();
+  const form = event?.currentTarget;
+  const input = form?.querySelector?.('.sp-free-input');
+  const text = String(input?.value || '').trim().slice(0, 600);
+  if (!text) return;
+  input.disabled = true;
+
+  const scene = window.sceneState?._currentScene;
+  const searchable = `${scene?.location || ''} ${scene?.narration || ''} ${(scene?.options || []).map(option => option?.label || '').join(' ')}`.toLowerCase();
+  const registry = typeof NPC_REGISTRY === 'object' && NPC_REGISTRY ? NPC_REGISTRY : {};
+  const npc = Object.values(registry).find(candidate => {
+    const name = String(candidate?.name || '').toLowerCase();
+    const significant = [name, name.split(/\s+/).at(-1), ...(candidate?.aliases || []).map(alias => String(alias).toLowerCase())]
+      .filter(token => token && token.length >= 4);
+    return significant.some(token => searchable.includes(token));
+  });
+
+  const sourcePanel = form?.closest?.('#scene-panel');
+  sourcePanel?.remove();
+  window.sceneState._currentScene = null;
+  window.sceneState._currentOptions = [];
+
+  if (npc && typeof startNPCConversation === 'function') {
+    await startNPCConversation(npc.id, `I say to ${npc.name}: ${text}`);
+    return;
+  }
+
+  const globalInput = document.getElementById('action-input');
+  if (globalInput && typeof window.submitAction === 'function') {
+    globalInput.value = text;
+    await window.submitAction();
+    return;
+  }
+  addLog(`*${text}*`, 'narrator');
+}
+window.submitSceneFreeAction = submitSceneFreeAction;
 
 // ─── VOTE SYSTEM ─────────────────────────────
 function castVote(index) {
@@ -669,8 +714,14 @@ FIELD RULES:
     showScene(parsed);
   } catch(e) {
     console.warn('Structured Claude scene rejected; using deterministic continuation.', e?.message || e);
-    // Fallback: log a neutral DM line instead of resetting to arrival scene
-    addLog(`*The situation develops. You take stock of what you know and decide what matters most.*`, 'narrator');
+    const fallback=window.OfflineNarration?.scene(context,loc?.name||'The road ahead');
+    if(fallback){
+      window.sceneState._lastNarration=fallback.narration;
+      window.sceneState.history.push(fallback.narration.slice(0,120));
+      showScene(fallback);
+    }else{
+      addLog(`*The situation develops. You take stock of what you know and decide what matters most.*`, 'narrator');
+    }
   }
 }
 
@@ -1496,23 +1547,34 @@ const MISSING_SCENES = {
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_3', xp: 40 },
-          ]) },
+          ], { victoryScene:'monastery_deep_chamber' }) },
         { icon: '📜', label: 'Grab the journal while watching the skeletons', type: 'explore',
           roll: { stat: 'DEX', dc: 12 },
           onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); gameState.character?.inventory?.push("Last Monk\'s Journal"); startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
-          ]); },
+          ], { victoryScene:'monastery_deep_chamber' }); },
           onFail: () => startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_3', xp: 40 },
-          ]) },
+          ], { victoryScene:'monastery_deep_chamber' }) },
       ]
     };
   },
 
   monastery_deep_chamber: () => {
+    const char = gameState.character;
+    if (char && !getFlag('monastery_deep_respite')) {
+      setFlag('monastery_deep_respite');
+      const maxHp = Math.max(1, Number(char.maxHp) || Number(char.hp) || 1);
+      const maxMp = Math.max(0, Number(char.maxMp) || 100);
+      const hpBefore = Math.max(0, Number(char.hp) || 0);
+      const mpBefore = Math.max(0, Number(char.mp) || 0);
+      char.hp = Math.min(maxHp, hpBefore + Math.max(1, Math.ceil(maxHp * .3)));
+      char.mp = Math.min(maxMp, mpBefore + Math.ceil(maxMp * .4));
+      addLog(`🕯 SHORT REST: At the cracked altar you bind your wounds and steady your breathing. Restored ${char.hp - hpBefore} HP and ${char.mp - mpBefore} MP before facing the Voice.`, 'holy');
+    }
     return {
       location: 'Monastery Dungeon — Deep Chamber',
       locationIcon: '🕳',

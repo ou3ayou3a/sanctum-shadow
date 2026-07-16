@@ -312,7 +312,8 @@ function openCampPanel() {
   `;
 
   const gameLog = document.getElementById('game-log');
-  if (gameLog) {
+  const inWorld3D = document.body.classList.contains('vt-3d-active');
+  if (gameLog && !inWorld3D) {
     gameLog.appendChild(panel);
     setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
   } else {
@@ -550,6 +551,12 @@ function _injectCampButton() {
     opacity: 0;
     transition: opacity 0.3s ease;
   }
+  body.vt-3d-active > .camp-panel {
+    position:fixed; z-index:1660; top:50%; left:50%;
+    width:min(760px,calc(100vw - 32px)); max-height:min(82vh,720px);
+    overflow:auto; margin:0; transform:translate(-50%,-50%);
+    pointer-events:auto; box-shadow:0 0 0 100vmax rgba(1,5,4,.72),0 24px 80px rgba(0,0,0,.75);
+  }
   .camp-inner { padding: 20px 24px 18px; }
 
   .camp-header {
@@ -646,5 +653,13 @@ if (_campOrigShowScreen) {
     }
   };
 }
+
+// World3D runs as an ES module, so expose the classic-script entry point
+// explicitly instead of relying on implicit global function bindings.
+window.openCampPanel = openCampPanel;
+window.closeCampPanel = closeCampPanel;
+window.doShortRest = doShortRest;
+window.doLongRest = doLongRest;
+window.addEventListener('sanctum:open-camp', openCampPanel);
 
 console.log('⛺ Camp & rest system loaded.');

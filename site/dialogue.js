@@ -63,32 +63,9 @@ async function callClaude(system, messages, maxTokens = 600, responseContract = 
 }
 
 function buildOfflineNPCReply(npc, playerText) {
-  const lower = String(playerText || '').toLowerCase();
-  const replies = {
-    captain_rhael: lower.includes('scribe')
-      ? `"The Scribe is frightened because he saw the order before the hall burned," Rhael says. "Watch the Archive doors. Church agents are watching them too."`
-      : `Rhael studies you before answering. "The signing hall burned from the inside. The Crown did not start it. Find the Trembling Scribe near the Archive if you want proof."`,
-    trembling_scribe: `The Scribe grips the document roll tighter. "Elder Varek's seal is on the order. Sister Mourne carried it out. If they see me talking to you, they will kill me."`,
-    sister_mourne: `Mourne does not deny the accusation. "The Covenant would have made the Church a department of the Crown. Varek chose fire instead. Wrongly, perhaps—but not without reason."`,
-    elder_varek: `Varek folds his hands. "I broke the Covenant because its hidden treasury clause would have ended the Church. I will answer for the deaths, but you will hear the whole truth first."`,
-  };
-  const speech = replies[npc.id] || `${npc.name} considers your words. "I cannot give you everything, but this much is true: the Covenant's breaking was planned, and someone nearby is profiting from the confusion."`;
-  window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
-  window.sceneState.flags = window.sceneState.flags || {};
-  window.sceneState.knownFacts = window.sceneState.knownFacts || {};
-  window.sceneState.flags[`talked_to_${npc.id}`] = true;
-  window.sceneState.knownFacts[`offline_${npc.id}`] = speech.replace(/^.*?"/, '').replace(/"$/, '');
-  if (npc.id === 'captain_rhael' || npc.id === 'trembling_scribe') {
-    window.advanceQuest?.('c1q1', `Questioned ${npc.name} about the broken Covenant.`);
-  }
-  return {
-    speech,
-    options: [
-      { text:'Ask what evidence they can provide', roll:null },
-      { text:'Ask who benefits from the Covenant breaking', roll:null },
-      { text:'End conversation', roll:null },
-    ],
-  };
+  const fallback=window.OfflineNarration?.npcReply(npc,playerText);
+  if(fallback)return fallback;
+  return{speech:`${npc.name} studies the situation and gives you a cautious local lead.`,effects:{},options:[{text:'End conversation',type:'end',roll:null,effects:{}}]};
 }
 
 // ─── NPC REGISTRY ────────────────────────────
@@ -965,6 +942,7 @@ Only effects requested by the ROMANCE context may be non-default. affection must
 
   if (!response) {
     const fallback = buildOfflineNPCReply(npc, userMsg);
+    applyDialogueChoiceEffects(fallback.effects,`Offline dialogue consequence: ${npc.name}`);
     displayNPCLine(npc, fallback.speech, fallback.options);
     addLog(`${npc.name}: "${fallback.speech.replace(/^[^\"]*\"?/, '').substring(0, 100)}..."`, 'narrator');
     if (window.mp?.sessionCode) {
@@ -1325,9 +1303,10 @@ Return 3-4 choices, no markdown and no text outside the JSON object.`;
   const validation = text ? window.ClaudeContract?.parseAndValidate('npc_dialogue.v1', text) : null;
   if (!validation?.ok) {
     if (text) console.warn('Structured freeform NPC response rejected.', validation?.errors || 'contract unavailable');
-    const fallbackSpeech=`*${npcName} looks at you blankly.*`,fallbackOptions=[{ text:'End conversation',type:'end',roll:null }];
-    displayNPCLine(genericNPC,fallbackSpeech,fallbackOptions);
-    if(window.mp?.sessionCode)window.mpSendConversationUpdate?.('response',{npcName,text:fallbackSpeech,options:fallbackOptions});
+    const fallback=buildOfflineNPCReply(genericNPC,action);
+    applyDialogueChoiceEffects(fallback.effects,`Offline dialogue consequence: ${npcName}`);
+    displayNPCLine(genericNPC,fallback.speech,fallback.options);
+    if(window.mp?.sessionCode)window.mpSendConversationUpdate?.('response',{npcName,text:fallback.speech,options:fallback.options});
     return;
   }
 

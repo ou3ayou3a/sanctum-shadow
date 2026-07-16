@@ -434,7 +434,9 @@ function showTravelEncounter(encObj, destination) {
   window._currentTravelEncounter = encObj;
 
   const gameLog = document.getElementById('game-log');
-  if (gameLog) {
+  const inWorld3D = !!(window.vt3dActive || document.body.classList.contains('world3d-active'));
+  if (inWorld3D) panel.classList.add('world3d-travel-encounter');
+  if (gameLog && !inWorld3D) {
     gameLog.appendChild(panel);
     setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   } else {
@@ -805,6 +807,7 @@ function arriveAtDestination(locId) {
   addLog(`…the road clears, and you press on to ${loc.name}.`, 'system');
   if (window.updateCharacterPanel) updateCharacterPanel();
   if (window.autoSave) autoSave();
+  setTimeout(() => window.resumePendingArrivalScene?.(), 800);
 }
 
 // ─── INJECT CSS ───────────────────────────────────────────
@@ -818,6 +821,28 @@ function arriveAtDestination(locId) {
     margin: 8px 0;
     opacity: 0;
     transition: opacity 0.4s ease;
+  }
+  .travel-enc-panel.world3d-travel-encounter {
+    position: fixed;
+    inset: 0;
+    z-index: 1800;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: clamp(18px, 4vw, 48px);
+    overflow: auto;
+    background: rgba(3, 3, 5, 0.82);
+    border: 0;
+    backdrop-filter: blur(5px);
+  }
+  .world3d-travel-encounter .tep-inner {
+    width: min(680px, calc(100vw - 36px));
+    max-height: calc(100vh - 36px);
+    overflow: auto;
+    background: linear-gradient(180deg, rgba(5,3,8,0.99), rgba(10,6,15,0.99));
+    border: 1px solid rgba(201,168,76,0.36);
+    border-top: 2px solid rgba(201,168,76,0.68);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.78);
   }
   .tep-inner { padding: 24px 28px 20px; }
   .tep-type-bar {
@@ -919,6 +944,13 @@ function arriveAtDestination(locId) {
       return;
     }
 
+    // Do not roll a wrapper-level road encounter when a story action targets
+    // the location the party already occupies. The base map handler performs
+    // the no-op arrival bookkeeping and returns without moving the party.
+    if (!loc?.id || loc.id === window.mapState?.currentLocation) {
+      return _orig(loc);
+    }
+
     const fromLocId = window.mapState?.currentLocation;
     const fromLoc = window.WORLD_LOCATIONS?.[fromLocId] || {};
 
@@ -928,17 +960,21 @@ function arriveAtDestination(locId) {
 
     // Run travel (music, fog of war, description). This resets
     // window._travelEncounterFired = false at its start.
-    _orig(loc);
+    const travelled = _orig(loc);
+    if (travelled === false) return false;
 
     // #16/#81: if we're going to fire an encounter, claim the slot now so
     // map.js's triggerEncounter (2200ms) skips this trip.
     if (encObj) {
       window._travelEncounterFired = true;
+      window._travelEncounterScheduled = true;
       setTimeout(() => {
         addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
         showTravelEncounter(encObj, loc.id);
+        window._travelEncounterScheduled = false;
       }, 1800);
     }
+    return true;
   };
 
   console.log('🗺 Travel encounter system loaded.');

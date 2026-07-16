@@ -897,6 +897,9 @@ function completeQuest(questId, options = {}) {
 function grantQuestReward(questId, xp) {
   const character = gameState.character;
   if (!character || !questId) return false;
+  if (window.SanctumQuests?.claimReward) {
+    return window.SanctumQuests.claimReward(character, questId, xp, typeof window.grantXP === 'function' ? window.grantXP : null);
+  }
   character.questRewardsClaimed = Array.isArray(character.questRewardsClaimed) ? character.questRewardsClaimed : [];
   if (character.questRewardsClaimed.includes(questId)) return false;
   character.questRewardsClaimed.push(questId);

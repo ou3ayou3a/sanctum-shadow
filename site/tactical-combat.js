@@ -6,7 +6,11 @@
   'use strict';
 
   const DEFAULT_MOVE_RANGE=4.5;
-  const ROLE_RANGES=Object.freeze({frontline:2.25,skirmisher:3.25,ranged:10,caster:9});
+  // Character collision rings keep two adjacent humanoids roughly 2.3–2.5m
+  // apart in the rendered world. Give frontline weapons enough reach to cover
+  // that visual contact, otherwise actors can visibly touch while the rules
+  // still reject every melee attack as out of range.
+  const ROLE_RANGES=Object.freeze({frontline:2.75,skirmisher:3.25,ranged:10,caster:9});
   function finite(value){return Number.isFinite(Number(value));}
   function point(value){return value&&finite(value.x)&&finite(value.z)?{x:Number(value.x),z:Number(value.z)}:null;}
   function distance(a,b){const pa=point(a),pb=point(b);return pa&&pb?Math.hypot(pb.x-pa.x,pb.z-pa.z):null;}

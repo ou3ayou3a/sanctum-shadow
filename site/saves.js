@@ -250,7 +250,7 @@ function stopAutosave() {
 }
 
 // ─── LOAD GAME ────────────────────────────
-function loadSaveSlot(slotId) {
+function loadSaveSlot(slotId, options = {}) {
   const slots = getAllSaves();
   const slot = slots.find(s => s.id === slotId);
   if (!slot) { toast('Save not found.', 'error'); return; }
@@ -263,7 +263,11 @@ function loadSaveSlot(slotId) {
     || slotId === 'autosave_slot'
     || slot.type === 'session_resume'
     || slot.name === '__session_resume__';
-  if (runDead && isDeadRunSlot) {
+  // Automatic resume must never revive the run that just died. An explicit
+  // Load Chronicle choice may restore an earlier healthy checkpoint, even if
+  // that checkpoint happens to use the transient session-resume slot.
+  const manualLoad = options?.manual === true;
+  if (runDead && isDeadRunSlot && !manualLoad) {
     if (typeof toast === 'function') toast('That Chronicle ended in death.', 'error');
     return;
   }
@@ -636,7 +640,7 @@ function renderSaveLoadScreen(mode = 'load') {
                 padding:5px 10px;cursor:pointer;letter-spacing:0.05em;
               ">💾 OVERWRITE</button>
             ` : `
-              <button onclick="loadSaveSlot('${s.id}')" style="
+              <button onclick="loadSaveSlot('${s.id}', { manual:true })" style="
                 background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);
                 color:var(--gold);font-family:'Cinzel',serif;font-size:0.62rem;
                 padding:5px 10px;cursor:pointer;letter-spacing:0.05em;

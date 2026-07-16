@@ -576,7 +576,9 @@ function initMultiplayer() {
       if (award && window.grantXP) grantXP(award);
       const questScene = window.sceneState?.currentScene || window.sceneState?._currentScene?.id || '';
       const enemies = Object.values(endedCombatState?.combatants || {}).filter(combatant => !combatant.isPlayer);
-      if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds:enemies.map(enemy => enemy.id) });
+      if (window.mp.isHost && questScene) {
+        window.recordAuthoredCombatVictory?.(questScene, enemies.map(enemy => enemy.id));
+      }
       if (window.mp.isHost) {
         if (enemies.some(enemy => String(enemy.sourceId || enemy.id || '').startsWith('cupside_sergeant'))) {
           window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };

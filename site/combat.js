@@ -507,8 +507,11 @@ function startCombat(enemies, encounter = {}) {
   combatState.turnOrder = [];
   combatState.selectedSpell = null;
   combatState.statusEffects = {}; // clear all statuses
+  combatState.victoryScene = typeof encounter?.victoryScene === 'string'
+    ? encounter.victoryScene.replace(/[^a-z0-9_]/gi, '').slice(0, 80)
+    : null;
   const encounterId=encounter?.id==='cupside_checkpoint'?'cupside_checkpoint':'standard';
-  combatState.tactical={encounterId,cover:encounterId==='cupside_checkpoint'?[{id:'cupside_barricade',x:0,z:3.1,radius:.82,type:'half'}]:[],bounds:12,moveRange:window.TacticalCombat?.DEFAULT_MOVE_RANGE||4.5};
+  combatState.tactical={encounterId,cover:encounterId==='cupside_checkpoint'?[{id:'cupside_barricade',x:0,z:-3.1,radius:.82,type:'half'}]:[],bounds:12,moveRange:window.TacticalCombat?.DEFAULT_MOVE_RANGE||4.5};
 
   const wisMod = COMBAT_RULES.abilityModifier(char.stats?.wis || 10);
   const strMod = COMBAT_RULES.abilityModifier(char.stats?.str || 10);
@@ -559,7 +562,9 @@ function startCombat(enemies, encounter = {}) {
       level: e.level || 1,
       xp: e.xp || 50,
       tacticalRole:['frontline','skirmisher','ranged','caster'].includes(e.tacticalRole)?e.tacticalRole:window.TacticalCombat?.inferRole?.(e)||'frontline',
-      position:{x:(i-(enemies.length-1)/2)*2.05,z:5.5+(i%2)*.7},
+      // Spawn hostiles on the camera-facing side of the battlefield. Positive Z
+      // projects beneath the 3D combat controls in the default exploration camera.
+      position:{x:(i-(enemies.length-1)/2)*2.05,z:-5.5-(i%2)*.7},
       initiative: COMBAT_RULES.rollInitiative({ bonus:e.dex || 0 }).total,
     };
   });
@@ -1624,6 +1629,19 @@ function normalizeNpcId(id, name) {
   return NPC_ID_ALIASES[base] || base;
 }
 
+function recordAuthoredCombatVictory(questScene, defeatedIds = []) {
+  if (!questScene) return { updates:[], completions:[] };
+  if (questScene === 'aldran_church_soldiers') {
+    window.sceneState = window.sceneState || { flags:{} };
+    window.sceneState.flags = window.sceneState.flags || {};
+    window.sceneState.flags.heretic_protected = true;
+    window.addLog?.('Aldran is safe. The Church soldiers cannot silence Mol today.', 'holy');
+  }
+  return window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds })
+    || { updates:[], completions:[] };
+}
+window.recordAuthoredCombatVictory = recordAuthoredCombatVictory;
+
 function endCombat(victory) {
   // Guard against re-entry — the infinite loop happens when advanceTurn fires
   // via setTimeout after endCombat already ran
@@ -1654,7 +1672,7 @@ function endCombat(victory) {
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');
     grantXP(totalXP);
     const questScene = window.sceneState?.currentScene || window.sceneState?._currentScene?.id || '';
-    if (questScene) window.recordQuestEvent?.(`combat:victory:${questScene}`, { defeatedIds });
+    if (questScene) recordAuthoredCombatVictory(questScene, defeatedIds);
     if (defeatedIds.some(id => String(id).startsWith('cupside_sergeant'))) {
       window.sceneState.flags.cupside_checkpoint_defeated = true;
       window.sceneState.flags.cupside_checkpoint_cleared = true;
@@ -1684,7 +1702,10 @@ function endCombat(victory) {
         if (window.runScene) window.runScene('chapter1_end_arrest');
       } else if (defeatedEnemies.some(enemy => /voice below/i.test(enemy.name || '') || String(enemy.id || '').startsWith('the_voice_below'))) {
         if (window.runScene) window.runScene('monastery_dungeon_cleared');
+      } else if (combatState.victoryScene) {
+        if (window.runScene) window.runScene(combatState.victoryScene);
       }
+      setTimeout(() => window.resumePendingArrivalScene?.(), 0);
     }, 2500);
 
     // ── Resume the AI story after a won fight (Part 2) ──
@@ -1719,6 +1740,7 @@ function endCombat(victory) {
 
     // No more story continuation or queued scenes for a dead character.
     window._postCombatContinue = null;
+    combatState.victoryScene = null;
     window._pendingScene = null;
 
     {

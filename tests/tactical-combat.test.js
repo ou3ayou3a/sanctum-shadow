@@ -4,8 +4,9 @@ const assert=require('node:assert/strict');
 const Tactical=require('../site/tactical-combat.js');
 
 test('attack ranges are deterministic by tactical role',()=>{
-  assert.equal(Tactical.attackRange({tacticalRole:'frontline'}),2.25);
+  assert.equal(Tactical.attackRange({tacticalRole:'frontline'}),2.75);
   assert.equal(Tactical.attackRange({name:'Church Crossbowman'}),10);
+  assert.equal(Tactical.validateAttack({tacticalRole:'frontline',position:{x:0,z:0}},{hp:10,position:{x:2.4,z:0}}).ok,true);
   assert.equal(Tactical.validateAttack({tacticalRole:'frontline',position:{x:0,z:0}},{hp:10,position:{x:3,z:0}}).reason,'out_of_range');
 });
 

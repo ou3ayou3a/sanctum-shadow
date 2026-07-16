@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {getZoneProfile} from './zone-profiles.mjs';
+import {getZoneProfile} from './zone-profiles.mjs?v=148';
 import {getKitActions} from '../environment-actions.mjs';
 import {createArchitectureKit} from '../architecture-kit.mjs';
 import {createNatureKit} from '../nature-kit.mjs';
@@ -9,6 +9,19 @@ import {createMedievalMaterialLibrary} from '../medieval-materials.mjs';
 const PALETTES={
   tavern:{ground:0x322219,stone:0x674831,wood:0x4a2c19,leaf:0x6f542f,fog:0x21140d,accent:0xffa34e},cellar:{ground:0x242322,stone:0x4b4a47,wood:0x39281b,leaf:0x555555,fog:0x121313,accent:0xa88be0},forest:{ground:0x243526,stone:0x435044,wood:0x34271d,leaf:0x28462e,fog:0x122018,accent:0x6fc88a},cartographer:{ground:0x2b3828,stone:0x4d5547,wood:0x4b3220,leaf:0x324d32,fog:0x17231a,accent:0xd8ba6a},village:{ground:0x364333,stone:0x686052,wood:0x583a23,leaf:0x3c623f,fog:0x1c281d,accent:0xe0b36c},outpost:{ground:0x303b32,stone:0x555e56,wood:0x493421,leaf:0x31523a,fog:0x18231d,accent:0xd09b54},road:{ground:0x3b392f,stone:0x615f55,wood:0x4c3421,leaf:0x3c5036,fog:0x24241f,accent:0xd1b46f},fortress:{ground:0x303330,stone:0x626763,wood:0x3e2d22,leaf:0x384039,fog:0x171c1b,accent:0xb99455},monastery:{ground:0x303532,stone:0x626a66,wood:0x433126,leaf:0x334b3b,fog:0x18201f,accent:0xd7c886},archive:{ground:0x242625,stone:0x4b504e,wood:0x3b2b21,leaf:0x303431,fog:0x111514,accent:0xc18a58},ashen:{ground:0x393735,stone:0x555252,wood:0x312d2c,leaf:0x3d3a3a,fog:0x211f22,accent:0x65aaff},tower:{ground:0x30282d,stone:0x51434b,wood:0x34262e,leaf:0x42343d,fog:0x1b1118,accent:0xca4f72},temple:{ground:0x38372f,stone:0x6b675a,wood:0x503a25,leaf:0x465240,fog:0x211f1a,accent:0xe0c66d},dungeon:{ground:0x272929,stone:0x4b5051,wood:0x372c25,leaf:0x343838,fog:0x111516,accent:0x956bc5},
 };
+function activeQuestIncomplete(questId,objectiveId){return (window.gameState?.activeQuests||[]).some(quest=>quest.id===questId)&&!window.gameState?.questProgress?.[questId]?.objectives?.[objectiveId];}
+function interactionSceneFor(location,profile){
+  // Saves intentionally do not persist an active combat. If the player reloads
+  // during Aldran's final confrontation, the quest remains at 2/3; returning to
+  // Mol's objective must reopen that decision instead of replaying the village
+  // introduction and leaving the final objective without a usable recovery.
+  if(location.id==='mol_village'){
+    if(activeQuestIncomplete('c1q5','find_aldran'))return'mol_village_arrival';
+    if(activeQuestIncomplete('c1q5','hear_truth'))return'aldran_meeting';
+    if(activeQuestIncomplete('c1q5','decide_fate'))return'aldran_church_soldiers';
+  }
+  return profile.arrivalScene;
+}
 function seeded(seed){let value=2166136261;for(const char of seed)value=Math.imul(value^char.charCodeAt(0),16777619);return()=>((value=Math.imul(value^value>>>15,2246822519))>>>0)/4294967296;}
 
 export function buildGenericZone(location={}){
@@ -47,7 +60,7 @@ export function buildGenericZone(location={}){
   else{productionForest(18,true);scatterRocks(24,5,24);nature.fogBank({x:0,z:-8,width:36,depth:24,count:58});const interior=interiorAssetFor(location,profile.kit);if(interior)placeAsset(interior,{size:[14,5.5,16],name:location.id||'dungeon'});else{placeAsset('crypt',{z:-13,size:[8,6,7],name:'dungeon-crypt'});obstacle(0,-13,8,7);}for(let i=0;i<5;i++){const angle=random()*Math.PI*2,radius=9+random()*11;placeAsset('ancient_ruin',{x:Math.cos(angle)*radius,z:Math.sin(angle)*radius,rotation:random()*Math.PI*2,size:[4,2.8,3.5],name:`ruin-${i}`});}addFire(0,-7,0x9368cb);}
 
   const [fx,fz]=isInterior?[0,0]:focus,beacon=new THREE.Mesh(new THREE.OctahedronGeometry(.42),accent);beacon.position.set(fx,1.25,fz);beacon.castShadow=true;beacon.visible=!isInterior;root.add(beacon);animated.push({kind:'beacon',mesh:beacon,phase:random()*6});const interaction=new THREE.Mesh(new THREE.CylinderGeometry(2,2,.5,18),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));interaction.position.set(fx,.25,fz);interaction.userData.interactionId='location_focus';root.add(interaction);
-  const onInteract=engine=>{if(profile.arrivalScene&&window.runScene)window.runScene(profile.arrivalScene);else engine.toast(String(location.description||`You inspect ${location.name||'the area'}`).slice(0,220),5200);};
+  const onInteract=engine=>{const sceneId=interactionSceneFor(location,profile);if(sceneId&&window.runScene)window.runScene(sceneId);else engine.toast(String(location.description||`You inspect ${location.name||'the area'}`).slice(0,220),5200);};
   const fogDensity={forest:.034,cartographer:.03,village:.022,outpost:.027,road:.02,fortress:.026,monastery:.028,archive:.032,ashen:.042,tower:.038,temple:.024,dungeon:.045,tavern:.018,cellar:.035}[profile.kit]??.026;
   const interactables=[{id:'location_focus',object:interaction,position:new THREE.Vector3(fx,0,fz),range:2.5,label:profile.interactionLabel,actions:[{id:'primary',icon:'◆',label:profile.interactionLabel,direct:true},...getKitActions(profile.kit)],onInteract}];
   if(isInterior){const addHotspot=(id,label,x,z,message)=>{const object=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,.4,14),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));object.position.set(x,.2,z);object.userData.interactionId=id;root.add(object);interactables.push({id,object,position:new THREE.Vector3(x,0,z),range:1.8,label,actions:[{id:'inspect',icon:'◆',label,direct:true},...getKitActions(profile.kit)],onInteract:engine=>engine.toast(message,4800)});};const spots={tavern_interior:[['bar','Speak at the bar',0,2.1,'The bar is scarred by generations of knives, tankards, and nervous hands.']],shop_interior:[['shelves','Inspect the archive shelves',-2.8,0,'Ledgers and sealed volumes crowd the shelves. Several entries have been cut out.']],temple_interior:[['altar','Approach the altar',0,3,'Wax, incense, and old blood mark the stone altar.']],castle_interior:[['throne','Inspect the command dais',0,3.3,'The command dais overlooks maps of every road into Vaelthar.']],house_interior:[['hearth','Inspect the hearth',0,2.1,'The hearth is warm. Someone was here recently.']],dungeon_interior:[['cells','Inspect the cells',-3.7,1.5,'Rusty bars divide the chamber. Scratches cover the inner stone.']]}[interiorId]||[];for(const spot of spots)addHotspot(...spot);const exitZ=-interiorSize[2]/2+.7,exit=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.6,.5),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));exit.position.set(0,1.3,exitZ);exit.userData.interactionId='interior_exit';root.add(exit);interactables.push({id:'interior_exit',object:exit,position:new THREE.Vector3(0,0,exitZ),range:1.7,label:'Return outside',actions:[{id:'leave',icon:'↩',label:'Return outside',direct:true}],onInteract:engine=>{const destination=window.world3dReturnLocation||location.connections?.[0]||'vaelthar_city';if(!window.travelToWorldLocation?.(destination))engine.toast('The way outside is blocked.');}});}
