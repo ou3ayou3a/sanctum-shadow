@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getRaceProfile } from './race-profiles.mjs';
 import { getClassProfile } from './class-profiles.mjs';
-import { equipClass,applyClassPose } from './class-equipment.js?v=144';
+import { equipClass,applyClassPose,rigBone } from './class-equipment.js?v=161';
 import { productionRaceModel } from './production-assets.mjs?v=144';
 import {WALK_SPEED,RUN_SPEED,advanceSpeed,angleDelta,locomotionBlend,normalizePresenceState,normalizeNetworkSpeed,turnState} from './locomotion.mjs';
 
@@ -51,7 +51,7 @@ export class CharacterActor extends THREE.Group {
   }
 
   applyRaceDetails(){
-    const head=this.model.getObjectByName('mixamorig:Head');if(!head)return;
+    const head=rigBone(this.model,'mixamorig:Head');if(!head)return;
     const skin=new THREE.MeshStandardMaterial({color:this.profile.skinColor,roughness:.76});
     const metal=new THREE.MeshStandardMaterial({color:this.profile.accent,metalness:.62,roughness:.35});
     const addEar=(side,size=1)=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(2.4*size,10.5*size,12),skin);ear.rotation.z=side*Math.PI/2;ear.rotation.y=.3;ear.position.set(side*7.3,4,0);ear.castShadow=true;head.add(ear);};
@@ -62,7 +62,7 @@ export class CharacterActor extends THREE.Group {
     if(this.profile.features.includes('beard')){const beard=new THREE.Mesh(new THREE.ConeGeometry(5.5,12,12),new THREE.MeshStandardMaterial({color:0x70452d,roughness:1}));beard.position.set(0,-5,4);beard.rotation.x=-.18;head.add(beard);}
     if(this.profile.features.includes('brow')){const brow=new THREE.Mesh(new THREE.BoxGeometry(10,1.6,2),skin);brow.position.set(0,3.2,5);brow.rotation.x=.1;head.add(brow);}
     if(this.profile.features.includes('heavy_shoulders')){
-      for(const name of['mixamorig:LeftShoulder','mixamorig:RightShoulder']){const bone=this.model.getObjectByName(name);if(!bone)continue;const pad=new THREE.Mesh(new THREE.SphereGeometry(5.3,12,8),new THREE.MeshStandardMaterial({color:0x43563d,metalness:.25,roughness:.72}));pad.scale.set(1.35,.72,1);bone.add(pad);}
+      for(const name of['mixamorig:LeftShoulder','mixamorig:RightShoulder']){const bone=rigBone(this.model,name);if(!bone)continue;const pad=new THREE.Mesh(new THREE.SphereGeometry(5.3,12,8),new THREE.MeshStandardMaterial({color:0x43563d,metalness:.25,roughness:.72}));pad.scale.set(1.35,.72,1);bone.add(pad);}
     }
   }
 

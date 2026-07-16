@@ -54,5 +54,10 @@ test('characters and class equipment use the Blender library with procedural fal
   assert.match(equipmentSource,/world3d\/assets\/production\/equipment/);
   assert.match(equipmentSource,/equipmentSlot='held'/);
   assert.match(equipmentSource,/equipmentSlot='stowed'/);
+  assert.match(equipmentSource,/bindStowedSockets/);
+  assert.match(equipmentSource,/bone\.attach\(object\)/);
+  assert.match(equipmentSource,/equipmentBone=boneName/);
+  assert.match(equipmentSource,/replace\(':',''\)/);
+  assert.match(equipmentSource,/Math\.PI\/2/);
   assert.match(equipmentSource,/procedural fallback/);
 });
