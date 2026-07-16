@@ -7,7 +7,7 @@ import {createNatureKit} from '../nature-kit.mjs';
 import {buildVaeltharAssetSlice} from '../vaelthar-asset-slice.mjs?v=136';
 import {createMedievalMaterialLibrary} from '../medieval-materials.mjs';
 import {createCityDetailKit} from '../city-detail-kit.mjs';
-import {buildVaeltharVerticalSlice} from '../vaelthar-vertical-slice.mjs?v=136';
+import {buildVaeltharVerticalSlice} from '../vaelthar-vertical-slice.mjs?v=158';
 import {VAELTHAR_CITY_SIZE,VAELTHAR_DISTRICT_PLAN,VAELTHAR_STREETS,VAELTHAR_BUILDING_PLOTS,VAELTHAR_MARKET_STALLS,VAELTHAR_TERRACES} from './vaelthar-city-plan.mjs';
 
 const COLORS={stone:0x3d342a,stoneDark:0x211d18,stoneLight:0x625441,plaster:0x78654c,timber:0x3d2b1c,roof:0x29201b,crimson:0x762d2a,gold:0xc5a554,market:0x6b4434};

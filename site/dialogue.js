@@ -1407,7 +1407,7 @@ function renderConvPanel(npc) {
   panel.innerHTML = `
     <div class="cp-inner">
       <div class="cp-header">
-        ${window.getPortraitHTML ? window.getPortraitHTML(npc.id, npc.name) : `<span class="cp-portrait">${npc.portrait}</span>`}
+        ${window.getPortraitHTML ? window.getPortraitHTML(npc.id, npc.name, npc.portrait) : `<span class="cp-portrait">${npc.portrait}</span>`}
         <div class="cp-info">
           <span class="cp-name">${npc.name}</span>
           <span class="cp-title">${npc.title}</span>
@@ -1602,11 +1602,12 @@ function renderConvOptions(options) {
   const esc = window.escapeHtml || (s => s);
   const canControl=isConversationController();
   el.innerHTML = options.map((opt, i) => `
-    <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}" ${canControl?`onclick="pickNPCOption(${i})"`:'disabled aria-disabled="true"'}>
-      <span>${esc(opt.text)}</span>
+    <button class="cp-option ${opt.roll ? 'has-roll' : ''} ${isHostileText(opt.text) ? 'hostile' : ''}" ${canControl?`onclick="pickNPCOption(${i})"`:'disabled aria-disabled="true"'} aria-label="Choice ${i+1}: ${esc(opt.text)}">
+      <span class="cp-option-index" aria-hidden="true">${i+1}</span>
+      <span class="cp-option-text">${esc(opt.text)}</span>
       ${opt.roll ? `<span class="cp-roll-badge">🎲 ${esc(opt.roll.stat)} DC${esc(opt.roll.dc)}</span>` : ''}
     </button>
-  `).join('') + (canControl?`<button class="cp-option cp-open-choice" type="button" aria-expanded="false" aria-controls="cp-freeform" onclick="toggleConvFreeform()"><span>Say something else…</span><span aria-hidden="true">⌨</span></button>`:`<div class="cp-thinking">${esc(window.npcConvState?.controllerName||'Another player')} is leading this conversation.</div>`);
+  `).join('') + (canControl?`<button class="cp-option cp-open-choice" type="button" aria-expanded="false" aria-controls="cp-freeform" onclick="toggleConvFreeform()"><span class="cp-option-index" aria-hidden="true">…</span><span class="cp-option-text">Say something else…</span><span aria-hidden="true">⌨</span></button>`:`<div class="cp-thinking">${esc(window.npcConvState?.controllerName||'Another player')} is leading this conversation.</div>`);
   configureConversationControls();
 }
 

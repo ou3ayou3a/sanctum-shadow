@@ -14,6 +14,10 @@ function interaction(root,interactables,{id,label,x,z,range=1.7,actions,onIntera
   interactables.push({id,label,object,position:new THREE.Vector3(x,0,z),range,actions,onInteract});
 }
 
+function paintedSign(text){
+  const canvas=document.createElement('canvas');canvas.width=768;canvas.height=192;const context=canvas.getContext('2d');context.fillStyle='#241810';context.fillRect(0,0,768,192);context.strokeStyle='#a9803d';context.lineWidth=10;context.strokeRect(12,12,744,168);context.fillStyle='#d9c58f';context.textAlign='center';context.textBaseline='middle';context.font='700 62px Cinzel,serif';context.fillText(text,384,93);context.fillStyle='rgba(255,255,255,.08)';for(let i=0;i<18;i++)context.fillRect(28+i*41,24+(i%3)*52,25,2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return new THREE.MeshStandardMaterial({map:texture,roughness:.82,metalness:.04});
+}
+
 function startCheckpointCombat(engine){
   window.sceneState=window.sceneState||{flags:{},knownFacts:{}};window.sceneState.flags=window.sceneState.flags||{};
   if(window.sceneState.flags.cupside_checkpoint_defeated){engine.toast('The checkpoint is already abandoned.');return;}
@@ -40,6 +44,27 @@ export function buildVaeltharVerticalSlice({root,obstacles,interactables,materia
   const iron=materialLibrary.material('metal',0x323631,{metalness:.76,roughness:.34});
   const cloth=new THREE.MeshStandardMaterial({color:0x742e2a,roughness:.88,side:THREE.DoubleSide});
   const paper=new THREE.MeshStandardMaterial({color:0xb8a77d,roughness:1,side:THREE.DoubleSide});
+
+  // A readable threshold gives Cupside a district identity instead of letting
+  // the authored street dissolve into the rest of the procedural city.
+  const entranceAngle=-.98,sideX=Math.cos(entranceAngle),sideZ=-Math.sin(entranceAngle),entranceX=-3.7,entranceZ=7.55;
+  for(const side of[-1,1]){
+    const x=entranceX+sideX*side*2.25,z=entranceZ+sideZ*side*2.25;
+    mesh(root,new THREE.CylinderGeometry(.34,.45,3.9,8),darkStone,[x,1.95,z],[0,entranceAngle,0],'cupside-boundary-pier');
+    mesh(root,new THREE.ConeGeometry(.5,.55,8),darkStone,[x,4.17,z],[0,entranceAngle,0],'cupside-pier-cap');
+  }
+  mesh(root,new THREE.BoxGeometry(5.15,.32,.38),timber,[entranceX,3.73,entranceZ],[0,entranceAngle,0],'cupside-sign-beam');
+  const districtSign=mesh(root,new THREE.BoxGeometry(3.25,.82,.12),paintedSign('CUPSIDE LANE'),[entranceX,3.28,entranceZ],[0,entranceAngle,0],'cupside-district-sign');animated.push({kind:'sign',object:districtSign,base:districtSign.rotation.z,phase:2.4});
+
+  // Warm pools of light, fine rain, and gutter runoff make the route feel like
+  // one continuous evening scene from the square to the tavern door.
+  for(const [x,z]of[[-5.8,10.3],[-10.7,13.6],[-14.7,17.1]]){
+    mesh(root,new THREE.CylinderGeometry(.055,.075,2.75,8),iron,[x,1.375,z],[0,0,0],'cupside-lantern-post');
+    mesh(root,new THREE.BoxGeometry(.48,.62,.48),iron,[x,2.78,z],[0,.18,0],'cupside-lantern-frame');
+    const glow=mesh(root,new THREE.BoxGeometry(.3,.38,.3),new THREE.MeshStandardMaterial({color:0xffbb65,emissive:0xff792f,emissiveIntensity:4.5,transparent:true,opacity:.82}),[x,2.78,z],[0,.18,0],'cupside-lantern-glass');glow.castShadow=false;
+    const light=new THREE.PointLight(0xff9146,5.8,8.5,1.8);light.position.set(x,2.72,z);root.add(light);animated.push({kind:'lantern',object:light,base:5.8,phase:x-z});
+  }
+  const rainPositions=new Float32Array(180*3);for(let i=0;i<180;i++){rainPositions[i*3]=-16+Math.random()*14;rainPositions[i*3+1]=.15+Math.random()*7;rainPositions[i*3+2]=6.5+Math.random()*12.5;}const rainGeometry=new THREE.BufferGeometry();rainGeometry.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));const drizzle=new THREE.Points(rainGeometry,new THREE.PointsMaterial({color:0xb8ced0,size:.035,transparent:true,opacity:.32,depthWrite:false}));drizzle.name='cupside-evening-drizzle';drizzle.frustumCulled=false;root.add(drizzle);animated.push({kind:'rain',object:drizzle});
 
   // Covenant Square → Cupside Lane. Narrow, irregular stone courses sit above
   // the broad city road and give this one playable route a deliberately authored read.
@@ -120,6 +145,6 @@ export function buildVaeltharVerticalSlice({root,obstacles,interactables,materia
   interaction(root,interactables,{id:'cupside_checkpoint',label:'Church checkpoint — Cupside Lane',x:-8.8,z:10.8,range:2.1,actions:checkpointActions,onInteract:engine=>engine.toast('The checkpoint bars the shortest route to the Tarnished Cup.')});
 
   return{
-    update(time){const cleared=!!window.sceneState?.flags?.cupside_checkpoint_cleared||!!window.sceneState?.flags?.cupside_checkpoint_defeated;checkpoint.position.y=THREE.MathUtils.lerp(checkpoint.position.y,cleared?-1.7:checkpoint.userData.closedY,.08);for(const item of animated){if(item.kind==='puddle')item.object.material.opacity=.62+Math.sin(time*.7+item.phase)*.04;else if(item.kind==='sign')item.object.rotation.z=item.base+Math.sin(time*.9+item.phase)*.025;else item.object.rotation.z=item.base+Math.sin(time*1.15+item.phase)*.018;}},
+    update(time,dt=.016){const cleared=!!window.sceneState?.flags?.cupside_checkpoint_cleared||!!window.sceneState?.flags?.cupside_checkpoint_defeated;checkpoint.position.y=THREE.MathUtils.lerp(checkpoint.position.y,cleared?-1.7:checkpoint.userData.closedY,.08);for(const item of animated){if(item.kind==='puddle')item.object.material.opacity=.62+Math.sin(time*.7+item.phase)*.04;else if(item.kind==='sign')item.object.rotation.z=item.base+Math.sin(time*.9+item.phase)*.025;else if(item.kind==='lantern')item.object.intensity=item.base+Math.sin(time*7.2+item.phase)*.45;else if(item.kind==='rain'){const positions=item.object.geometry.attributes.position;for(let index=0;index<positions.count;index++){let y=positions.getY(index)-dt*(4.8+(index%7)*.18),x=positions.getX(index)+dt*.11;if(y<.08)y=6.4+(index%11)*.08;if(x>-2)x=-16;positions.setY(index,y);positions.setX(index,x);}positions.needsUpdate=true;}else item.object.rotation.z=item.base+Math.sin(time*1.15+item.phase)*.018;}},
   };
 }

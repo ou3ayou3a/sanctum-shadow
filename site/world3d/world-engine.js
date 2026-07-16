@@ -3,14 +3,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CharacterActor } from './character-actor.js?v=144';
 import { NavigationGrid } from './navigation-grid.mjs';
 import { NPCManager } from './npc-manager.js?v=144';
-import { Combat3DController } from './combat-controller.js?v=156';
+import { Combat3DController } from './combat-controller.js?v=158';
 import { AbilityEffects } from './ability-effects.js?v=141';
 import { Party3DManager } from './party-manager.js?v=144';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=151';
 import { WorldPolish } from './world-polish.js';
 import { CinematicDirector } from './cinematic-director.js?v=145';
-import { CityAtmosphere } from './city-atmosphere.mjs?v=135';
-import { CameraObstruction } from './camera-obstruction.mjs?v=144';
+import { CityAtmosphere } from './city-atmosphere.mjs?v=159';
+import { CameraObstruction } from './camera-obstruction.mjs?v=159';
 import { WorldPerformanceManager } from './world-performance.mjs?v=144';
 import { environmentAssetLoadStats } from './environment-asset-loader.js?v=144';
 
@@ -74,7 +74,7 @@ export class WorldEngine extends EventTarget {
   bindInput(){
     let down=null;this.onPointerDown=e=>{down={x:e.clientX,y:e.clientY};};
     this.onPointerUp=e=>{if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7){down=null;return;}down=null;this.handleTap(e);};
-    this.onKey=e=>{if(!this.running)return;const editing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');if(e.code==='Escape'&&!this.interactionMenu?.hidden){e.preventDefault();this.closeInteractionMenu();return;}if(e.code==='Escape'&&window.npcConvState?.active){e.preventDefault();window.closeConvPanel?.();return;}if((e.code==='KeyE'||e.code==='Enter')&&this.pendingInteraction&&!editing){e.preventDefault();this.confirmInteraction();}if(e.code==='Digit1'&&!editing&&!window.npcConvState?.active){e.preventDefault();this.playClassAction();}if(!editing&&!this.combatController?.active&&!window.npcConvState?.active){const shortcuts={KeyC:'character',KeyI:'inventory',KeyJ:'journal',KeyM:'map'};if(shortcuts[e.code]){e.preventDefault();this.openUtility(shortcuts[e.code]);}}};
+    this.onKey=e=>{if(!this.running)return;const editing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');if(e.code==='Escape'&&!this.interactionMenu?.hidden){e.preventDefault();this.closeInteractionMenu();return;}if(e.code==='Escape'&&window.npcConvState?.active){e.preventDefault();window.closeConvPanel?.();return;}if(!editing&&this.combatController?.active&&this.combatController.handleKey(e.code)){e.preventDefault();return;}if((e.code==='KeyE'||e.code==='Enter')&&this.pendingInteraction&&!editing){e.preventDefault();this.confirmInteraction();}if(e.code==='Digit1'&&!editing&&!window.npcConvState?.active){e.preventDefault();this.playClassAction();}if(!editing&&!this.combatController?.active&&!window.npcConvState?.active){const shortcuts={KeyC:'character',KeyI:'inventory',KeyJ:'journal',KeyM:'map'};if(shortcuts[e.code]){e.preventDefault();this.openUtility(shortcuts[e.code]);}}};
     this.onResize=()=>this.resize();this.canvas.addEventListener('pointerdown',this.onPointerDown);this.canvas.addEventListener('pointerup',this.onPointerUp);addEventListener('keydown',this.onKey);addEventListener('resize',this.onResize);
   }
 

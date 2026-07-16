@@ -19,6 +19,17 @@ export class CameraObstruction{
     this.blocked.set(mesh,state);mesh.material=Array.isArray(mesh.material)?faded:faded[0];return state;
   }
 
+  relatedMeshes(mesh){
+    let cluster=mesh,current=mesh.parent;
+    while(current&&current!==this.engine.zone.root){
+      if(current.userData?.environmentAsset||OCCLUDER_NAMES.test((current.name||'').toLowerCase()))cluster=current;
+      current=current.parent;
+    }
+    if(cluster===mesh)return[mesh];
+    const meshes=[];cluster.traverse(object=>{if(object.isMesh&&!object.isInstancedMesh&&this.occluders.includes(object))meshes.push(object);});
+    return meshes.length?meshes:[mesh];
+  }
+
   restore(mesh,state){for(const material of state.faded)material.dispose();mesh.material=state.original.length>1?state.original:state.original[0];this.blocked.delete(mesh);}
 
   updateFades(dt){
@@ -29,7 +40,7 @@ export class CameraObstruction{
     this.elapsed+=dt;this.updateFades(dt);if(this.elapsed<.08)return;this.elapsed=0;
     const target=this.engine.controls.target,camera=this.engine.camera.position;this.direction.copy(camera).sub(target);const distance=this.direction.length();if(distance<.1)return;this.direction.normalize();this.cameraRight.setFromMatrixColumn(this.engine.camera.matrixWorld,0).multiplyScalar(.34);
     const next=new Set(),origins=[this.target.copy(target),target.clone().add(this.cameraRight),target.clone().sub(this.cameraRight)];
-    for(const origin of origins){this.raycaster.set(origin,this.direction);this.raycaster.far=distance-.18;const hits=this.raycaster.intersectObjects(this.occluders,false);for(const hit of hits){next.add(hit.object);this.fade(hit.object).target=.12;}}
+    for(const origin of origins){this.raycaster.set(origin,this.direction);this.raycaster.far=distance-.18;const hits=this.raycaster.intersectObjects(this.occluders,false);for(const hit of hits){for(const mesh of this.relatedMeshes(hit.object)){next.add(mesh);this.fade(mesh).target=.045;}}}
     for(const[mesh,state]of this.blocked)if(!next.has(mesh))state.target=1;
   }
 

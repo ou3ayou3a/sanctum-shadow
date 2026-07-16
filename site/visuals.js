@@ -84,7 +84,7 @@ const NPC_PORTRAITS = {
 };
 
 // Called from dialogue.js conv panel render — upgrade emoji to real portrait
-function getPortraitHTML(npcIdOrPortrait, npcName) {
+function getPortraitHTML(npcIdOrPortrait, npcName, fallbackPortrait = '👤') {
   // Look up by id first
   const entry = NPC_PORTRAITS[npcIdOrPortrait] || NPC_PORTRAITS[
     Object.keys(NPC_PORTRAITS).find(k => npcName?.toLowerCase().includes(k.replace(/_/g,' ')))
@@ -92,7 +92,7 @@ function getPortraitHTML(npcIdOrPortrait, npcName) {
 
   if (!entry) {
     // Fallback: big emoji in styled frame
-    return `<div class="npc-portrait-emoji">${npcIdOrPortrait || '👤'}</div>`;
+    return `<div class="npc-portrait-emoji" aria-hidden="true">${fallbackPortrait}</div>`;
   }
 
   return `
@@ -101,7 +101,7 @@ function getPortraitHTML(npcIdOrPortrait, npcName) {
            alt="${npcName}"
            class="npc-portrait-img"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <div class="npc-portrait-emoji" style="display:none">${npcIdOrPortrait || '👤'}</div>
+      <div class="npc-portrait-emoji" style="display:none" aria-hidden="true">${fallbackPortrait}</div>
       <div class="npc-portrait-vignette"></div>
     </div>
   `;
