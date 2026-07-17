@@ -13,6 +13,7 @@ const obstruction=read('world3d/camera-obstruction.mjs');
 const generic=read('world3d/zones/generic-zone.js');
 const interiorRegistry=read('world3d/interior-registry.mjs');
 const interiorKit=read('world3d/interior-kit.mjs');
+const facades=read('world3d/building-facade-kit.mjs');
 const npcs=read('world3d/vaelthar-npcs.mjs');
 const audio=read('audio.js');
 
@@ -24,6 +25,12 @@ test('Vaelthar uses thirty assigned medieval plots and a broad building vocabula
 test('city detailing uses instancing for street engineering and hundreds of props',()=>{
   for(const name of['street-curbs','drainage-channels','rain-puddles','packed-earth-alleys','district-stone-stairs','working-city-barrels','working-city-crates','yard-and-wall-fences'])assert.match(detail,new RegExp(name));
   assert.match(detail,/InstancedMesh/);assert.match(detail,/setWetness/);
+});
+
+test('every Vaelthar plot receives a district-authored medieval facade and roof silhouette',()=>{
+  for(const district of['southward','tarnished_cup','market','archive_lane','signing_hall','temple_quarter','crown_ward'])assert.match(facades,new RegExp(`${district}:`));
+  for(const detail of['plinth','threshold','door-jamb','shutter','window-box','corner-post','brace','corbel','dormer-body','chimney-pot','awning','hanging-sign','ivy','lean-to'])assert.match(facades,new RegExp(`'${detail}'`));
+  assert.match(facades,/InstancedMesh/);assert.match(facades,/weatherAsset/);assert.match(facades,/VAELTHAR_FACADE_VOCABULARY/);
 });
 
 test('PBR materials, weather, day-night lighting, and obstruction fading are connected',()=>{

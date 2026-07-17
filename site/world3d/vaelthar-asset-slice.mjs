@@ -1,19 +1,20 @@
 import {placeEnvironmentAsset,placeEnvironmentAssetBatch,preloadEnvironmentAsset} from './environment-asset-loader.js?v=144';
 import {productionAssetSpec} from './production-assets.mjs';
+import {createBuildingFacadeKit} from './building-facade-kit.mjs';
 
 function registerObstacle(obstacles,{x,z,width,depth,rotation=0}){const c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));obstacles.push({x,z,hw:c*width/2+s*depth/2,hd:s*width/2+c*depth/2});}
 function seeded(seed){let value=seed>>>0;return()=>{value=(value*1664525+1013904223)>>>0;return value/4294967296;};}
 
 export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLibrary}){
-  const animated=[],doors=[],jobs=[],failures=[];
+  const animated=[],doors=[],jobs=[],failures=[],facades=createBuildingFacadeKit({root,buildingPlots,materials:materialLibrary});
   jobs.push(preloadEnvironmentAsset(productionAssetSpec('tavern_interior')).catch(error=>{failures.push({name:'preload:tavern-interior',error});return null;}));
-  const place=(spec,placement,{sway=0,doorId=null}={})=>{const job=placeEnvironmentAsset(root,spec,placement).then(object=>{materialLibrary?.apply(object);if(sway)animated.push({object,phase:placement.position[0]*.37+placement.position[2]*.19,strength:sway});if(doorId)object.traverse(child=>{if(/INTERACT.*Door/i.test(child.name))doors.push({id:doorId,object:child,closed:child.rotation.y,target:0,amount:0});});return object;}).catch(error=>{failures.push({name:placement.name,error});console.warn(`Environment asset failed: ${placement.name}`,error);return null;});jobs.push(job);return job;};
+  const place=(spec,placement,{sway=0,doorId=null,plot=null,index=0}={})=>{const job=placeEnvironmentAsset(root,spec,placement).then(object=>{materialLibrary?.apply(object);if(plot)facades.weatherAsset(object,plot,index);if(sway)animated.push({object,phase:placement.position[0]*.37+placement.position[2]*.19,strength:sway});if(doorId)object.traverse(child=>{if(/INTERACT.*Door/i.test(child.name))doors.push({id:doorId,object:child,closed:child.rotation.y,target:0,amount:0});});return object;}).catch(error=>{failures.push({name:placement.name,error});console.warn(`Environment asset failed: ${placement.name}`,error);return null;});jobs.push(job);return job;};
   const placeBatch=(spec,placements,name)=>{const job=placeEnvironmentAssetBatch(root,spec,placements,{name}).then(object=>{if(object)materialLibrary?.apply(object);return object;}).catch(error=>{failures.push({name,error});console.warn(`Environment asset batch failed: ${name}`,error);return null;});jobs.push(job);return job;};
 
   for(const [index,plot] of buildingPlots.entries()){
     registerObstacle(obstacles,plot);
     const asset=plot.asset||['house_a','house_b','house_c'][index%3];
-    place(productionAssetSpec(asset),{name:`production:${plot.id}`,position:[plot.x,0,plot.z],rotation:plot.rotation,size:[plot.width,plot.height,plot.depth]});
+    place(productionAssetSpec(asset),{name:`production:${plot.id}`,position:[plot.x,0,plot.z],rotation:plot.rotation,size:[plot.width,plot.height,plot.depth]},{plot,index});
   }
 
   registerObstacle(obstacles,{x:-16,z:13,width:10,depth:7.4});
@@ -70,7 +71,8 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
   return{
     ready:Promise.all(jobs).then(()=>({loaded:jobs.length-failures.length,failed:failures.length,failures})),
     openDoor(id){for(const door of doors)if(door.id===id){door.target=1;clearTimeout(door.timer);door.timer=setTimeout(()=>door.target=0,2200);}},
-    update(time){for(const item of animated)item.object.rotation.z=Math.sin(time*.72+item.phase)*item.strength;for(const door of doors){door.amount+=(door.target-door.amount)*.16;door.object.rotation.y=door.closed+door.amount*Math.PI*.48;}},
+    update(time){facades.update(time);for(const item of animated)item.object.rotation.z=Math.sin(time*.72+item.phase)*item.strength;for(const door of doors){door.amount+=(door.target-door.amount)*.16;door.object.rotation.y=door.closed+door.amount*Math.PI*.48;}},
+    facadeStats:{instances:facades.instanceCount,districts:facades.districtCount},
     failures
   };
 }
