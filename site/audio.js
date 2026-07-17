@@ -19,6 +19,8 @@ const AudioEngine = (() => {
   let cityAmbience = null;
   let pendingAmbience = null;
   let pendingCityListener = null;
+  const worldEmitters = new Map();
+  const worldSoundEvents = new Map();
 
   function loadPrefs() {
     try {
@@ -74,6 +76,10 @@ const AudioEngine = (() => {
     southward: { crowd:.08, wind:.044 },
     outer_ward: { crowd:.04, wind:.06 },
   });
+
+  const WORLD_SOUND_KINDS = new Set(['footstep','armor','weapon_swing','bow_release','spell_cast','impact','miss','death']);
+  const WORLD_SOUND_MAX_DISTANCE = Object.freeze({footstep:15,armor:13,weapon_swing:22,bow_release:24,spell_cast:28,impact:28,miss:20,death:24});
+  const MAX_WORLD_EMITTERS = 32;
 
   const musicOutput = () => musicBuildOutput || masterGain;
 
@@ -725,6 +731,96 @@ const AudioEngine = (() => {
     setTimeout(() => createBell(440, ctx.currentTime, 0.1), 300);
   }
 
+  // ── Moving multiplayer + combat emitters ──────
+
+  function worldPosition(position) {
+    if(!position)return null;
+    const x=Number(position.x??position[0]),y=Number(position.y??position[1]??1.15),z=Number(position.z??position[2]);
+    return Number.isFinite(x)&&Number.isFinite(y)&&Number.isFinite(z)?[x,y,z]:null;
+  }
+
+  function setPannerPosition(panner,position,immediate=false) {
+    if(!ctx||!panner||!position)return;
+    const now=ctx.currentTime;
+    if(panner.positionX){const set=(param,value)=>immediate?param.setValueAtTime(value,now):param.setTargetAtTime(value,now,.025);set(panner.positionX,position[0]);set(panner.positionY,position[1]);set(panner.positionZ,position[2]);}
+    else panner.setPosition(position[0],position[1],position[2]);
+  }
+
+  function configureWorldPanner(panner,{refDistance=1.8,maxDistance=24,rolloffFactor=1.35}={}) {
+    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=refDistance;panner.maxDistance=maxDistance;panner.rolloffFactor=rolloffFactor;panner.coneInnerAngle=360;panner.coneOuterAngle=360;
+  }
+
+  function updateWorldAudioDiagnostics(kind=null) {
+    const root=typeof document!=='undefined'?document.documentElement:null;if(!root)return;
+    root.dataset.multiplayerAudioEmitters=String(worldEmitters.size);root.dataset.worldSoundEvents=String(worldSoundEvents.size);if(kind)root.dataset.lastWorldSound=kind;
+  }
+
+  function ensureWorldEmitter(id,position,options={}) {
+    if(!ctx||!sfxGain||!id)return null;
+    const key=String(id).slice(0,96);let record=worldEmitters.get(key),created=false;
+    if(!record){
+      if(worldEmitters.size>=MAX_WORLD_EMITTERS){const disposable=[...worldEmitters.values()].find(item=>!item.active);if(disposable)removeWorldEmitter(disposable.id);else return null;}
+      const input=ctx.createGain(),panner=ctx.createPanner();configureWorldPanner(panner,options);input.gain.value=1;input.connect(panner);panner.connect(sfxGain);setPannerPosition(panner,position,true);record={id:key,input,panner,active:true,position:[...position],updatedAt:Date.now()};worldEmitters.set(key,record);created=true;
+    }
+    record.updatedAt=Date.now();if(!created&&(!record.position||Math.hypot(position[0]-record.position[0],position[1]-record.position[1],position[2]-record.position[2])>.012)){record.position=[...position];setPannerPosition(record.panner,position);}return record;
+  }
+
+  function updateWorldEmitter(id,{position,active=true,refDistance=1.8,maxDistance=24,rolloffFactor=1.35}={}) {
+    const point=worldPosition(position);if(!point||!id)return false;
+    const record=ensureWorldEmitter(id,point,{refDistance,maxDistance,rolloffFactor});if(!record)return false;
+    const wasActive=record.active;record.active=!!active;if(wasActive!==record.active)record.input.gain.setTargetAtTime(enabled&&record.active?1:0,ctx.currentTime,.08);updateWorldAudioDiagnostics();return true;
+  }
+
+  function removeWorldEmitter(id) {
+    const key=String(id||'').slice(0,96),record=worldEmitters.get(key);if(!record)return false;
+    worldEmitters.delete(key);try{record.input.disconnect();record.panner.disconnect();}catch(e){}updateWorldAudioDiagnostics();return true;
+  }
+
+  function clearWorldEmitters(prefix='') {
+    const match=String(prefix);for(const id of [...worldEmitters.keys()])if(!match||id.startsWith(match))removeWorldEmitter(id);
+  }
+
+  function worldSoundAudible(position,maxDistance) {
+    const listener=pendingCityListener?.position;if(!listener)return true;
+    return Math.hypot(position[0]-(listener[0]||0),position[1]-(listener[1]||0),position[2]-(listener[2]||0))<=maxDistance;
+  }
+
+  function acceptWorldSoundEvent(eventId) {
+    if(!eventId)return true;const key=String(eventId).slice(0,128),now=Date.now();
+    for(const[id,time]of worldSoundEvents)if(now-time>30000)worldSoundEvents.delete(id);
+    if(worldSoundEvents.has(key))return false;worldSoundEvents.set(key,now);if(worldSoundEvents.size>256)worldSoundEvents.delete(worldSoundEvents.keys().next().value);return true;
+  }
+
+  function worldNoise(output,{duration=.12,volume=.08,filterType='bandpass',frequency=700,delay=0}={}) {
+    const now=ctx.currentTime+delay,source=noise(duration),filter=createFilter(filterType,frequency,1.1),gain=ctx.createGain();gain.gain.setValueAtTime(Math.max(.0001,volume),now);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);source.connect(filter);filter.connect(gain);gain.connect(output);source.start(now);source.stop(now+duration+.02);
+  }
+
+  function worldTone(output,frequencies,{duration=.4,volume=.055,type='triangle',delay=0,glide=.72}={}) {
+    const now=ctx.currentTime+delay;for(const[shift,frequency]of frequencies.entries()){const osc=createOscillator(type,frequency,shift*3),gain=ctx.createGain();osc.frequency.exponentialRampToValueAtTime(Math.max(24,frequency*glide),now+duration);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume/(1+shift*.45)),now+.012);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);osc.connect(gain);gain.connect(output);osc.start(now);osc.stop(now+duration+.03);}
+  }
+
+  function synthesizeWorldSound(kind,output,{volume=1,damageType='physical',variant=0}={}) {
+    const scale=Math.max(.15,Math.min(1.5,Number(volume)||1)),element={arcane:[330,495,660],fire:[95,190,285],holy:[440,660,880],heal:[392,523.25,783.99],lightning:[740,1110,1480],shadow:[82.4,123.5,185],nature:[196,293.7,392],physical:[105,158]}[damageType]||[330,495,660];
+    if(kind==='footstep'){worldNoise(output,{duration:.08,volume:.075*scale,filterType:'lowpass',frequency:560+(variant%3)*90});worldTone(output,[82+(variant%2)*9],{duration:.11,volume:.035*scale,glide:.55});return .15;}
+    if(kind==='armor'){worldNoise(output,{duration:.075,volume:.045*scale,filterType:'highpass',frequency:1900});worldTone(output,[820,1260],{duration:.19,volume:.022*scale,type:'sine',glide:.88});return .24;}
+    if(kind==='weapon_swing'){worldNoise(output,{duration:.18,volume:.12*scale,filterType:'highpass',frequency:1150});worldTone(output,[180,270],{duration:.22,volume:.032*scale,glide:1.7});return .3;}
+    if(kind==='bow_release'){worldNoise(output,{duration:.11,volume:.075*scale,filterType:'bandpass',frequency:1350});worldTone(output,[196,392],{duration:.28,volume:.055*scale,type:'triangle',glide:.48});return .34;}
+    if(kind==='spell_cast'){worldTone(output,element,{duration:.58,volume:.052*scale,type:'sine',glide:1.45});worldNoise(output,{duration:.42,volume:.045*scale,filterType:'bandpass',frequency:900});return .68;}
+    if(kind==='miss'){worldNoise(output,{duration:.2,volume:.085*scale,filterType:'highpass',frequency:1450});return .26;}
+    if(kind==='death'){worldTone(output,[92,69,46],{duration:.85,volume:.065*scale,type:'sawtooth',glide:.58});worldNoise(output,{duration:.38,volume:.075*scale,filterType:'lowpass',frequency:360});return .92;}
+    worldNoise(output,{duration:damageType==='lightning'?.28:.16,volume:.13*scale,filterType:damageType==='fire'?'bandpass':'lowpass',frequency:damageType==='fire'?780:520});worldTone(output,element,{duration:.42,volume:.065*scale,type:damageType==='lightning'?'square':'triangle',glide:.62});return .52;
+  }
+
+  function playWorldSound(kind,position,{emitterId=null,eventId=null,volume=1,damageType='physical',maxDistance=null,variant=0}={}) {
+    const sound=WORLD_SOUND_KINDS.has(kind)?kind:'impact',point=worldPosition(position),limit=Math.max(4,Number(maxDistance)||WORLD_SOUND_MAX_DISTANCE[sound]||24);if(!ctx||!sfxGain||!enabled||!point||!worldSoundAudible(point,limit)||!acceptWorldSoundEvent(eventId))return false;
+    let record=null,ephemeral=false;if(emitterId){record=ensureWorldEmitter(emitterId,point,{maxDistance:limit});if(!record?.active)return false;}else{const input=ctx.createGain(),panner=ctx.createPanner();configureWorldPanner(panner,{maxDistance:limit});input.connect(panner);panner.connect(sfxGain);setPannerPosition(panner,point,true);record={input,panner};ephemeral=true;}
+    const duration=synthesizeWorldSound(sound,record.input,{volume,damageType,variant});if(ephemeral)setTimeout(()=>{try{record.input.disconnect();record.panner.disconnect();}catch(e){}},(duration+.12)*1000);updateWorldAudioDiagnostics(sound);return true;
+  }
+
+  function getWorldAudioState() {
+    return {emitters:[...worldEmitters.values()].map(record=>({id:record.id,active:record.active,position:record.position?[...record.position]:null})),recentEventCount:worldSoundEvents.size,lastSound:typeof document!=='undefined'?document.documentElement.dataset.lastWorldSound||null:null};
+  }
+
   function cityEmitterActive(config, hour) {
     const [start=0,end=24] = config.activeHours || [];
     const value = ((Number(hour) || 0) % 24 + 24) % 24;
@@ -862,12 +958,12 @@ const AudioEngine = (() => {
   }
 
   return {
-    init, play, transition, transitionForContext, contextForLocation, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,updateCityDistrict,updateCityListener,stopCityAmbience,
+    init, play, transition, transitionForContext, contextForLocation, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,updateCityDistrict,updateCityListener,stopCityAmbience,updateWorldEmitter,removeWorldEmitter,clearWorldEmitters,playWorldSound,
     sfx: { dice: sfx_dice, holy: sfx_holy, dark: sfx_dark, sword: sfx_sword, levelup: sfx_levelup, page: sfx_page, travel: sfx_travel },
     isEnabled: () => enabled,
     getTrackId: () => currentTrackId,
     getVolume: () => musicVolume,
-    getCitySoundscapeState,getAudioTransitionState,
+    getCitySoundscapeState,getAudioTransitionState,getWorldAudioState,
   };
 })();
 

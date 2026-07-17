@@ -8,10 +8,13 @@ export class AbilityEffects{
   add(root,duration,update){this.engine.scene.add(root);this.effects.push({root,duration,elapsed:0,update});return root;}
   disposeObject(root){root.traverse(object=>{object.geometry?.dispose();if(object.material)(Array.isArray(object.material)?object.material:[object.material]).forEach(material=>material.dispose());});root.removeFromParent();}
   flash(color=0xffffff){if(document.body.classList.contains('ui-reduce-motion'))return;const canvas=this.engine.canvas;canvas.animate?.([{filter:'brightness(1)'},{filter:`brightness(1.16) drop-shadow(0 0 8px #${new THREE.Color(color).getHexString()})`},{filter:'brightness(1)'}],{duration:220,easing:'ease-out'});}
+  emitterId(actor){const id=actor?.userData?.combatantId||actor?.userData?.partyPlayerId;return id?`combat:${id}`:null;}
+  sound(kind,actorOrPosition,data={},phase='impact'){const position=actorOrPosition?.position||actorOrPosition;if(!position)return false;return window.AudioEngine?.playWorldSound?.(kind,position,{emitterId:this.emitterId(actorOrPosition),eventId:data.id?`${data.id}:${phase}`:null,damageType:data.damageType||data.spell?.type||'physical',volume:data.crit?1.25:data.healing?1.05:1,maxDistance:kind==='spell_cast'||kind==='impact'?30:null});}
 
   present(presentation,source,target,{onImpact=null}={}){
     if(!source)return false;
-    const data=presentation||{},actualTarget=data.selfTarget?source:(target||source),type=data.damageType||'physical',finish=()=>onImpact?.();
+    const data=presentation||{},actualTarget=data.selfTarget?source:(target||source),type=data.damageType||'physical',releaseKind=data.action==='spell'?'spell_cast':data.effect==='projectile'?'bow_release':'weapon_swing';this.sound(releaseKind,source,data,'release');
+    const finish=()=>{this.sound(data.hit===false&&!data.healing?'miss':'impact',actualTarget,data,'impact');onImpact?.();};
     if(data.effect==='projectile'){
       const travel=Math.max(.18,data.travelDuration||.42),speed=.52/travel;
       this.projectile(source,actualTarget,type,{count:data.count||1,speed,onImpact:finish,scale:data.crit?1.35:1});
