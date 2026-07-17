@@ -1837,7 +1837,7 @@ const MISSING_SCENES = {
         { icon: '⚠', label: '"There are Church agents in your crowd. You need to know."', type: 'talk',
           action: () => {
             if (getFlag('agents_in_crowd')) { setFlag('aldran_warned'); addLog('📜 Aldran\'s expression hardens. "Show me." You do. +5 Holy Points.', 'holy'); grantHolyPoints(5); runScene('aldran_shares_intel'); }
-            else runScene('aldran_meeting');
+            else runScene('aldran_warning_unconfirmed');
           }},
         { icon: '🛡', label: '"The Church is sending soldiers to silence you. Let me help."', type: 'talk',
           roll: { stat: 'CHA', dc: 12 },
@@ -1846,6 +1846,27 @@ const MISSING_SCENES = {
       ]
     };
   },
+
+  aldran_warning_unconfirmed: () => ({
+    location: 'Mol Village — Aldran',
+    locationIcon: '🏘',
+    narration: `Aldran does not dismiss the warning, but he does not take it on faith either. He turns slowly toward the crowd. "Then show me," he says. "The Church has threatened this village for months. I will not start pointing at frightened people because a stranger has a suspicion." He steps beside you, watching faces rather than robes. "Find the ones who are watching names instead of listening to words."`,
+    sub: `Your warning was heard. Identify the agents, establish trust another way, or commit to protecting Aldran.`,
+    options: [
+      { icon: '🔍', label: 'Study the crowd with Aldran — find whoever is recording names', type: 'explore',
+        roll: { stat: 'WIS', skill:'perception', dc: 11 },
+        onSuccess: () => { setFlag('agents_in_crowd'); setFlag('aldran_warned'); addLog('📜 You identify two observers recording names instead of listening. Aldran believes you.', 'holy'); grantHolyPoints(5); runScene('aldran_shares_intel'); },
+        onFail: () => { addLog('The crowd shifts before you can isolate the watchers. Aldran remains willing to listen.', 'system'); runScene('aldran_meeting'); } },
+      { icon: '💬', label: '"Fair. Judge the Covenant evidence I already carry instead."', type: 'talk',
+        roll: { stat: 'CHA', skill:'persuasion', dc: 11 },
+        onSuccess: () => runScene('aldran_shares_intel'),
+        onFail: () => { addLog('Aldran asks for something more concrete before sharing his source.', 'system'); runScene('aldran_meeting'); } },
+      { icon: '🛡', label: '"Whether I can identify them or not, I will stand with you when they move."', type: 'talk',
+        roll: { stat: 'CHA', skill:'persuasion', dc: 12 },
+        onSuccess: () => runScene('aldran_protected'),
+        onFail: () => { addLog('Aldran hears the promise, but trust will require proof.', 'system'); runScene('aldran_meeting'); } },
+    ],
+  }),
 
   aldran_shares_intel: () => {
     setFlag('aldran_intel');
