@@ -28,6 +28,88 @@ let gameState = {
 };
 
 let pendingContestData = { p1Roll: null, p2Roll: null };
+let worldFullscreenAutoRequested = false;
+
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+async function requestWorldFullscreen({ silent = false, automatic = false } = {}) {
+  if (automatic) {
+    if (worldFullscreenAutoRequested) return !!getFullscreenElement();
+    worldFullscreenAutoRequested = true;
+  }
+  if (getFullscreenElement()) return true;
+  const target = document.documentElement;
+  const request = target.requestFullscreen || target.webkitRequestFullscreen;
+  if (typeof request !== 'function') {
+    if (!silent) toast('Full screen is not supported by this browser.', 'error');
+    return false;
+  }
+  try {
+    try {
+      await request.call(target, { navigationUI: 'hide' });
+    } catch (error) {
+      if (error?.name !== 'TypeError') throw error;
+      await request.call(target);
+    }
+    return true;
+  } catch (error) {
+    // Browsers reject fullscreen when a game is restored without a fresh click.
+    // The Escape menu remains the explicit, gesture-safe fallback.
+    if (!silent) toast('Select Full Screen again to allow it in your browser.', 'error');
+    return false;
+  }
+}
+
+async function toggleWorldFullscreen() {
+  if (getFullscreenElement()) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (typeof exit === 'function') await exit.call(document);
+  } else {
+    await requestWorldFullscreen();
+  }
+  document.getElementById('esc-menu')?.remove();
+}
+
+function escMusicVolumePercent() {
+  const volume = window.AudioEngine?.getVolume?.();
+  if (Number.isFinite(volume)) return Math.round(volume * 100);
+  const saved = Number.parseFloat(localStorage.getItem('ss_music_volume'));
+  return Number.isFinite(saved) ? Math.round(Math.max(0, Math.min(1, saved)) * 100) : 35;
+}
+
+function toggleEscMusic() {
+  if (typeof toggleMusic === 'function') toggleMusic();
+  const enabled = window.AudioEngine?.isEnabled?.() !== false;
+  const button = document.getElementById('esc-music-toggle');
+  if (button) button.textContent = `🎵 Music: ${enabled ? 'On' : 'Off'}`;
+}
+
+function setEscMusicVolume(value) {
+  if (typeof setMusicVolume === 'function') setMusicVolume(value);
+  const label = document.getElementById('esc-volume-label');
+  if (label) label.textContent = `${Math.round(Number(value) || 0)}%`;
+}
+
+function autoEnterWorldFullscreen() {
+  void requestWorldFullscreen({ silent: true, automatic: true });
+}
+
+window.requestWorldFullscreen = requestWorldFullscreen;
+window.toggleWorldFullscreen = toggleWorldFullscreen;
+window.toggleEscMusic = toggleEscMusic;
+window.setEscMusicVolume = setEscMusicVolume;
+
+function handleFullscreenChange() {
+  const active = !!getFullscreenElement();
+  document.body.classList.toggle('world-fullscreen', active);
+  document.documentElement.classList.toggle('world-fullscreen', active);
+  window.__world3d?.resize?.();
+}
+
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
 // ─── SCREEN MANAGEMENT ────────────────────
 function showScreen(name) {
@@ -49,6 +131,7 @@ function showScreen(name) {
     if (window.npcConvState) { window.npcConvState.active = false; window.npcConvState.npc = null; }
     if (window.combatState) window.combatState.active = false;
   } else {
+    autoEnterWorldFullscreen();
     // Entering the game screen — make sure the DM strip exists; rebuild if missing.
     ensureDMStrip();
   }
@@ -676,6 +759,10 @@ function setRevealChoice(choice) {
 
 function enterGame() {
   if (!gameState.character.revealChoice) { toast('Choose how to present yourself to your companions!', 'error'); return; }
+
+  // Use the player's Enter Game click while browser user activation is still valid.
+  // Multiplayer clients remain fullscreen while they wait in the ready room.
+  autoEnterWorldFullscreen();
 
   // In multiplayer — go to ready room
   const inMP = !!(window.mp?.sessionCode || gameState.sessionCode);
@@ -2260,6 +2347,19 @@ function toggleEscMenu() {
         ▶ Resume
       </button>
 
+      <button class="esc-btn fullscreen" onclick="toggleWorldFullscreen()">
+        ${getFullscreenElement() ? '▣ Exit Full Screen' : '⛶ Full Screen'}
+      </button>
+
+      <button class="esc-btn music" id="esc-music-toggle" onclick="toggleEscMusic()">
+        🎵 Music: ${window.AudioEngine?.isEnabled?.() === false ? 'Off' : 'On'}
+      </button>
+      <label class="esc-volume" for="esc-volume-slider">
+        <span>Music Volume</span><b id="esc-volume-label">${escMusicVolumePercent()}%</b>
+        <input id="esc-volume-slider" type="range" min="0" max="100" value="${escMusicVolumePercent()}"
+          oninput="setEscMusicVolume(this.value)" />
+      </label>
+
       <button class="esc-btn save" onclick="showEscSaveForm()">
         💾 Save Game
       </button>
@@ -2328,6 +2428,7 @@ function escLeaveGame() {
   // Clear MP session — player is intentionally leaving, don't rejoin on next load
   if (typeof clearMPSession === 'function') clearMPSession();
   localStorage.removeItem('ss_resume_flag');
+  worldFullscreenAutoRequested = false;
   // Clean up all game overlays
   document.getElementById('conv-panel')?.remove();
   document.getElementById('combat-panel')?.remove();

@@ -14,9 +14,10 @@ function toggleMusic() {
   // Pre-game: first click STARTS the music instead of silently returning (#81)
   if (!musicStarted) {
     startGameMusic('city_tense');
-    musicEnabled = true;
-    if (btn) btn.textContent = '⏸';
-    bars?.classList.remove('paused');
+    musicEnabled = AudioEngine.isEnabled();
+    if (!musicEnabled) musicEnabled = AudioEngine.toggle();
+    if (btn) btn.textContent = musicEnabled ? '⏸' : '▶';
+    bars?.classList.toggle('paused', !musicEnabled);
     return;
   }
   musicEnabled = AudioEngine.toggle();

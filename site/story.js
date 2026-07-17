@@ -3218,42 +3218,11 @@ const sceneCSS = `
 }
 .sp-free-send:hover { background:rgba(201,168,76,0.2); border-color:var(--gold); }
 
-/* Fullscreen button */
-#fullscreen-btn {
-  position: fixed; bottom: 14px; right: 14px; z-index: 900;
-  background: rgba(8,5,2,0.92); border: 1px solid rgba(201,168,76,0.3);
-  color: var(--gold); font-size: 0.7rem; font-family:'Cinzel',serif;
-  padding: 6px 10px; cursor: pointer; letter-spacing:0.08em;
-  transition: all 0.15s;
-}
-#fullscreen-btn:hover { background: rgba(201,168,76,0.12); border-color:var(--gold); }
 `;
 const sceneStyle = document.createElement('style');
 sceneStyle.id = 'scene-styles';
 sceneStyle.textContent = sceneCSS;
 document.head.appendChild(sceneStyle);
-
-// ─── FULLSCREEN BUTTON ────────────────────────
-(function addFullscreenButton() {
-  const btn = document.createElement('button');
-  btn.id = 'fullscreen-btn';
-  btn.title = 'Toggle Fullscreen';
-  btn.textContent = '⛶ FULLSCREEN';
-  btn.onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      btn.textContent = '✕ EXIT FULL';
-    } else {
-      document.exitFullscreen();
-      btn.textContent = '⛶ FULLSCREEN';
-    }
-  };
-  document.addEventListener('fullscreenchange', () => {
-    btn.textContent = document.fullscreenElement ? '✕ EXIT FULL' : '⛶ FULLSCREEN';
-  });
-  // Add after game screen is ready
-  setTimeout(() => document.body.appendChild(btn), 500);
-})();
 
 console.log('🎭 Story engine loaded. Scenes will guide the player through Vaelthar.');
 window.receiveVote = receiveVote;

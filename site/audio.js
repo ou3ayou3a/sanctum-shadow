@@ -209,6 +209,88 @@ const AudioEngine = (() => {
     return { stop: () => clearInterval(id) };
   }
 
+  // ── Medieval acoustic ensemble ───────────────
+  // Procedurally performed so every location has offline, royalty-free music.
+  const MEDIEVAL_SCORES = Object.freeze({
+    city: { bpm: 72, lute: [146.83,174.61,220,261.63,220,196,174.61,164.81], flute: [293.66,349.23,440,392], drum: 8, gain: .72 },
+    chapel: { bpm: 54, lute: [130.81,164.81,196,246.94,220,196,164.81,146.83], flute: [523.25,493.88,440,392], drum: 0, gain: .55 },
+    tavern: { bpm: 104, lute: [196,246.94,293.66,329.63,293.66,246.94,220,261.63], flute: [392,440,493.88,440], drum: 4, gain: .82 },
+    forest: { bpm: 58, lute: [110,130.81,146.83,164.81,146.83,130.81,123.47,110], flute: [261.63,293.66,311.13,293.66], drum: 0, gain: .46 },
+    dungeon: { bpm: 46, lute: [82.41,98,110,116.54,110,98,87.31,82.41], flute: [196,185,174.61,164.81], drum: 8, gain: .38 },
+    battle: { bpm: 124, lute: [110,130.81,146.83,164.81,146.83,130.81,123.47,130.81], flute: [293.66,311.13,349.23,329.63], drum: 2, gain: .78 },
+    boss: { bpm: 82, lute: [73.42,82.41,98,110,103.83,98,82.41,77.78], flute: [233.08,220,207.65,196], drum: 2, gain: .65 },
+    village: { bpm: 78, lute: [174.61,220,261.63,293.66,261.63,220,196,220], flute: [349.23,392,440,392], drum: 8, gain: .68 },
+    road: { bpm: 92, lute: [146.83,174.61,196,220,196,174.61,164.81,174.61], flute: [293.66,329.63,349.23,329.63], drum: 4, gain: .65 },
+    fortress: { bpm: 64, lute: [110,130.81,146.83,164.81,146.83,130.81,123.47,110], flute: [220,261.63,293.66,261.63], drum: 4, gain: .58 },
+    wastes: { bpm: 42, lute: [82.41,87.31,103.83,98,92.5,87.31,82.41,77.78], flute: [246.94,233.08,220,207.65], drum: 0, gain: .34 },
+  });
+
+  function createLutePluck(freq, time, gainVal = .035, duration = 1.25) {
+    const body = createOscillator('triangle', freq);
+    const harmonic = createOscillator('sine', freq * 2.01, -3);
+    const harmonicGain = ctx.createGain();
+    const filter = createFilter('lowpass', 2100, .7);
+    const gain = ctx.createGain();
+    harmonicGain.gain.value = .24;
+    gain.gain.setValueAtTime(.0001, time);
+    gain.gain.exponentialRampToValueAtTime(gainVal, time + .012);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    body.connect(filter);harmonic.connect(harmonicGain);harmonicGain.connect(filter);filter.connect(gain);gain.connect(masterGain);
+    body.start(time);harmonic.start(time);body.stop(time + duration + .02);harmonic.stop(time + duration + .02);
+  }
+
+  function createWoodenFlute(freq, time, gainVal = .018, duration = 1.7) {
+    const voice = createOscillator('sine', freq);
+    const breath = createOscillator('triangle', freq * 2, 4);
+    const breathGain = ctx.createGain();
+    const vibrato = createOscillator('sine', 5.1);
+    const vibratoDepth = ctx.createGain();
+    const filter = createFilter('lowpass', 1650, .5);
+    const gain = ctx.createGain();
+    breathGain.gain.value = .09;vibratoDepth.gain.value = freq * .006;
+    vibrato.connect(vibratoDepth);vibratoDepth.connect(voice.frequency);
+    gain.gain.setValueAtTime(.0001, time);gain.gain.linearRampToValueAtTime(gainVal, time + .16);gain.gain.setValueAtTime(gainVal, time + Math.max(.2, duration - .22));gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    voice.connect(filter);breath.connect(breathGain);breathGain.connect(filter);filter.connect(gain);gain.connect(masterGain);
+    voice.start(time);breath.start(time);vibrato.start(time);voice.stop(time + duration + .03);breath.stop(time + duration + .03);vibrato.stop(time + duration + .03);
+  }
+
+  function createFrameDrum(time, gainVal = .035, accent = false) {
+    const duration = accent ? .22 : .14;
+    const skin = noise(duration);
+    const filter = createFilter('lowpass', accent ? 520 : 720, .8);
+    const gain = ctx.createGain();
+    const body = createOscillator('sine', accent ? 95 : 125);
+    const bodyGain = ctx.createGain();
+    gain.gain.setValueAtTime(gainVal, time);gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    body.frequency.exponentialRampToValueAtTime(accent ? 48 : 72, time + duration);
+    bodyGain.gain.setValueAtTime(gainVal * .85, time);bodyGain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    skin.connect(filter);filter.connect(gain);gain.connect(masterGain);body.connect(bodyGain);bodyGain.connect(masterGain);
+    skin.start(time);skin.stop(time + duration + .01);body.start(time);body.stop(time + duration + .02);
+  }
+
+  function createMedievalEnsemble(scoreId) {
+    const score = MEDIEVAL_SCORES[scoreId] || MEDIEVAL_SCORES.city;
+    const beatMs = 60000 / score.bpm;
+    let step = 0;
+    let active = true;
+    const perform = () => {
+      if (!active || !ctx || ctx.state !== 'running') return;
+      const time = ctx.currentTime + .025;
+      const index = step % score.lute.length;
+      createLutePluck(score.lute[index], time, .035 * score.gain, Math.min(1.35, beatMs / 1000 * 1.45));
+      if (step % 4 === 0 && score.flute?.length) createWoodenFlute(score.flute[(step / 4) % score.flute.length | 0], time + .035, .018 * score.gain, Math.max(1.1, beatMs / 1000 * 2.5));
+      if (score.drum && step % score.drum === 0) createFrameDrum(time, .038 * score.gain, step % (score.drum * 2) === 0);
+      step++;
+    };
+    perform();
+    const timer = setInterval(perform, beatMs);
+    return { stop: () => { active = false; clearInterval(timer); } };
+  }
+
+  function addMedievalScore(nodes, scoreId) {
+    nodes.medieval = createMedievalEnsemble(scoreId);
+  }
+
   // ── Track definitions ────────────────────────
 
   const TRACKS = {
@@ -223,6 +305,7 @@ const AudioEngine = (() => {
       // D minor-ish bells
       nodes.chimes = scheduleChimes([293.66, 261.63, 349.23, 329.63, 220], 20, 0.05);
       nodes.rumble = createRumble(60, 0.03);
+      addMedievalScore(nodes, 'city');
     },
 
     holy_ominous: (nodes) => {
@@ -233,6 +316,7 @@ const AudioEngine = (() => {
       // Occasional high chimes
       nodes.chimes = scheduleChimes([880, 659.25, 783.99, 987.77], 12, 0.04);
       nodes.reverb_drone = createDrone([{ freq: 110, detune: 5 }], 0.025, 1200);
+      addMedievalScore(nodes, 'chapel');
     },
 
     tavern_low: (nodes) => {
@@ -245,6 +329,7 @@ const AudioEngine = (() => {
       // Warm, slow, slightly irregular plucks — like a lute
       nodes.chimes = scheduleChimes([261.63, 293.66, 329.63, 349.23, 392, 329.63], 6, 0.045);
       nodes.rumble = createRumble(55, 0.012); // low hearth hum
+      addMedievalScore(nodes, 'tavern');
     },
 
     forest_dread: (nodes) => {
@@ -257,6 +342,7 @@ const AudioEngine = (() => {
       nodes.heartbeat = createHeartbeat(50, 0.06);
       // Dissonant intervals
       nodes.chimes = scheduleChimes([174.61, 185, 196, 207.65], 8, 0.04);
+      addMedievalScore(nodes, 'forest');
     },
 
     dungeon_horror: (nodes) => {
@@ -267,6 +353,7 @@ const AudioEngine = (() => {
       nodes.rumble = createRumble(35, 0.05);
       nodes.heartbeat = createHeartbeat(44, 0.08);
       nodes.pad = createPad(55, 0.02, 0.08);
+      addMedievalScore(nodes, 'dungeon');
     },
 
     combat: (nodes) => {
@@ -278,6 +365,7 @@ const AudioEngine = (() => {
       nodes.heartbeat = createHeartbeat(120, 0.12);
       // Urgent chimes
       nodes.chimes = scheduleChimes([220, 246.94, 261.63, 196], 60, 0.07);
+      addMedievalScore(nodes, 'battle');
     },
 
     boss_ancient: (nodes) => {
@@ -292,6 +380,7 @@ const AudioEngine = (() => {
       nodes.heartbeat = createHeartbeat(80, 0.1);
       // Chaos bells — wrong intervals
       nodes.chimes = scheduleChimes([466.16, 493.88, 415.3, 369.99, 329.63], 15, 0.06);
+      addMedievalScore(nodes, 'boss');
     },
 
     village_uneasy: (nodes) => {
@@ -299,6 +388,7 @@ const AudioEngine = (() => {
       nodes.pad = createPad(130.81, 0.025, 0.09);
       nodes.chimes = scheduleChimes([392, 440, 349.23, 329.63], 15, 0.05);
       nodes.rumble = createRumble(70, 0.025);
+      addMedievalScore(nodes, 'village');
     },
 
     road_danger: (nodes) => {
@@ -308,6 +398,7 @@ const AudioEngine = (() => {
       nodes.heartbeat = createHeartbeat(70, 0.07);
       nodes.rumble = createRumble(90, 0.04);
       nodes.chimes = scheduleChimes([196, 220, 185, 174.61], 18, 0.045);
+      addMedievalScore(nodes, 'road');
     },
 
     fortress_somber: (nodes) => {
@@ -317,6 +408,7 @@ const AudioEngine = (() => {
       nodes.pad = createPad(110, 0.03, 0.05);
       nodes.heartbeat = createHeartbeat(55, 0.065);
       nodes.chimes = scheduleChimes([293.66, 277.18, 261.63], 10, 0.055);
+      addMedievalScore(nodes, 'fortress');
     },
 
     wastes_eerie: (nodes) => {
@@ -328,6 +420,7 @@ const AudioEngine = (() => {
       nodes.heartbeat = createHeartbeat(38, 0.09);
       // Near silence with occasional tones
       nodes.chimes = scheduleChimes([466.16, 440, 415.3], 5, 0.035);
+      addMedievalScore(nodes, 'wastes');
     },
   };
 
@@ -343,6 +436,7 @@ const AudioEngine = (() => {
     if (activeNodes.rumble) { try { activeNodes.rumble.n.stop(); activeNodes.rumble.lfo.stop(); } catch(e) {} }
     if (activeNodes.heartbeat) { try { activeNodes.heartbeat.stop(); } catch(e) {} }
     if (activeNodes.chimes) clearInterval(activeNodes.chimes);
+    if (activeNodes.medieval) { try { activeNodes.medieval.stop(); } catch(e) {} }
     activeNodes = {};
   }
 
@@ -568,6 +662,7 @@ const AudioEngine = (() => {
     sfx: { dice: sfx_dice, holy: sfx_holy, dark: sfx_dark, sword: sfx_sword, levelup: sfx_levelup, page: sfx_page, travel: sfx_travel },
     isEnabled: () => enabled,
     getTrackId: () => currentTrackId,
+    getVolume: () => musicVolume,
   };
 })();
 
@@ -577,9 +672,17 @@ window.AudioEngine = AudioEngine;
 // Initialize on first user interaction
 let audioInitialized = false;
 function initAudioOnInteraction() {
-  if (audioInitialized) return;
-  audioInitialized = AudioEngine.init();
-  if (audioInitialized) {
+  if (!audioInitialized) {
+    audioInitialized = AudioEngine.init();
+  }
+  if (audioInitialized && !AudioEngine.getTrackId() && document.getElementById('game-screen')?.classList.contains('active')) {
+    const trackId = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music || 'city_tense';
+    const trackName = document.getElementById('music-track-name')?.textContent || 'The Chronicle Score';
+    if (typeof startGameMusic === 'function') startGameMusic(trackId, trackName);
+    else AudioEngine.play(trackId);
+  }
+  if (audioInitialized && !initAudioOnInteraction.reported) {
+    initAudioOnInteraction.reported = true;
     console.log('🎵 Audio engine initialized');
   }
 }
