@@ -38,6 +38,7 @@ test('every world score has a deterministic medieval acoustic layer',()=>{
   const source=read('site/audio.js');
   for(const feature of['MEDIEVAL_SCORES','createLutePluck','createWoodenFlute','createFrameDrum','createMedievalEnsemble'])assert.match(source,new RegExp(feature));
   for(const score of['city','chapel','tavern','forest','dungeon','battle','boss','village','road','fortress','wastes'])assert.match(source,new RegExp(`addMedievalScore\\(nodes, '${score}'\\)`));
-  assert.match(source,/activeNodes\.medieval\.stop\(\)/);
+  assert.match(source,/nodes\.medieval\.stop\(\)/);
+  assert.match(source,/stopNodeCollection\(instance\.nodes\)/);
   assert.match(source,/!AudioEngine\.getTrackId\(\)[\s\S]*WORLD_LOCATIONS[\s\S]*startGameMusic/);
 });

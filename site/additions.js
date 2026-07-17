@@ -182,7 +182,7 @@ function showDMStrip(text, persist = false) {
 }
 
 // ─── LOCATION UPDATE ──────────────────────────
-function updateLocationPanel(locId) {
+function updateLocationPanel(locId, options = {}) {
   // Accept either a location id or a location object
   const loc = (locId && typeof locId === 'object') ? locId : WORLD_LOCATIONS[locId];
   if (!loc) return;
@@ -206,7 +206,10 @@ function updateLocationPanel(locId) {
   const trackId = loc.music || 'city_tense';
   const tnEl = document.getElementById('music-track-name');
   if (tnEl) tnEl.textContent = TRACK_NAMES[trackId] || loc.name;
-  if (musicStarted) AudioEngine.transition(trackId, 2500);
+  if (musicStarted && !options.suppressAudio) {
+    const audioContext=AudioEngine.contextForLocation?.(loc)||'exploration';
+    if(AudioEngine.transitionForContext)AudioEngine.transitionForContext(trackId,audioContext);else AudioEngine.transition(trackId,2500);
+  }
 }
 // Alias — saves.js (and others) call updateLocationDisplay (#76)
 window.updateLocationDisplay = updateLocationPanel;

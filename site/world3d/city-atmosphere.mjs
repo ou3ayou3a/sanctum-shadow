@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { citySoundscapeForZone } from './city-soundscape.mjs?v=168';
+import { cityDistrictForPosition, citySoundscapeForZone } from './city-soundscape.mjs?v=169';
 
 const DAY=new THREE.Color(0xb7cbc2),DAWN=new THREE.Color(0xb7795d),NIGHT=new THREE.Color(0x101927);
 const KIT_SKIES=Object.freeze({
@@ -9,12 +9,12 @@ const INTERIOR_KITS=new Set(['tavern','cellar','archive','dungeon']);
 const clamp01=value=>THREE.MathUtils.clamp(value,0,1);
 
 export class CityAtmosphere{
-  constructor(engine){this.engine=engine;this.torches=[];this.lastHour=-1;this.wetness=0;this.listenerElapsed=0;this.listenerForward=new THREE.Vector3();this.kit=engine.zone?.profile?.kit||'road';this.baseSky=new THREE.Color(KIT_SKIES[this.kit]||DAY);}
+  constructor(engine){this.engine=engine;this.torches=[];this.lastHour=-1;this.wetness=0;this.listenerElapsed=0;this.districtElapsed=0;this.audioDistrict=null;this.listenerForward=new THREE.Vector3();this.kit=engine.zone?.profile?.kit||'road';this.baseSky=new THREE.Color(KIT_SKIES[this.kit]||DAY);}
   initialize(){
     const {scene}=this.engine;scene.traverse(object=>{if(object.isPointLight&&object.position.y<4){object.userData.dayIntensity=object.intensity;this.torches.push(object);}});
     const geometry=new THREE.BufferGeometry(),count=720,positions=new Float32Array(count*3);for(let i=0;i<count;i++){positions[i*3]=(Math.random()-.5)*70;positions[i*3+1]=Math.random()*24;positions[i*3+2]=(Math.random()-.5)*70;}geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
     const material=new THREE.PointsMaterial({color:0xaac3c9,size:.055,transparent:true,opacity:.55,depthWrite:false});this.rain=new THREE.Points(geometry,material);this.rain.name='weather:rain';this.rain.frustumCulled=false;this.rain.visible=false;scene.add(this.rain);
-    this.soundEmitters=citySoundscapeForZone(this.engine.zone.id);this.engine.canvas.dataset.citySoundEmitters=String(this.soundEmitters.length);window.AudioEngine?.startCityAmbience?.({zoneId:this.engine.zone.id,emitters:this.soundEmitters});return this;
+    this.soundEmitters=citySoundscapeForZone(this.engine.zone.id);this.engine.canvas.dataset.citySoundEmitters=String(this.soundEmitters.length);if(this.engine.zone.id==='vaelthar_city'){this.audioDistrict=cityDistrictForPosition(this.engine.actor?.position);this.engine.canvas.dataset.cityAudioDistrict=this.audioDistrict;}window.AudioEngine?.startCityAmbience?.({zoneId:this.engine.zone.id,emitters:this.soundEmitters,districtId:this.audioDistrict});return this;
   }
   weatherFor(day,hour){
     if(INTERIOR_KITS.has(this.kit))return'clear';
@@ -34,7 +34,8 @@ export class CityAtmosphere{
     const targetWet=isRain?1:weather==='mist'?.38:.05;this.wetness=THREE.MathUtils.lerp(this.wetness,targetWet,1-Math.exp(-dt*(isRain?.8:.18)));this.engine.zone?.setWetness?.(this.wetness);
     this.rain.visible=isRain;this.rain.position.set(this.engine.actor.position.x,0,this.engine.actor.position.z);if(isRain){const array=this.rain.geometry.attributes.position.array;for(let i=0;i<array.length;i+=3){array[i+1]-=dt*(13+(i%17)*.32);array[i]+=.6*dt;if(array[i+1]<.1){array[i+1]=22;array[i]=(Math.random()-.5)*70;array[i+2]=(Math.random()-.5)*70;}}this.rain.geometry.attributes.position.needsUpdate=true;}
     this.listenerElapsed+=dt;if(this.listenerElapsed>=.08){this.listenerElapsed=0;this.engine.camera.getWorldDirection(this.listenerForward);window.AudioEngine?.updateCityListener?.({position:this.engine.camera.position.toArray(),forward:this.listenerForward.toArray(),up:this.engine.camera.up.toArray()});this.engine.canvas.dataset.citySoundListener='tracking';}
-    if(this.lastHour!==hour){this.lastHour=hour;window.AudioEngine?.updateCityAmbience?.({hour,weather,zoneId:this.engine.zone.id});}
+    this.districtElapsed+=dt;if(this.engine.zone.id==='vaelthar_city'&&this.districtElapsed>=.25){this.districtElapsed=0;const nextDistrict=cityDistrictForPosition(this.engine.actor?.position,this.audioDistrict);if(nextDistrict!==this.audioDistrict){this.audioDistrict=nextDistrict;this.engine.canvas.dataset.cityAudioDistrict=nextDistrict;window.AudioEngine?.updateCityDistrict?.(nextDistrict);}}
+    if(this.lastHour!==hour){this.lastHour=hour;window.AudioEngine?.updateCityAmbience?.({hour,weather,zoneId:this.engine.zone.id,districtId:this.audioDistrict});}
   }
-  dispose(){delete this.engine.canvas.dataset.citySoundEmitters;delete this.engine.canvas.dataset.citySoundListener;this.engine.scene.remove(this.rain);this.rain.geometry.dispose();this.rain.material.dispose();window.AudioEngine?.stopCityAmbience?.();}
+  dispose(){delete this.engine.canvas.dataset.citySoundEmitters;delete this.engine.canvas.dataset.citySoundListener;delete this.engine.canvas.dataset.cityAudioDistrict;this.engine.scene.remove(this.rain);this.rain.geometry.dispose();this.rain.material.dispose();window.AudioEngine?.stopCityAmbience?.({fadeMs:1200});}
 }

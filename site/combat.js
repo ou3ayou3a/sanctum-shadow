@@ -574,7 +574,7 @@ function startCombat(enemies, encounter = {}) {
   combatState.currentTurnIndex = 0;
   combatState.apRemaining = MAX_AP;
 
-  if (window.AudioEngine) AudioEngine.transition('combat', 800);
+  if (window.AudioEngine) AudioEngine.transitionForContext ? AudioEngine.transitionForContext('combat', 'combat_enter') : AudioEngine.transition('combat', 800);
 
   // Close all other panels — combat is exclusive
   document.getElementById('conv-panel')?.remove();
@@ -1430,7 +1430,7 @@ function enemyAI(enemyId) {
           gameState.character.hp = Math.max(1, combatState.combatants['player'].hp);
         }
         const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
-        if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+        if (window.AudioEngine && track) AudioEngine.transitionForContext ? AudioEngine.transitionForContext(track, 'combat_exit') : AudioEngine.transition(track, 1500);
         updateCombatUI();
         setTimeout(() => {
           document.getElementById('combat-panel')?.remove();
@@ -1682,7 +1682,7 @@ function endCombat(victory) {
     {
       // #57: transition to the location's actual music track, not its id
       const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
-      if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+      if (window.AudioEngine && track) AudioEngine.transitionForContext ? AudioEngine.transitionForContext(track, 'combat_exit') : AudioEngine.transition(track, 1500);
     }
 
     // Sync player HP (victory — whatever they ended with, minimum 1)
@@ -1746,7 +1746,7 @@ function endCombat(victory) {
     {
       // #57: transition to the location's actual music track, not its id
       const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
-      if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+      if (window.AudioEngine && track) AudioEngine.transitionForContext ? AudioEngine.transitionForContext(track, 'combat_exit') : AudioEngine.transition(track, 1500);
     }
 
     // Tear down the combat panel, then raise the death screen.
@@ -1866,7 +1866,7 @@ window.fleeCombat = function() {
 
   // Restore the location's own music
   const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
-  if (window.AudioEngine && track) AudioEngine.transition(track, 1500);
+  if (window.AudioEngine && track) AudioEngine.transitionForContext ? AudioEngine.transitionForContext(track, 'combat_exit') : AudioEngine.transition(track, 1500);
 
   // Reset combat state cleanly
   combatState.combatants = {};

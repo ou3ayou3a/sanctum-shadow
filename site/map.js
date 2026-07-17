@@ -939,7 +939,11 @@ function travelToLocation(loc) {
   unlockLocationsByProgress();
 
   // Play travel music
-  if (window.AudioEngine) AudioEngine.transition(loc.music || 'city_tense');
+  if (window.AudioEngine) {
+    const audioContext=AudioEngine.contextForLocation?.(loc)||'exploration';
+    if(AudioEngine.transitionForContext)AudioEngine.transitionForContext(loc.music||'city_tense',audioContext);
+    else AudioEngine.transition(loc.music||'city_tense');
+  }
 
   // Narrative
   const travelDesc = LOCATION_DESCRIPTIONS_TRAVEL[loc.type] ? LOCATION_DESCRIPTIONS_TRAVEL[loc.type](loc) : `You arrive at ${loc.name}.`;
@@ -1339,7 +1343,10 @@ function attemptAmbushPersuade() {
     addLog(`✨ NATURAL 20 — A critical success. Against all expectation, they hesitate. Something in your bearing, your words, the certainty in your voice — they back down. No blood today.`, 'holy');
     grantHolyPoints(3);
     addLog(`☩ +3 Holy Points — You turned the blade without drawing yours.`, 'holy');
-    if (window.AudioEngine) AudioEngine.transition(WORLD_LOCATIONS[mapState?.currentLocation]?.music || 'city_tense', 1000);
+    if (window.AudioEngine) {
+      const location=WORLD_LOCATIONS[mapState?.currentLocation]||{},track=location.music||'city_tense';
+      if(AudioEngine.transitionForContext)AudioEngine.transitionForContext(track,'combat_exit');else AudioEngine.transition(track,1000);
+    }
     window._travelEncounterFired = false;
     window.resumePendingArrivalScene?.();
   } else {

@@ -431,8 +431,11 @@ function loadSaveSlot(slotId, options = {}) {
     if (locData && window.mapState) {
       window.mapState.currentLocation = locData.id;
       if (window.renderMap) window.renderMap();
-      if (window.updateLocationDisplay) window.updateLocationDisplay(locData);
-      if (window.AudioEngine) AudioEngine.transition(locData.music || 'city_dread', 1000);
+      if (window.updateLocationDisplay) window.updateLocationDisplay(locData, { suppressAudio:true });
+      if (window.AudioEngine) {
+        const track=locData.music||'city_tense';
+        if(AudioEngine.transitionForContext)AudioEngine.transitionForContext(track,'restore');else AudioEngine.transition(track,1000);
+      }
     }
 
     // Replay saved log to game-log element so players see their history.

@@ -7,8 +7,12 @@ const AudioEngine = (() => {
   let ctx = null;
   let masterGain = null;
   let sfxGain = null;
-  let currentTrack = null;
   let currentTrackId = null;
+  let musicBuildOutput = null;
+  let activeTrackInstance = null;
+  const fadingTrackInstances = new Set();
+  let stopGeneration = 0;
+  let lastTransitionContext = 'initial';
   let musicVolume = 0.35;
   let sfxVolume = 0.6;
   let enabled = true;
@@ -51,6 +55,27 @@ const AudioEngine = (() => {
   }
 
   // ── Core synthesis helpers ──────────────────
+
+  const AUDIO_TRANSITION_PROFILES = Object.freeze({
+    district: 1200,
+    interior: 1600,
+    exploration: 2200,
+    combat_enter: 650,
+    combat_exit: 1400,
+    restore: 900,
+  });
+
+  const CITY_DISTRICT_MIXES = Object.freeze({
+    covenant_square: { crowd:.09, wind:.034 },
+    ash_market: { crowd:.13, wind:.024 },
+    cupside_lane: { crowd:.075, wind:.027 },
+    temple_quarter: { crowd:.045, wind:.04 },
+    crown_watch: { crowd:.032, wind:.056 },
+    southward: { crowd:.08, wind:.044 },
+    outer_ward: { crowd:.04, wind:.06 },
+  });
+
+  const musicOutput = () => musicBuildOutput || masterGain;
 
   function createOscillator(type, freq, detune = 0) {
     const osc = ctx.createOscillator();
@@ -115,7 +140,7 @@ const AudioEngine = (() => {
       osc.connect(filter);
       filter.connect(reverb);
       reverb.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(musicOutput());
       osc.start();
       drones.push({ osc, gain, filter });
     });
@@ -139,30 +164,31 @@ const AudioEngine = (() => {
     osc1.connect(gain);
     osc2.connect(gain);
     gain.connect(reverb);
-    reverb.connect(masterGain);
+    reverb.connect(musicOutput());
 
     osc1.start(); osc2.start(); lfo.start();
     return { osc1, osc2, lfo, gain };
   }
 
   // ── Rhythmic element ─────────────────────────
-  function createBell(freq, time, gainVal) {
+  function createBell(freq, time, gainVal, output = musicOutput()) {
     const osc = createOscillator('sine', freq);
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(gainVal, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5);
     osc.connect(gain);
-    gain.connect(masterGain);
+    gain.connect(output);
     osc.start(time);
     osc.stop(time + 2.6);
   }
 
   function scheduleChimes(notes, bpm, gainVal = 0.08) {
     const interval = 60 / bpm;
+    const output = musicOutput();
     let i = 0;
     return setInterval(() => {
       const note = notes[Math.floor(Math.random() * notes.length)];
-      createBell(note, ctx.currentTime, gainVal);
+      createBell(note, ctx.currentTime, gainVal, output);
       i++;
     }, interval * 2000 + Math.random() * 3000);
   }
@@ -180,7 +206,7 @@ const AudioEngine = (() => {
     lfoGain.connect(gain.gain);
     n.connect(filter);
     filter.connect(gain);
-    gain.connect(masterGain);
+    gain.connect(musicOutput());
     n.loop = true;
     n.start();
     lfo.start();
@@ -190,6 +216,7 @@ const AudioEngine = (() => {
   // ── Heartbeat pulse ──────────────────────────
   function createHeartbeat(bpm = 60, gainVal = 0.1) {
     const interval = (60 / bpm) * 1000;
+    const output = musicOutput();
     let phase = 0;
 
     function beat() {
@@ -199,7 +226,7 @@ const AudioEngine = (() => {
       gain.gain.setValueAtTime(gainVal, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
       osc.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(output);
       osc.start(now);
       osc.stop(now + 0.35);
       phase = 1 - phase;
@@ -226,7 +253,7 @@ const AudioEngine = (() => {
     wastes: { bpm: 42, lute: [82.41,87.31,103.83,98,92.5,87.31,82.41,77.78], flute: [246.94,233.08,220,207.65], drum: 0, gain: .34 },
   });
 
-  function createLutePluck(freq, time, gainVal = .035, duration = 1.25) {
+  function createLutePluck(freq, time, gainVal = .035, duration = 1.25, output = musicOutput()) {
     const body = createOscillator('triangle', freq);
     const harmonic = createOscillator('sine', freq * 2.01, -3);
     const harmonicGain = ctx.createGain();
@@ -236,11 +263,11 @@ const AudioEngine = (() => {
     gain.gain.setValueAtTime(.0001, time);
     gain.gain.exponentialRampToValueAtTime(gainVal, time + .012);
     gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    body.connect(filter);harmonic.connect(harmonicGain);harmonicGain.connect(filter);filter.connect(gain);gain.connect(masterGain);
+    body.connect(filter);harmonic.connect(harmonicGain);harmonicGain.connect(filter);filter.connect(gain);gain.connect(output);
     body.start(time);harmonic.start(time);body.stop(time + duration + .02);harmonic.stop(time + duration + .02);
   }
 
-  function createWoodenFlute(freq, time, gainVal = .018, duration = 1.7) {
+  function createWoodenFlute(freq, time, gainVal = .018, duration = 1.7, output = musicOutput()) {
     const voice = createOscillator('sine', freq);
     const breath = createOscillator('triangle', freq * 2, 4);
     const breathGain = ctx.createGain();
@@ -251,11 +278,11 @@ const AudioEngine = (() => {
     breathGain.gain.value = .09;vibratoDepth.gain.value = freq * .006;
     vibrato.connect(vibratoDepth);vibratoDepth.connect(voice.frequency);
     gain.gain.setValueAtTime(.0001, time);gain.gain.linearRampToValueAtTime(gainVal, time + .16);gain.gain.setValueAtTime(gainVal, time + Math.max(.2, duration - .22));gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    voice.connect(filter);breath.connect(breathGain);breathGain.connect(filter);filter.connect(gain);gain.connect(masterGain);
+    voice.connect(filter);breath.connect(breathGain);breathGain.connect(filter);filter.connect(gain);gain.connect(output);
     voice.start(time);breath.start(time);vibrato.start(time);voice.stop(time + duration + .03);breath.stop(time + duration + .03);vibrato.stop(time + duration + .03);
   }
 
-  function createFrameDrum(time, gainVal = .035, accent = false) {
+  function createFrameDrum(time, gainVal = .035, accent = false, output = musicOutput()) {
     const duration = accent ? .22 : .14;
     const skin = noise(duration);
     const filter = createFilter('lowpass', accent ? 520 : 720, .8);
@@ -265,12 +292,13 @@ const AudioEngine = (() => {
     gain.gain.setValueAtTime(gainVal, time);gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
     body.frequency.exponentialRampToValueAtTime(accent ? 48 : 72, time + duration);
     bodyGain.gain.setValueAtTime(gainVal * .85, time);bodyGain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    skin.connect(filter);filter.connect(gain);gain.connect(masterGain);body.connect(bodyGain);bodyGain.connect(masterGain);
+    skin.connect(filter);filter.connect(gain);gain.connect(output);body.connect(bodyGain);bodyGain.connect(output);
     skin.start(time);skin.stop(time + duration + .01);body.start(time);body.stop(time + duration + .02);
   }
 
   function createMedievalEnsemble(scoreId) {
     const score = MEDIEVAL_SCORES[scoreId] || MEDIEVAL_SCORES.city;
+    const output = musicOutput();
     const beatMs = 60000 / score.bpm;
     let step = 0;
     let active = true;
@@ -278,9 +306,9 @@ const AudioEngine = (() => {
       if (!active || !ctx || ctx.state !== 'running') return;
       const time = ctx.currentTime + .025;
       const index = step % score.lute.length;
-      createLutePluck(score.lute[index], time, .035 * score.gain, Math.min(1.35, beatMs / 1000 * 1.45));
-      if (step % 4 === 0 && score.flute?.length) createWoodenFlute(score.flute[(step / 4) % score.flute.length | 0], time + .035, .018 * score.gain, Math.max(1.1, beatMs / 1000 * 2.5));
-      if (score.drum && step % score.drum === 0) createFrameDrum(time, .038 * score.gain, step % (score.drum * 2) === 0);
+      createLutePluck(score.lute[index], time, .035 * score.gain, Math.min(1.35, beatMs / 1000 * 1.45), output);
+      if (step % 4 === 0 && score.flute?.length) createWoodenFlute(score.flute[(step / 4) % score.flute.length | 0], time + .035, .018 * score.gain, Math.max(1.1, beatMs / 1000 * 2.5), output);
+      if (score.drum && step % score.drum === 0) createFrameDrum(time, .038 * score.gain, step % (score.drum * 2) === 0, output);
       step++;
     };
     perform();
@@ -428,65 +456,134 @@ const AudioEngine = (() => {
   // ── Active nodes store ──────────────────────
   let activeNodes = {};
 
-  function stopAllNodes() {
-    if (activeNodes.drones) activeNodes.drones.forEach(d => { try { d.osc.stop(); } catch(e) {} });
-    if (activeNodes.pad) { try { activeNodes.pad.osc1.stop(); activeNodes.pad.osc2.stop(); activeNodes.pad.lfo.stop(); } catch(e) {} }
-    if (activeNodes.pad2) { try { activeNodes.pad2.osc1.stop(); activeNodes.pad2.osc2.stop(); activeNodes.pad2.lfo.stop(); } catch(e) {} }
-    if (activeNodes.pad3) { try { activeNodes.pad3.osc1.stop(); activeNodes.pad3.osc2.stop(); activeNodes.pad3.lfo.stop(); } catch(e) {} }
-    if (activeNodes.reverb_drone) activeNodes.reverb_drone.forEach(d => { try { d.osc.stop(); } catch(e) {} });
-    if (activeNodes.rumble) { try { activeNodes.rumble.n.stop(); activeNodes.rumble.lfo.stop(); } catch(e) {} }
-    if (activeNodes.heartbeat) { try { activeNodes.heartbeat.stop(); } catch(e) {} }
-    if (activeNodes.chimes) clearInterval(activeNodes.chimes);
-    if (activeNodes.medieval) { try { activeNodes.medieval.stop(); } catch(e) {} }
+  function stopNodeCollection(nodes = {}) {
+    if (nodes.drones) nodes.drones.forEach(d => { try { d.osc.stop(); } catch(e) {} });
+    if (nodes.pad) { try { nodes.pad.osc1.stop(); nodes.pad.osc2.stop(); nodes.pad.lfo.stop(); } catch(e) {} }
+    if (nodes.pad2) { try { nodes.pad2.osc1.stop(); nodes.pad2.osc2.stop(); nodes.pad2.lfo.stop(); } catch(e) {} }
+    if (nodes.pad3) { try { nodes.pad3.osc1.stop(); nodes.pad3.osc2.stop(); nodes.pad3.lfo.stop(); } catch(e) {} }
+    if (nodes.reverb_drone) nodes.reverb_drone.forEach(d => { try { d.osc.stop(); } catch(e) {} });
+    if (nodes.rumble) { try { nodes.rumble.n.stop(); nodes.rumble.lfo.stop(); } catch(e) {} }
+    if (nodes.heartbeat) { try { nodes.heartbeat.stop(); } catch(e) {} }
+    if (nodes.chimes) clearInterval(nodes.chimes);
+    if (nodes.medieval) { try { nodes.medieval.stop(); } catch(e) {} }
+  }
+
+  function updateTransitionDiagnostics() {
+    const root = typeof document !== 'undefined' ? document.documentElement : null;
+    if (!root) return;
+    if (currentTrackId) root.dataset.audioTrack = currentTrackId;
+    else delete root.dataset.audioTrack;
+    root.dataset.audioTransition = lastTransitionContext;
+    root.dataset.audioFadingTracks = String(fadingTrackInstances.size);
+  }
+
+  function createTrackInstance(trackId, initialGain = 1) {
+    const track = TRACKS[trackId];
+    if (!track || !ctx || !masterGain) return null;
+    const bus = ctx.createGain();
+    bus.gain.value = initialGain;
+    bus.connect(masterGain);
+    const nodes = {};
+    const previousOutput = musicBuildOutput;
+    musicBuildOutput = bus;
+    try { track(nodes); }
+    finally { musicBuildOutput = previousOutput; }
+    return { id:trackId, bus, nodes, disposed:false, cleanupTimer:null };
+  }
+
+  function disposeTrackInstance(instance) {
+    if (!instance || instance.disposed) return;
+    instance.disposed = true;
+    if (instance.cleanupTimer) clearTimeout(instance.cleanupTimer);
+    stopNodeCollection(instance.nodes);
+    try { instance.bus.disconnect(); } catch (e) {}
+    fadingTrackInstances.delete(instance);
+    if (activeTrackInstance === instance) activeTrackInstance = null;
+    updateTransitionDiagnostics();
+  }
+
+  function stopAllTracks() {
+    if (activeTrackInstance) disposeTrackInstance(activeTrackInstance);
+    for (const instance of [...fadingTrackInstances]) disposeTrackInstance(instance);
+    activeTrackInstance = null;
     activeNodes = {};
+  }
+
+  function holdAudioParam(param, now) {
+    if (typeof param.cancelAndHoldAtTime === 'function') param.cancelAndHoldAtTime(now);
+    else {
+      const value = param.value;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(value, now);
+    }
   }
 
   function play(trackId) {
     if (!enabled || !ctx) return;
     resume();
-    // Restore master volume — un-pause leaves masterGain ramped to 0 after stop()
-    if (masterGain) {
-      masterGain.gain.cancelScheduledValues(ctx.currentTime);
-      masterGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
-    }
-    if (currentTrackId === trackId) return;
-    stopAllNodes();
-    currentTrackId = trackId;
-    const track = TRACKS[trackId];
-    if (!track) return;
-    track(activeNodes);
+    if (!TRACKS[trackId] || (currentTrackId === trackId && activeTrackInstance)) return;
+    stopGeneration++;
+    stopAllTracks();
+    masterGain.gain.cancelScheduledValues(ctx.currentTime);
+    masterGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
+    activeTrackInstance = createTrackInstance(trackId, 1);
+    activeNodes = activeTrackInstance?.nodes || {};
+    currentTrackId = activeTrackInstance ? trackId : null;
+    lastTransitionContext = 'play';
+    updateTransitionDiagnostics();
   }
 
   function transition(trackId, fadeDuration = 2000) {
     if (!enabled || !ctx) return;
     resume();
-    if (currentTrackId === trackId) return;
+    if (!TRACKS[trackId] || (currentTrackId === trackId && activeTrackInstance)) return;
+    stopGeneration++;
+    const duration = Math.max(0, Number(fadeDuration) || 0);
+    if (!activeTrackInstance || duration === 0) { play(trackId); return; }
 
-    // Fade out current
-    if (masterGain) {
-      const currentVol = masterGain.gain.value;
-      masterGain.gain.setValueAtTime(currentVol, ctx.currentTime);
-      masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeDuration / 1000);
-    }
+    const now = ctx.currentTime;
+    const outgoing = activeTrackInstance;
+    const incoming = createTrackInstance(trackId, 0);
+    if (!incoming) return;
 
-    setTimeout(() => {
-      stopAllNodes();
-      currentTrackId = trackId;
-      if (masterGain) {
-        masterGain.gain.setValueAtTime(0, ctx.currentTime);
-        masterGain.gain.linearRampToValueAtTime(musicVolume, ctx.currentTime + fadeDuration / 1000);
-      }
-      const track = TRACKS[trackId];
-      if (track) track(activeNodes);
-    }, fadeDuration);
+    holdAudioParam(outgoing.bus.gain, now);
+    outgoing.bus.gain.linearRampToValueAtTime(0, now + duration / 1000);
+    incoming.bus.gain.setValueAtTime(0, now);
+    incoming.bus.gain.linearRampToValueAtTime(1, now + duration / 1000);
+    fadingTrackInstances.add(outgoing);
+    outgoing.cleanupTimer = setTimeout(() => disposeTrackInstance(outgoing), duration + 80);
+
+    activeTrackInstance = incoming;
+    activeNodes = incoming.nodes;
+    currentTrackId = trackId;
+    updateTransitionDiagnostics();
+  }
+
+  function transitionForContext(trackId, context = 'exploration') {
+    lastTransitionContext = AUDIO_TRANSITION_PROFILES[context] ? context : 'exploration';
+    transition(trackId, AUDIO_TRANSITION_PROFILES[lastTransitionContext]);
+    updateTransitionDiagnostics();
+  }
+
+  function contextForLocation(location = {}) {
+    const type = String(location.type || '').toLowerCase();
+    const id = String(location.id || '').toLowerCase();
+    if (type === 'tavern' || type === 'dungeon' || location.lightLevel || /(cellar|archive|crypt|interior|scriptorium|inn|tavern)/.test(id)) return 'interior';
+    return 'exploration';
   }
 
   function stop() {
-    if (masterGain) {
-      masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
+    if (!ctx) return;
+    const generation=++stopGeneration;
+    const instances = [activeTrackInstance, ...fadingTrackInstances].filter(Boolean);
+    for (const instance of instances) {
+      holdAudioParam(instance.bus.gain, ctx.currentTime);
+      instance.bus.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
     }
-    setTimeout(stopAllNodes, 1100);
+    setTimeout(()=>{if(generation===stopGeneration)stopAllTracks();},1080);
     currentTrackId = null;
+    lastTransitionContext = 'stop';
+    updateTransitionDiagnostics();
   }
 
   function setVolume(vol) {
@@ -695,13 +792,24 @@ const AudioEngine = (() => {
     return record;
   }
 
-  function stopCityAmbience() {
+  function disposeCityAmbience(ambience) {
+    if (!ambience || ambience.disposed) return;
+    ambience.disposed=true;
+    for (const source of ambience.sources) { try { source.stop(); } catch (e) {} }
+    for (const timer of ambience.timers) { clearInterval(timer);clearTimeout(timer); }
+    if(ambience.disposeTimer)clearTimeout(ambience.disposeTimer);
+    for (const emitter of ambience.emitters || []) { try { emitter.input.disconnect();emitter.panner.disconnect(); } catch (e) {} }
+    try { ambience.gain.disconnect(); } catch (e) {}
+  }
+
+  function stopCityAmbience({fadeMs=1200,immediate=false}={}) {
     if (!cityAmbience) return;
-    for (const source of cityAmbience.sources) { try { source.stop(); } catch (e) {} }
-    for (const timer of cityAmbience.timers) clearInterval(timer);
-    for (const emitter of cityAmbience.emitters || []) { try { emitter.input.disconnect();emitter.panner.disconnect(); } catch (e) {} }
-    try { cityAmbience.gain.disconnect(); } catch (e) {}
-    cityAmbience = null;
+    const ambience=cityAmbience;cityAmbience=null;
+    for(const timer of ambience.timers){clearInterval(timer);clearTimeout(timer);}ambience.timers=[];
+    if(!ctx||immediate||fadeMs<=0){disposeCityAmbience(ambience);return;}
+    const now=ctx.currentTime,duration=Math.max(0,fadeMs)/1000;
+    holdAudioParam(ambience.gain.gain,now);ambience.gain.gain.linearRampToValueAtTime(0,now+duration);
+    ambience.disposeTimer=setTimeout(()=>disposeCityAmbience(ambience),fadeMs+80);
   }
 
   function ambiencePulse(frequency = 900, duration = .12, volume = .025) {
@@ -713,20 +821,29 @@ const AudioEngine = (() => {
     pendingAmbience={...pendingAmbience,...options};
     if (!ctx || pendingAmbience.zoneId !== 'vaelthar_city') { if (pendingAmbience.zoneId && pendingAmbience.zoneId !== 'vaelthar_city') stopCityAmbience(); return; }
     if (cityAmbience) { updateCityAmbience(pendingAmbience); return; }
-    resume();const gain=ctx.createGain();gain.gain.value=.26;gain.connect(sfxGain);const sources=[],timers=[];
+    resume();const gain=ctx.createGain();gain.gain.value=0;gain.connect(sfxGain);const sources=[],timers=[];
     const makeLoop=(filterType,frequency,volume)=>{const seconds=3,buffer=ctx.createBuffer(1,ctx.sampleRate*seconds,ctx.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(.35+.65*Math.sin(i*.00017)**2);const source=ctx.createBufferSource(),filter=createFilter(filterType,frequency,.7),layerGain=ctx.createGain();source.buffer=buffer;source.loop=true;layerGain.gain.value=volume;source.connect(filter);filter.connect(layerGain);layerGain.connect(gain);source.start();sources.push(source);return layerGain;};
     const crowd=makeLoop('bandpass',310,.11),wind=makeLoop('lowpass',720,.045),rain=makeLoop('highpass',1800,0);
     timers.push(setInterval(()=>ambiencePulse(760+Math.random()*180,.09,.018),4300));
     timers.push(setInterval(()=>{ambiencePulse(155,.18,.026);setTimeout(()=>ambiencePulse(210,.14,.018),115);},7900));
     timers.push(setInterval(()=>ambiencePulse(440,.95,.028),17000));
     const emitters=(pendingAmbience.emitters||[]).map((config,index)=>createCityEmitter(config,gain,sources,timers,index));
-    cityAmbience={gain,sources,timers,crowd,wind,rain,emitters};updateCityAmbience(pendingAmbience);if(pendingCityListener)updateCityListener(pendingCityListener);
+    cityAmbience={gain,sources,timers,crowd,wind,rain,emitters,disposed:false};updateCityAmbience(pendingAmbience);if(pendingCityListener)updateCityListener(pendingCityListener);
   }
 
-  function updateCityAmbience({hour=10,weather='clear',zoneId='vaelthar_city'}={}) {
-    pendingAmbience={...pendingAmbience,hour,weather,zoneId};if(zoneId!=='vaelthar_city'){stopCityAmbience();return;}if(!cityAmbience){if(ctx)startCityAmbience(pendingAmbience);return;}
-    const day=hour>=6&&hour<21,now=ctx.currentTime;cityAmbience.gain.gain.setTargetAtTime(enabled?.25:0,now,.4);cityAmbience.crowd.gain.setTargetAtTime(day?.085:.018,now,.5);cityAmbience.wind.gain.setTargetAtTime(weather==='rain'?.095:.042,now,.5);cityAmbience.rain.gain.setTargetAtTime(weather==='rain'?.12:0,now,.35);
+  function updateCityAmbience({hour=10,weather='clear',zoneId='vaelthar_city',districtId=pendingAmbience?.districtId||'covenant_square'}={}) {
+    pendingAmbience={...pendingAmbience,hour,weather,zoneId,districtId};if(zoneId!=='vaelthar_city'){stopCityAmbience();return;}if(!cityAmbience){if(ctx)startCityAmbience(pendingAmbience);return;}
+    const day=hour>=6&&hour<21,now=ctx.currentTime,mix=CITY_DISTRICT_MIXES[districtId]||CITY_DISTRICT_MIXES.outer_ward,nightFactor=day?1:.25;
+    cityAmbience.gain.gain.setTargetAtTime(enabled?.25:0,now,.42);cityAmbience.crowd.gain.setTargetAtTime(mix.crowd*nightFactor,now,.7);cityAmbience.wind.gain.setTargetAtTime(weather==='rain'?Math.max(.095,mix.wind*1.5):mix.wind,now,.7);cityAmbience.rain.gain.setTargetAtTime(weather==='rain'?.12:0,now,.4);
     for(const emitter of cityAmbience.emitters||[]){emitter.active=cityEmitterActive(emitter.config,hour);const weatherFactor=weather==='rain'&&['crowd','market','animals'].includes(emitter.config.kind)?.62:1;const target=emitter.active&&enabled?(emitter.config.volume||.35)*weatherFactor:0;emitter.input.gain.setTargetAtTime(target,now,.45);}
+  }
+
+  function updateCityDistrict(districtId='outer_ward') {
+    const next=CITY_DISTRICT_MIXES[districtId]?districtId:'outer_ward';
+    if(pendingAmbience?.districtId===next)return;
+    lastTransitionContext='district';
+    updateCityAmbience({...pendingAmbience,districtId:next});
+    updateTransitionDiagnostics();
   }
 
   function updateCityListener({position=[0,0,0],forward=[0,0,-1],up=[0,1,0]}={}) {
@@ -737,16 +854,20 @@ const AudioEngine = (() => {
   }
 
   function getCitySoundscapeState() {
-    return {active:!!cityAmbience,zoneId:pendingAmbience?.zoneId||null,listener:pendingCityListener?{...pendingCityListener}:null,emitters:(cityAmbience?.emitters||[]).map(({config,active})=>({id:config.id,kind:config.kind,active}))};
+    return {active:!!cityAmbience,zoneId:pendingAmbience?.zoneId||null,districtId:pendingAmbience?.districtId||null,listener:pendingCityListener?{...pendingCityListener}:null,emitters:(cityAmbience?.emitters||[]).map(({config,active})=>({id:config.id,kind:config.kind,active}))};
+  }
+
+  function getAudioTransitionState() {
+    return {trackId:currentTrackId,context:lastTransitionContext,fadingTrackIds:[...fadingTrackInstances].map(instance=>instance.id),profileMs:AUDIO_TRANSITION_PROFILES[lastTransitionContext]||null};
   }
 
   return {
-    init, play, transition, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,updateCityListener,stopCityAmbience,
+    init, play, transition, transitionForContext, contextForLocation, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,updateCityDistrict,updateCityListener,stopCityAmbience,
     sfx: { dice: sfx_dice, holy: sfx_holy, dark: sfx_dark, sword: sfx_sword, levelup: sfx_levelup, page: sfx_page, travel: sfx_travel },
     isEnabled: () => enabled,
     getTrackId: () => currentTrackId,
     getVolume: () => musicVolume,
-    getCitySoundscapeState,
+    getCitySoundscapeState,getAudioTransitionState,
   };
 })();
 

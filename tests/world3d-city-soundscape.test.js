@@ -33,15 +33,26 @@ test('sound emitter schedules support daytime and overnight districts',async()=>
   assert.equal(soundEmitterActiveAtHour(byKind.guards,3),true);
 });
 
+test('city district audio uses stable regions with boundary hysteresis',async()=>{
+  const {VAELTHAR_AUDIO_DISTRICTS,cityDistrictForPosition}=await import('../site/world3d/city-soundscape.mjs');
+  assert.equal(VAELTHAR_AUDIO_DISTRICTS.length,6);
+  assert.equal(cityDistrictForPosition({x:17,z:14}),'ash_market');
+  assert.equal(cityDistrictForPosition([-16,0,13]),'cupside_lane');
+  assert.equal(cityDistrictForPosition([13,0,1],null),'outer_ward');
+  assert.equal(cityDistrictForPosition([13,0,1],'covenant_square'),'covenant_square');
+  assert.equal(cityDistrictForPosition([22,0,1],'covenant_square'),'outer_ward');
+});
+
 test('Web Audio uses HRTF panners and follows the 3D camera listener',()=>{
   const audio=read('site/audio.js');
   for(const feature of["createPanner()","panningModel='HRTF'","distanceModel='inverse'",'updateCityListener','listener.positionX','triggerCityEmitter','getCitySoundscapeState'])assert.ok(audio.includes(feature),`missing ${feature}`);
   for(const kind of['smithy','bells','market','tavern','animals','guards'])assert.match(audio,new RegExp(`case '${kind}'`));
   const atmosphere=read('site/world3d/city-atmosphere.mjs');
   assert.match(atmosphere,/citySoundscapeForZone/);
-  assert.match(atmosphere,/startCityAmbience\?\.\(\{zoneId:this\.engine\.zone\.id,emitters:this\.soundEmitters\}\)/);
+  assert.match(atmosphere,/startCityAmbience\?\.\(\{zoneId:this\.engine\.zone\.id,emitters:this\.soundEmitters,districtId:this\.audioDistrict\}\)/);
   assert.match(atmosphere,/camera\.getWorldDirection/);
   assert.match(atmosphere,/updateCityListener/);
   assert.match(atmosphere,/dataset\.citySoundEmitters/);
   assert.match(atmosphere,/dataset\.citySoundListener='tracking'/);
+  assert.match(atmosphere,/dataset\.cityAudioDistrict/);
 });
