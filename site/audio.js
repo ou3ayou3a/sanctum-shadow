@@ -14,6 +14,7 @@ const AudioEngine = (() => {
   let enabled = true;
   let cityAmbience = null;
   let pendingAmbience = null;
+  let pendingCityListener = null;
 
   function loadPrefs() {
     try {
@@ -627,10 +628,78 @@ const AudioEngine = (() => {
     setTimeout(() => createBell(440, ctx.currentTime, 0.1), 300);
   }
 
+  function cityEmitterActive(config, hour) {
+    const [start=0,end=24] = config.activeHours || [];
+    const value = ((Number(hour) || 0) % 24 + 24) % 24;
+    if (start === end || (start === 0 && end === 24)) return true;
+    return start < end ? value >= start && value < end : value >= start || value < end;
+  }
+
+  function spatialTone(record, frequencies, duration=.35, volume=.08, type='triangle', delay=0) {
+    if (!ctx || !cityAmbience || !enabled) return;
+    const now=ctx.currentTime+delay;
+    frequencies.forEach((frequency,index)=>{
+      const osc=createOscillator(type,frequency,index*2),gain=ctx.createGain();
+      gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(volume/(1+index*.4),now+.012);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
+      osc.connect(gain);gain.connect(record.input);osc.start(now);osc.stop(now+duration+.03);
+    });
+  }
+
+  function spatialNoise(record, duration=.16, volume=.07, filterType='bandpass', frequency=650, delay=0) {
+    if (!ctx || !cityAmbience || !enabled) return;
+    const now=ctx.currentTime+delay,source=noise(duration),filter=createFilter(filterType,frequency,1.3),gain=ctx.createGain();
+    gain.gain.setValueAtTime(volume,now);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);source.connect(filter);filter.connect(gain);gain.connect(record.input);source.start(now);source.stop(now+duration+.02);
+  }
+
+  function spatialGlide(record, startFrequency, endFrequency, duration=.75, volume=.055, delay=0) {
+    if (!ctx || !cityAmbience || !enabled) return;
+    const now=ctx.currentTime+delay,osc=createOscillator('triangle',startFrequency),gain=ctx.createGain(),filter=createFilter('lowpass',1200,.6);
+    osc.frequency.exponentialRampToValueAtTime(endFrequency,now+duration);gain.gain.setValueAtTime(.0001,now);gain.gain.linearRampToValueAtTime(volume,now+.08);gain.gain.exponentialRampToValueAtTime(.0001,now+duration);osc.connect(filter);filter.connect(gain);gain.connect(record.input);osc.start(now);osc.stop(now+duration+.03);
+  }
+
+  function triggerCityEmitter(record) {
+    if (!record.active || !enabled || !cityAmbience) return;
+    switch(record.config.kind) {
+      case 'smithy':
+        spatialNoise(record,.075,.13,'highpass',2100);spatialTone(record,[620,930,1510],.62,.085,'sine');spatialNoise(record,.065,.1,'highpass',2400,.42);spatialTone(record,[690,1035],.5,.065,'sine',.42);break;
+      case 'bells':
+        spatialTone(record,[196,293.66,392,587.33],3.8,.115,'sine');spatialTone(record,[220,440,660],2.8,.06,'sine',.16);break;
+      case 'market':
+        spatialGlide(record,185,235,.58,.045);spatialGlide(record,220,178,.48,.038,.72);spatialNoise(record,.22,.045,'bandpass',520,.18);break;
+      case 'tavern':
+        spatialNoise(record,.55,.055,'bandpass',430);spatialGlide(record,210,260,.32,.028,.08);spatialTone(record,[880,1320],.42,.035,'sine',.48);break;
+      case 'animals':
+        spatialGlide(record,185,520,.85,.07);spatialGlide(record,500,235,.7,.052,.75);spatialNoise(record,.09,.065,'lowpass',420,1.65);spatialNoise(record,.09,.055,'lowpass',420,1.92);break;
+      case 'guards':
+        spatialNoise(record,.11,.075,'lowpass',330);spatialNoise(record,.11,.065,'lowpass',330,.46);spatialTone(record,[740],.32,.024,'sine',.9);break;
+      default:
+        spatialGlide(record,160,205,.42,.026);spatialNoise(record,.28,.035,'bandpass',380,.25);break;
+    }
+  }
+
+  function makeSpatialLoop(record, filterType, frequency, volume, sources) {
+    const source=noise(4),filter=createFilter(filterType,frequency,.75),gain=ctx.createGain();source.loop=true;gain.gain.value=volume;source.connect(filter);filter.connect(gain);gain.connect(record.input);source.start();sources.push(source);return gain;
+  }
+
+  function createCityEmitter(config, cityGain, sources, timers, index) {
+    const panner=ctx.createPanner(),input=ctx.createGain(),[x=0,y=1.5,z=0]=config.position||[];
+    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=config.refDistance||3;panner.maxDistance=config.maxDistance||22;panner.rolloffFactor=1.15;panner.coneInnerAngle=360;panner.coneOuterAngle=360;
+    if(panner.positionX){panner.positionX.value=x;panner.positionY.value=y;panner.positionZ.value=z;}else panner.setPosition(x,y,z);
+    input.gain.value=0;input.connect(panner);panner.connect(cityGain);
+    const record={config,input,panner,active:false};
+    if(config.kind==='crowd')record.loop=makeSpatialLoop(record,'bandpass',330,.13,sources);
+    if(config.kind==='market')record.loop=makeSpatialLoop(record,'bandpass',430,.11,sources);
+    if(config.kind==='tavern')record.loop=makeSpatialLoop(record,'bandpass',280,.09,sources);
+    timers.push(setTimeout(()=>triggerCityEmitter(record),900+index*520));
+    timers.push(setInterval(()=>triggerCityEmitter(record),config.interval||8000));
+    return record;
+  }
+
   function stopCityAmbience() {
     if (!cityAmbience) return;
     for (const source of cityAmbience.sources) { try { source.stop(); } catch (e) {} }
     for (const timer of cityAmbience.timers) clearInterval(timer);
+    for (const emitter of cityAmbience.emitters || []) { try { emitter.input.disconnect();emitter.panner.disconnect(); } catch (e) {} }
     try { cityAmbience.gain.disconnect(); } catch (e) {}
     cityAmbience = null;
   }
@@ -650,19 +719,34 @@ const AudioEngine = (() => {
     timers.push(setInterval(()=>ambiencePulse(760+Math.random()*180,.09,.018),4300));
     timers.push(setInterval(()=>{ambiencePulse(155,.18,.026);setTimeout(()=>ambiencePulse(210,.14,.018),115);},7900));
     timers.push(setInterval(()=>ambiencePulse(440,.95,.028),17000));
-    cityAmbience={gain,sources,timers,crowd,wind,rain};updateCityAmbience(pendingAmbience);
+    const emitters=(pendingAmbience.emitters||[]).map((config,index)=>createCityEmitter(config,gain,sources,timers,index));
+    cityAmbience={gain,sources,timers,crowd,wind,rain,emitters};updateCityAmbience(pendingAmbience);if(pendingCityListener)updateCityListener(pendingCityListener);
   }
 
   function updateCityAmbience({hour=10,weather='clear',zoneId='vaelthar_city'}={}) {
-    pendingAmbience={hour,weather,zoneId};if(zoneId!=='vaelthar_city'){stopCityAmbience();return;}if(!cityAmbience){if(ctx)startCityAmbience(pendingAmbience);return;}const day=hour>=6&&hour<21,now=ctx.currentTime;cityAmbience.gain.gain.setTargetAtTime(enabled?.25:0,now,.4);cityAmbience.crowd.gain.setTargetAtTime(day?.12:.025,now,.5);cityAmbience.wind.gain.setTargetAtTime(weather==='rain'?.095:.042,now,.5);cityAmbience.rain.gain.setTargetAtTime(weather==='rain'?.12:0,now,.35);
+    pendingAmbience={...pendingAmbience,hour,weather,zoneId};if(zoneId!=='vaelthar_city'){stopCityAmbience();return;}if(!cityAmbience){if(ctx)startCityAmbience(pendingAmbience);return;}
+    const day=hour>=6&&hour<21,now=ctx.currentTime;cityAmbience.gain.gain.setTargetAtTime(enabled?.25:0,now,.4);cityAmbience.crowd.gain.setTargetAtTime(day?.085:.018,now,.5);cityAmbience.wind.gain.setTargetAtTime(weather==='rain'?.095:.042,now,.5);cityAmbience.rain.gain.setTargetAtTime(weather==='rain'?.12:0,now,.35);
+    for(const emitter of cityAmbience.emitters||[]){emitter.active=cityEmitterActive(emitter.config,hour);const weatherFactor=weather==='rain'&&['crowd','market','animals'].includes(emitter.config.kind)?.62:1;const target=emitter.active&&enabled?(emitter.config.volume||.35)*weatherFactor:0;emitter.input.gain.setTargetAtTime(target,now,.45);}
+  }
+
+  function updateCityListener({position=[0,0,0],forward=[0,0,-1],up=[0,1,0]}={}) {
+    pendingCityListener={position:[...position],forward:[...forward],up:[...up]};if(!ctx)return;
+    const listener=ctx.listener,now=ctx.currentTime,set=(param,value)=>param?.setTargetAtTime(value,now,.025);
+    if(listener.positionX){set(listener.positionX,position[0]||0);set(listener.positionY,position[1]||0);set(listener.positionZ,position[2]||0);set(listener.forwardX,forward[0]||0);set(listener.forwardY,forward[1]||0);set(listener.forwardZ,forward[2]??-1);set(listener.upX,up[0]||0);set(listener.upY,up[1]??1);set(listener.upZ,up[2]||0);}
+    else {listener.setPosition(position[0]||0,position[1]||0,position[2]||0);listener.setOrientation(forward[0]||0,forward[1]||0,forward[2]??-1,up[0]||0,up[1]??1,up[2]||0);}
+  }
+
+  function getCitySoundscapeState() {
+    return {active:!!cityAmbience,zoneId:pendingAmbience?.zoneId||null,listener:pendingCityListener?{...pendingCityListener}:null,emitters:(cityAmbience?.emitters||[]).map(({config,active})=>({id:config.id,kind:config.kind,active}))};
   }
 
   return {
-    init, play, transition, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,stopCityAmbience,
+    init, play, transition, stop, toggle, setVolume,startCityAmbience,updateCityAmbience,updateCityListener,stopCityAmbience,
     sfx: { dice: sfx_dice, holy: sfx_holy, dark: sfx_dark, sword: sfx_sword, levelup: sfx_levelup, page: sfx_page, travel: sfx_travel },
     isEnabled: () => enabled,
     getTrackId: () => currentTrackId,
     getVolume: () => musicVolume,
+    getCitySoundscapeState,
   };
 })();
 

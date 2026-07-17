@@ -9,7 +9,7 @@ import { Party3DManager } from './party-manager.js?v=163';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=151';
 import { WorldPolish } from './world-polish.js';
 import { CinematicDirector } from './cinematic-director.js?v=145';
-import { CityAtmosphere } from './city-atmosphere.mjs?v=162';
+import { CityAtmosphere } from './city-atmosphere.mjs?v=168';
 import { CameraObstruction } from './camera-obstruction.mjs?v=159';
 import { WorldPerformanceManager } from './world-performance.mjs?v=144';
 import { environmentAssetLoadStats } from './environment-asset-loader.js?v=144';
