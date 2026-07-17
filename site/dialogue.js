@@ -41,8 +41,14 @@ function isJesusInvocation(text) {
 }
 
 // ─── API CALL VIA SERVER ─────────────────────
+// Structured (contract) replies carry the speech AND the options/effects payload,
+// so they need far more headroom than a plain prose line. At 600 the JSON was being
+// cut off mid-object (stop_reason: max_tokens) and every turn failed validation.
+const CONTRACT_MIN_TOKENS = 1600;
+
 async function callClaude(system, messages, maxTokens = 600, responseContract = null) {
   if (window._npcOffline) return null;
+  if (responseContract) maxTokens = Math.max(maxTokens, CONTRACT_MIN_TOKENS);
   try {
     const res = await fetch('/api/npc', {
       method: 'POST',
@@ -905,7 +911,26 @@ CRITICAL RULES:
 REQUIRED RESPONSE CONTRACT:
 {"schemaVersion":1,"kind":"npc_dialogue","speech":"Your in-character response","options":[{"label":"Ask about the evidence","type":"talk","check":null,"effects":{"facts":{"ai_asked_about_evidence":true}}},{"label":"Pressure them to reveal the name","type":"talk","check":{"skill":"intimidation","ability":"cha","dc":13},"effects":{"flags":{"ai_npc_pressured":true},"reputation":[{"faction":"city_watch","delta":-1}]},"failureEffects":{"flags":{"ai_npc_suspicious":true},"reputation":[{"faction":"city_watch","delta":-2}]}},{"label":"End conversation","type":"end","check":null,"effects":{}}],"sceneBreak":null,"effects":{"affection":0,"intimate":false,"married":false}}
 Choice effects may contain only: flags, facts, reputation, resources, items, and questEvents. Use failureEffects only with a check. Keep rewards modest and use {} when nothing changes.
-Only effects requested by the ROMANCE context may be non-default. affection must be an integer from -20 to 20.`;
+Only effects requested by the ROMANCE context may be non-default. affection must be an integer from -20 to 20.
+
+KEY NAMING — STRICTLY ENFORCED:
+Every key inside "flags" and "facts" MUST begin with the prefix ai_ (e.g. "ai_rhael_pressed", "ai_learned_varek_name").
+Keys without the ai_ prefix are REJECTED and the whole reply is discarded. Never use the player's or NPC's name as a bare key.
+
+TWO DIFFERENT "effects" — DO NOT MIX THEM:
+1. TOP-LEVEL "effects" is ROMANCE ONLY. It may contain EXACTLY these three keys and nothing else:
+   {"affection":0,"intimate":false,"married":false}
+   Putting flags, facts, reputation, resources, items or questEvents here is REJECTED and the whole reply is discarded.
+2. Each OPTION's "effects"/"failureEffects" is where flags, facts, reputation, resources, items and questEvents belong.
+
+questEvents — ALWAYS use an empty array: "questEvents": []
+Quest progression is fired by the game's own authored scenes, never by you. You cannot know the valid event ids,
+and any invented value is REJECTED (the whole reply is discarded). Record discoveries as ai_* facts instead.
+
+OUTPUT FORMAT — ABSOLUTE, OVERRIDES EVERYTHING ABOVE:
+Your entire reply must be ONE JSON object and nothing else. The FIRST character you output must be "{" and the LAST must be "}".
+Do NOT narrate before the JSON. Do NOT add markdown fences. Do NOT repeat the speech outside the object.
+ALL in-character prose — dialogue and *actions* — goes INSIDE the "speech" field. Any character outside the JSON object breaks the game.`;
 
   const charName = char?.name || 'The player';
   // Frame the message clearly so Claude always knows who is acting

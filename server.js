@@ -1,3 +1,7 @@
+// Load .env for local dev (ANTHROPIC_API_KEY, NANOBANANA_API_KEY, DEBUG_KEY).
+// In production Railway injects real env vars; dotenv never overrides those.
+try { require('dotenv').config(); } catch (_) { /* dotenv optional */ }
+
 console.log('Starting Sanctum & Shadow server...');
 const express = require('express');
 console.log('express loaded');
@@ -121,7 +125,14 @@ app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured.' });
 
-  const body = JSON.stringify({ model, max_tokens: maxTokens, system, messages });
+  // Structured replies: prefill the assistant turn with "{" so the model MUST continue
+  // a JSON object. Instructions alone were unreliable — the roleplay prompt kept winning
+  // and it narrated prose (or prose + a fenced block), failing contract validation.
+  // The prefilled "{" is not echoed back by the API, so we re-attach it below.
+  const outboundMessages = responseContract
+    ? [...messages, { role: 'assistant', content: '{' }]
+    : messages;
+  const body = JSON.stringify({ model, max_tokens: maxTokens, system, messages: outboundMessages });
 
   const options = {
     hostname: 'api.anthropic.com',
@@ -147,6 +158,14 @@ app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
       try {
         const payload = JSON.parse(data);
         if (status >= 200 && status < 300 && responseContract) {
+          // Re-attach the prefilled "{" so the payload is a complete JSON object for
+          // BOTH our validation and the client, which parses payload.content itself.
+          const firstText = Array.isArray(payload.content)
+            ? payload.content.find(block => typeof block?.text === 'string')
+            : null;
+          if (firstText && !firstText.text.trimStart().startsWith('{')) {
+            firstText.text = '{' + firstText.text;
+          }
           const raw = Array.isArray(payload.content) ? payload.content.map(block => block?.text || '').join('').trim() : '';
           const validation = ClaudeContract.parseAndValidate(responseContract, raw);
           if (!validation.ok) {

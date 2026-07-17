@@ -31,16 +31,51 @@
   function rejectUnknown(input,allowed,path,errors){
     for(const key of Object.keys(input))if(!allowed.has(key))errors.push(`${path}.${key} is not allowed`);
   }
+  // Scan out the first *balanced* {...} object, ignoring braces inside strings.
+  // Returns null when no complete object exists (e.g. truncated by max_tokens).
+  function balancedObject(text){
+    const start=text.indexOf('{');
+    if(start<0)return null;
+    let depth=0,inStr=false,esc=false;
+    for(let i=start;i<text.length;i++){
+      const ch=text[i];
+      if(inStr){
+        if(esc)esc=false;
+        else if(ch==='\\')esc=true;
+        else if(ch==='"')inStr=false;
+        continue;
+      }
+      if(ch==='"'){inStr=true;continue;}
+      if(ch==='{')depth++;
+      else if(ch==='}'){depth--;if(depth===0)return text.slice(start,i+1);}
+    }
+    return null;
+  }
+  // Models often narrate in prose and THEN emit the JSON (fenced or bare), so the
+  // payload is rarely the whole reply. Try progressively looser extractions.
+  function jsonCandidates(raw){
+    const out=[raw.trim()];
+    const fence=/```(?:json)?\s*([\s\S]*?)```/gi;           // NOT anchored — fences may sit mid-reply
+    let m;while((m=fence.exec(raw)))out.push(m[1].trim());
+    const bal=balancedObject(raw);
+    if(bal)out.push(bal);
+    return out;
+  }
   function parseRaw(raw){
-    const errors=[];
     if(typeof raw!=='string'||!raw.trim())return result(null,['response must be a non-empty JSON string']);
-    let source=raw.trim();
-    const fenced=source.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-    if(fenced)source=fenced[1].trim();
-    let value;
-    try{value=JSON.parse(source);}catch{return result(null,['response is not valid JSON']);}
-    if(!isRecord(value))errors.push('response root must be an object');
-    return result(value,errors);
+    let sawNonRecord=false;
+    for(const candidate of jsonCandidates(raw)){
+      if(!candidate)continue;
+      let value;
+      try{value=JSON.parse(candidate);}catch{continue;}
+      if(!isRecord(value)){sawNonRecord=true;continue;}
+      return result(value,[]);
+    }
+    if(sawNonRecord)return result(null,['response root must be an object']);
+    // A '{' with no balanced close almost always means max_tokens cut it off.
+    if(raw.includes('{')&&!balancedObject(raw))
+      return result(null,['response JSON is incomplete (likely truncated by max_tokens)']);
+    return result(null,['response is not valid JSON']);
   }
   function validateEnvelope(input,kind,errors){
     if(input.schemaVersion!==VERSION)errors.push(`schemaVersion must equal ${VERSION}`);

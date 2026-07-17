@@ -1,0 +1,21 @@
+# Things `railway up` must never upload — none are needed at runtime.
+# The live game is `node server.js` serving ./site; nothing here is served or required.
+.git/
+node_modules/
+.env
+.env.*
+sessions.json
+sessions.json.tmp
+*.log
+.DS_Store
+
+# Local-only prototypes, tooling, and Blender scratch
+bg3-prototype/
+portrait-previews/
+tools/
+**/__pycache__/
+**/*.blend
+**/*.blend1
+*.md
+site/BUG_AUDIT.md
+site/BUGFIX_REPORT.md
