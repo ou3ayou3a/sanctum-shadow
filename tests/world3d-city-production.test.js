@@ -11,6 +11,8 @@ const materials=read('world3d/medieval-materials.mjs');
 const atmosphere=read('world3d/city-atmosphere.mjs');
 const obstruction=read('world3d/camera-obstruction.mjs');
 const generic=read('world3d/zones/generic-zone.js');
+const interiorRegistry=read('world3d/interior-registry.mjs');
+const interiorKit=read('world3d/interior-kit.mjs');
 const npcs=read('world3d/vaelthar-npcs.mjs');
 const audio=read('audio.js');
 
@@ -33,8 +35,8 @@ test('PBR materials, weather, day-night lighting, and obstruction fading are con
 });
 
 test('important interiors have physical exits, collisions, NPC positions, and hotspots',()=>{
-  for(const interior of['tavern_interior','shop_interior','temple_interior','castle_interior','house_interior','dungeon_interior'])assert.match(generic,new RegExp(interior));
-  assert.match(generic,/interior_exit/);assert.match(generic,/addHotspot/);assert.match(generic,/interiorNPCs/);assert.match(generic,/furniture/);
+  for(const interior of['tavern_interior','shop_interior','temple_interior','castle_interior','house_interior','dungeon_interior'])assert.match(interiorRegistry,new RegExp(interior));
+  assert.match(generic,/interior_exit/);assert.match(generic,/interiorDefinition\.hotspots/);assert.match(generic,/interiorNPCs/);assert.match(interiorKit,/collision:true/);
 });
 
 test('citizens have schedules and the city owns a dedicated adaptive ambience bus',()=>{

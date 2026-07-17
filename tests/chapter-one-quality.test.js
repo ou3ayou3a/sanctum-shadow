@@ -17,7 +17,8 @@ test('every Chapter I destination owns an authored presentation identity',async(
 test('generic Chapter I zones use textured terrain and authored identity dressing',()=>{
   const generic=read('site/world3d/zones/generic-zone.js'),quality=read('site/world3d/chapter-one-quality.mjs');
   assert.match(generic,/createChapterOneQuality/);
-  assert.match(generic,/new THREE\.PlaneGeometry\(52,52,32,32\)/);
+  assert.match(generic,/groundWidth=isInterior\?interiorSize\[0\]\*2\.2:52/);
+  assert.match(generic,/isInterior\?1:32/);
   assert.doesNotMatch(generic,/new THREE\.CircleGeometry\(26,64\)/);
   for(const feature of['arrival-marker','authored-road-edge-markers','authored-road-wear-and-debris','zone-atmosphere','materials.material'])assert.match(quality,new RegExp(feature.replace('.','\\.')));
 });

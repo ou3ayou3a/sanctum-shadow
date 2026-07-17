@@ -1,4 +1,5 @@
 import {placeEnvironmentAsset} from './environment-asset-loader.js?v=144';
+import {interiorDefinitionFor} from './interior-registry.mjs';
 
 const ROOT='world3d/assets/production';
 
@@ -34,10 +35,4 @@ export function productionRaceModel(race,fallback='prototype/assets/elf-ranger.g
   return RACE_MODEL_URLS[race]||fallback;
 }
 
-const INTERIOR_BY_LOCATION=Object.freeze({
-  harren_hall:'castle_interior',monastery_cellar:'dungeon_interior',tower_antechamber:'dungeon_interior',
-  church_archive:'shop_interior',archive_scriptorium:'shop_interior',temple_quarter:'temple_interior',thornwood_hut:'house_interior'
-});
-const INTERIOR_BY_KIT=Object.freeze({tavern:'tavern_interior',cellar:'dungeon_interior',archive:'shop_interior',dungeon:'dungeon_interior'});
-
-export function interiorAssetFor(location,kit){return INTERIOR_BY_LOCATION[location?.id]||INTERIOR_BY_KIT[kit]||null;}
+export function interiorAssetFor(location){return interiorDefinitionFor(location)?.asset||null;}
