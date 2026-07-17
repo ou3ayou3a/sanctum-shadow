@@ -439,6 +439,16 @@ function safeHandler(name, fn) {
 }
 
 // ─── SOCKET.IO ───────────────────────────────
+
+// Prayer blessings last N combats (prayer.js). Tick them down when a combat
+// concludes so the server-side character copies stay authoritative.
+function tickPrayerBlessings(s) {
+  for (const p of Object.values(s.players || {})) {
+    const b = p && p.character && p.character.prayerBlessing;
+    if (b && Number(b.combats) > 0 && --b.combats <= 0) p.character.prayerBlessing = null;
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
@@ -560,12 +570,14 @@ io.on('connection', (socket) => {
     character.name = sanitizeName(character.name);
     character.class = typeof character.class === 'string' ? character.class.replace(/[<>]/g, '').slice(0, 40) : '';
 
+    const wasReady = !!s.players[socket.id].ready;
     s.players[socket.id].character = character;
     s.players[socket.id].hp = character.hp;
     s.players[socket.id].maxHp = character.maxHp;
     s.players[socket.id].ready = true;
     broadcastSession(code);
-    io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} is ready as ${character.name} the ${character.class}!` });
+    // Mid-session re-syncs (e.g. prayer.js blessing updates) shouldn't re-announce.
+    if (!wasReady) io.to(code).emit('chat_message', { system: true, text: `${s.players[socket.id].name} is ready as ${character.name} the ${character.class}!` });
     // A late joiner may finish character creation after the campaign has already
     // started. Launch only that socket and immediately give it the canonical state.
     if (s.state === 'playing' || s.state === 'combat') {
@@ -628,15 +640,21 @@ io.on('connection', (socket) => {
       const weaponAtk = Number(char.atkBonus) || 0;
       const armorAc = Number(char.ac) ? Number(char.ac) - 10 : 0;
       const initiative = Rules.rollInitiative({ bonus:dexMod }).total;
+      // Prayer blessings/curses (prayer.js) — clamp client-supplied values (#66 spirit).
+      const clampMod = v => Math.max(-4, Math.min(4, Number(v) || 0));
+      const bless = (char.prayerBlessing && Number(char.prayerBlessing.combats) > 0) ? char.prayerBlessing : null;
+      const curse = char.prayerCurse || null;
+      const prayerAtk = (bless ? clampMod(bless.atk) : 0) + (curse ? clampMod(curse.atk) : 0);
+      const prayerAc  = (bless ? clampMod(bless.ac)  : 0) + (curse ? clampMod(curse.ac)  : 0);
       combatants[pid] = {
         id: pid, name: char.name, playerId: pid,
         hp: p.hp || char.hp, maxHp: char.maxHp,
         mp: char.mp || 100, maxMp: char.maxMp || 100,
-        ac:10 + dexMod + armorAc,
-        atk:attackMod + weaponAtk + proficiency,
+        ac:10 + dexMod + armorAc + prayerAc,
+        atk:attackMod + weaponAtk + proficiency + prayerAtk,
         attackAbility,
-        attackBonus:attackMod + weaponAtk + proficiency,
-        damageMod:attackMod + weaponAtk,
+        attackBonus:attackMod + weaponAtk + proficiency + prayerAtk,
+        damageMod:attackMod + weaponAtk + prayerAtk,
         characterClass:String(char.class||'warrior').toLowerCase().replace(/[^a-z_-]/g,'').slice(0,24)||'warrior',
         type: 'player', isPlayer: true, boss: false,
         spells: char.spells || [], level: char.level || 1,
@@ -793,7 +811,7 @@ io.on('connection', (socket) => {
 
     if (players.length === 0) {
       cs.active = false; s.state = 'playing';
-      io.to(code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
+      tickPrayerBlessings(s); io.to(code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
       broadcastSession(code);
       return;
     }
@@ -803,7 +821,7 @@ io.on('connection', (socket) => {
       const xp = Object.values(cs.combatants).filter(c=>!c.isPlayer).reduce((a,c)=>a+(c.xp||50),0);
       const sharers = Object.values(s.players).filter(p => p && p.connected && p.character).length || 1;
       const xpEach = Math.floor(xp / sharers);
-      io.to(code).emit('combat_ended', { victory: true, xp, xpEach, combatState: cs, presentation, log:logEntry });
+      tickPrayerBlessings(s); io.to(code).emit('combat_ended', { victory: true, xp, xpEach, combatState: cs, presentation, log:logEntry });
       broadcastSession(code);
       return;
     }
@@ -1096,7 +1114,7 @@ function processEnemyTurn(s, seq) {
   const players = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
   if (players.length === 0) {
     cs.active = false; s.state = 'playing';
-    io.to(s.code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
+    tickPrayerBlessings(s); io.to(s.code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
     broadcastSession(s.code); return;
   }
 

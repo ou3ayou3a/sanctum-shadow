@@ -151,7 +151,7 @@
     patron = normalizePatron(patron);
     const c = char();
     if (!c) { log('You need a living character to pray.', 'system'); return null; }
-    if (window.combatState && combatState.active) {
+    if ((window.combatState && combatState.active) || (window.mp && window.mp.combatState && window.mp.combatState.active)) {
       log('🙏 Not in the din of battle. Pray before you draw, or after you sheathe.', 'system');
       return null;
     }
@@ -198,9 +198,38 @@
     } else {
       log('🙏 The words scatter before they land anywhere. Ask plainly — for help, or for harm.', 'system');
     }
+    syncMPCharacter();
     return { roll: roll, kind: kind, stance: stance };
   }
   window.pray = pray;
+
+  // ─── MULTIPLAYER SYNC ─────────────────────────────────────
+  // MP combat is server-authoritative: the server builds combatants from its
+  // copy of each character, so blessings/curses must be pushed up after a
+  // prayer resolves, and ticked down locally when the server ends a combat.
+  function syncMPCharacter() {
+    const c = char();
+    if (c && window.mp && window.mp.sessionCode && window.mp.socket) {
+      window.mp.socket.emit('character_ready', { code: window.mp.sessionCode, character: c });
+    }
+  }
+
+  function hookMPCombatEnd() {
+    if (window.__prayerMPHooked) return true;
+    const sock = window.mp && window.mp.socket;
+    if (!sock) return false;
+    sock.on('combat_ended', function () {
+      try {
+        const c = char();
+        if (c && c.prayerBlessing && --c.prayerBlessing.combats <= 0) {
+          c.prayerBlessing = null;
+          log('The blessing lifts, quietly, its work done.', 'system');
+        }
+      } catch (e) { /* never break the combat-end flow */ }
+    });
+    window.__prayerMPHooked = true;
+    return true;
+  }
 
   // ─── COMBAT INTEGRATION ───────────────────────────────────
   // Wrap startCombat so blessings and curses shape the freshly built player
@@ -300,8 +329,9 @@
   }
 
   // ─── BOOT ─────────────────────────────────────────────────
-  // Only install the combat hook; the prayer entry points are the native buttons.
-  const t = setInterval(function () { if (hookCombat()) clearInterval(t); }, 800);
+  // Install the solo combat hook + the MP combat-end listener; the prayer
+  // entry points are the native quick-action buttons.
+  const t = setInterval(function () { if (hookCombat() && hookMPCombatEnd()) clearInterval(t); }, 800);
   setTimeout(function () { clearInterval(t); }, 30000);
 
   console.log('🙏 Prayer & divine intervention loaded — d20 petitions to GOD or the Dark.');
