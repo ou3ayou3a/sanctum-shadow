@@ -438,9 +438,11 @@
                 grantXP(120);
                 runScene('chancery_rubric_rehearsal');
               }},
-            { icon: '🕯', label: 'Take page one to Sister Mourne. She has read every buried text alive.', type: 'move',
-              action: () => runScene('mourne_page_one') },
           ];
+          if (!(window.npcAbsent && window.npcAbsent('sister_mourne'))) {
+            opts.push({ icon: '🕯', label: 'Take page one to Sister Mourne. She has read every buried text alive.', type: 'move',
+              action: () => runScene('mourne_page_one') });
+          }
           if (varekReachable()) {
             opts.push({ icon: '⛩', label: 'Take page one to Elder Varek. Let him read the first page.', type: 'move',
               action: () => runScene('varek_first_page') });
@@ -457,6 +459,8 @@
     mourne_page_one: () => {
       setFlag('mourne_read_page_one');
       return {
+        // Safety net: if Mourne is dead/arrested/fled, you cannot take her the page.
+        fateRedirect: { sister_mourne: { dead: 'mourne_page_one_absent', arrested: 'mourne_page_one_absent', fled: 'mourne_page_one_absent' } },
         location: 'Temple Quarter — Sister Mourne',
         locationIcon: '🕯',
         narration: `She takes it because she is curious, and she reads it the way she does everything, which is completely. You watch her get to the bottom of page one. You watch her go back to the top of page one. You watch her do it a third time, and Sister Mourne has never in her life needed to read anything three times.\n\nShe is the most learned living reader of the texts the Church buried. She had to be — the Church trains its agents to counter the argument, which means she had to read the argument. She knows the six petitions. She could recite them. She has known since she was twenty-four what the Eternal Flame was built on top of and she has spent every year since not thinking about it.\n\n"I read the operative clauses," she says.\n\nShe does not raise her voice. She never does.\n\n"Clause four. The financial provisions. The transitional schedules. I read them four times and I read them correctly and I was right about what they would do to us." Her thumb is on the seventh cross at the bottom of the page. "I have been in the room with this document. More than once. I read page four."`,
@@ -488,6 +492,28 @@
           { icon: '📜', label: 'Take page one back. Leave her with it.', type: 'move',
             action: () => runScene('covenant_author_closed') },
         ]
+      };
+    },
+
+    // Consequence variant: you went looking for Mourne and she is not there to find.
+    // Reached only when her fate is dead / arrested / fled (routed by runScene's guard).
+    mourne_page_one_absent: () => {
+      setFlag('mourne_read_page_one'); // the objective is "confront the page", satisfied either way
+      const fate = window.getNPCFate ? window.getNPCFate('sister_mourne') : 'dead';
+      const line = fate === 'arrested'
+        ? `The Temple Quarter cell they are holding her in does not permit visitors carrying documents, and the sergeant on the door is not going to make an exception for a page of a burned treaty. The most learned living reader of the buried texts is thirty feet away behind a locked door, and she will read this only if the Watch decides she may, which is to say never.`
+        : fate === 'fled'
+          ? `Her rooms in the Temple Quarter are cold. The candle-stubs are days old. The Church trains its agents to be gone before the door is kicked, and Sister Mourne was the best they had. Wherever The Candle is tonight, it is not Vaelthar, and the page in your hand will have to be read by someone with less learning and more nerve.`
+          : `You go to the Temple Quarter out of habit before you remember. Sister Mourne is dead — you were there — and the one reader in the realm who could have told you what the seventh cross at the bottom of page one meant is not going to tell anyone anything. You stand in the street with the page in your hand. Being right about clause four did not save her. Neither did you.`;
+      return {
+        location: 'Temple Quarter — Where Mourne Was',
+        locationIcon: '🕯',
+        narration: `${line}\n\nYou read page one yourself, in the street, in the failing light. The six petitions. The seventh cross. A hand better than yours. You do not have her learning, so you do not get her certainty — but you get the shape of it, and the shape is enough to carry to Stone VII.`,
+        sub: `Her absence is a hole in the page you will feel at the tower. You made it. You carry it.`,
+        options: [
+          { icon: '📜', label: 'Close the book. You know who wrote it now.', type: 'move',
+            action: () => { grantXP(120); runScene('covenant_author_closed'); } },
+        ],
       };
     },
 
@@ -652,6 +678,20 @@
           // If not, it lands on an "it" — and that is the lesson, not a bug.
           opts.push({ icon: '✝', label: 'Speak the Name: "Jesus Christ."', type: 'talk',
             action: () => runScene(getFlag('spoke_selvane') ? 'tower_ending_third_day' : 'tower_name_without_name') });
+          // ── Consequence-driven endings: offered ONLY if earned by how you played ──
+          var earned = (window.availableEndings ? window.availableEndings() : { sword: true });
+          if (earned.uprising) {
+            opts.push({ icon: '👥', label: 'The city followed you here. Open the door and let them in.', type: 'move',
+              action: () => runScene('tower_ending_uprising') });
+          }
+          if (earned.restoration) {
+            opts.push({ icon: '⛪', label: 'Send for Mourne. Give the flame back to the faith — made true this time.', type: 'talk',
+              action: () => runScene('tower_ending_restoration') });
+          }
+          if (earned.devour) {
+            opts.push({ icon: '🌑', label: 'Take his faces. He was made to be replaced — replace him.', type: 'combat',
+              action: () => runScene('tower_ending_devour') });
+          }
           return opts;
         })(),
       };
@@ -897,6 +937,95 @@
             }},
           { icon: '🗺', label: 'Walk out. The Fields are just a field now.', type: 'move',
             action: () => { addLog('You walk out of the Ashen Fields in ordinary grey dirt under an ordinary sky, and behind you a tower that nobody could find is standing in plain sight with nothing in it, and the last mercy in the world turns out to be that a man can be given his name back, and a Name can be spoken over him that nobody owns, and neither of those costs anything at all except being willing to say them out loud.', 'holy'); goTo('vaelthar_city'); } },
+        ]
+      };
+    },
+
+    // ══════════════ ENDING 4 — THE UPRISING ══════════════
+    // Earned by: citizens behind you + a major NPC you did NOT kill + a non-dark run.
+    // The people seal him, not the state. Your spared/allied NPCs lead the crowd.
+    tower_ending_uprising: () => {
+      if (!getFlag('chapter1_ending_uprising')) {
+        setFlag('chapter1_ending_uprising');
+        setFlag('chapter1_complete');
+        setFlag('covenant_resealed');
+        setFlag('sealed_by_the_people');
+        grantXP(900);
+        grantHolyPoints(10);
+        var leader = (window.getNPCFate && (window.getNPCFate('captain_rhael') === 'ally' || window.getNPCFate('captain_rhael') === 'spared')) ? 'rhael'
+          : (window.getNPCFate && (window.getNPCFate('sister_mourne') === 'ally' || window.getNPCFate('sister_mourne') === 'spared')) ? 'mourne'
+          : 'the crowd';
+        addLog('👥 QUEST COMPLETE: The Shattered God — THE UPRISING. Nobody warranted this. Seven hundred people from Mol and Cupside Lane and the Temple Quarter walked out to a tower they were told did not exist, because you told them the truth and they believed you, and a warrant is only a piece of paper that says a crowd is allowed to do what this crowd did anyway.', 'holy');
+        if (leader === 'rhael') addLog('🛡 Captain Rhael stands at the front, out of uniform, because the Watch would not sanction this and she came anyway. She spared you once. You spared her back. Tonight she leads.', 'holy');
+        else if (leader === 'mourne') addLog('🕯 Sister Mourne stands at the front. She never meant a word of the faith — but she means this, the first thing she has ever meant, and it turns out that is enough when there are seven hundred people meaning it with you.', 'holy');
+      }
+      return {
+        location: 'The Tower of Ash — The People at the Door',
+        locationIcon: '👥',
+        narration: `You do not read the seven clauses. Seven hundred people do — badly, out of time, half of them mispronouncing line seven, all of them meaning it. The Church spent four hundred years insisting the prayer required a warranted sayer who meant it, and it turns out the Church was half right: it required someone who meant it. It never said how many. It never said they had to be licensed.\n\nThe faces fold in under the weight of a whole city saying the same true thing at once. The man on the thirty-seventh step sits back down. He is not sealed by a signature this time. He is sealed by being, for the first time in four centuries, outnumbered by people who know his name and are not afraid of it.\n\n"Somebody said Sel," he says, wonderingly. "A great many somebodies said Sel."`,
+        sub: `Not the state. Not the Church. The people you did not abandon, sealing him because you gave them the truth to do it with.`,
+        options: [
+          { icon: '📜', label: 'What happens now?', type: 'explore',
+            action: () => { addLog('📜 CHAPTER II: A seal held up by seven hundred people is only as strong as their memory of why they stood there. The Crown now knows the prayer needs no warrant — which means anyone can seal it, and anyone can choose not to. You did not restore the old order. You proved it was never necessary. Both sides will spend Chapter II deciding whether that was salvation or the most dangerous thing anyone has ever done.', 'hell'); grantXP(150); } },
+          { icon: '🗺', label: 'Walk back into the city that walked out for you.', type: 'move',
+            action: () => { addLog('They part to let you through and none of them cheer, because it was not that kind of night, but every one of them meets your eyes, which is a thing that has never once happened to a person who saved the world by signing something.', 'holy'); goTo('vaelthar_city'); } },
+        ]
+      };
+    },
+
+    // ══════════════ ENDING 5 — THE RESTORATION ══════════════
+    // Earned by: Church honours you + holy run + Mourne alive to carry the flame.
+    tower_ending_restoration: () => {
+      if (!getFlag('chapter1_ending_restoration')) {
+        setFlag('chapter1_ending_restoration');
+        setFlag('chapter1_complete');
+        setFlag('covenant_resealed');
+        setFlag('church_reformed_true');
+        grantXP(1000);
+        grantHolyPoints(20);
+        var mourneLeads = window.getNPCFate && window.getNPCFate('sister_mourne') === 'ally';
+        addLog('⛪ QUEST COMPLETE: The Shattered God — THE RESTORATION. The Church of the Eternal Flame does not fall. It is worse and better than that: it is told the truth about what it was built on, by someone it trusts, and it chooses to keep going anyway — this time knowing the name in the flame is a murdered man and not a god, and that the difference is the entire point.', 'holy');
+        addLog(mourneLeads
+          ? '🕯 Sister Mourne takes Stone VII as the first Sayer of the reformed Church. The most learned reader of the buried texts now says the prayer she spent her life countering — and she means it, because you showed her the one thing worth meaning it for.'
+          : '🕯 Sister Mourne carries the flame to the reformed altar. She is alive to do it because you did not cut her down when you could have, and a Church cannot be rebuilt true by people who murdered the last honest reader in it.', 'holy');
+      }
+      return {
+        location: 'The Tower of Ash — Stone VII, Reconsecrated',
+        locationIcon: '⛪',
+        narration: `The re-seal holds because the officer means it — but this ending is not the sealing. It is what happens the morning after. You do not bury the truth again; you hand it to a Church that has earned, through you, the standing to hear it. The illuminated capitals are unglossed. The hymn is sung with the name known. Selvane is not worshipped as a god — that was always the lie — but he is grieved as a man, every dawn, by a realm that finally knows what it has been doing.\n\nThe machine goes on. Varek was right that it must. But it goes on with its eyes open, and an institution that knows what it is standing on is a different thing entirely from one that does not.`,
+        sub: `You did not tear it down and you did not prop up the lie. You made it true. That is rarer than either.`,
+        options: [
+          { icon: '📜', label: 'What happens now?', type: 'explore',
+            action: () => { addLog('📜 CHAPTER II: A Church that admits its founding was a forged resurrection is a Church at war with itself. Half the clergy will call the reformation a heresy and the old lie orthodoxy. You have not ended the conflict. You have moved it inside the Church walls, where it will be quieter, longer, and far harder to see coming.', 'hell'); grantXP(150); } },
+          { icon: '🗺', label: 'Ride home. The bells are ringing differently.', type: 'move',
+            action: () => { addLog('You cannot say how, but they are. The same bells, the same hours. Somebody who knows what the flame is has changed the way they pull the rope, and the whole city can hear it and none of them know why.', 'holy'); goTo('vaelthar_city'); } },
+        ]
+      };
+    },
+
+    // ══════════════ ENDING 6 — THE DEVOURING ══════════════ (dark)
+    // Earned by: a damned run that killed a major NPC + a city that fears you.
+    tower_ending_devour: () => {
+      if (!getFlag('chapter1_ending_devour')) {
+        setFlag('chapter1_ending_devour');
+        setFlag('chapter1_complete');
+        setFlag('became_the_flame');
+        grantXP(900);
+        grantHellPoints(30);
+        addLog('🌑 QUEST COMPLETE: The Shattered God — THE DEVOURING. He was built to be a vessel somebody else could fill. Four hundred years ago the founders filled him with a lie. Tonight you fill him with yourself. You do not seal him and you do not free him. You take the seven holes where seven pieces were subtracted and you put seven pieces of yourself into them, and the faces stop being tried on because they have finally found the one they fit.', 'hell');
+        addLog('☠ You murdered on the way here, and the city knows it, and a city that fears you is exactly the congregation this position requires. They will pray to you at dawn. You will be able to hear them. That is the part the founders never managed — you can hear them, and you will answer, and answering is how it starts.', 'hell');
+      }
+      return {
+        location: 'The Tower of Ash — The Thirty-Seventh Step',
+        locationIcon: '🌑',
+        threat: '☠ Ascension',
+        narration: `"Has it been three days yet?" he asks, for the last time.\n\nYou tell him yes. It has been three days. You tell him the thing nobody has been able to tell him in four hundred and four years, and it is a lie, and he believes it because he has been waiting to believe it since before your great-grandparents were born, and in the moment of his relief he is finally, completely undefended.\n\nAnd you step into the hole.\n\nThe ash falls upward and does not stop. There is a new Eternal Flame in the tower of ash, and it is you, and it is awake, and it can hear every prayer in the realm — which is the one thing the murdered man never could. Somewhere below, six orphaned pieces feel a centre appear where there was none, and turn toward it, and begin, gladly, to come home.`,
+        sub: `You did not break the cycle. You became the thing at the middle of it. Chapter II has a god now, and it is you.`,
+        options: [
+          { icon: '📜', label: 'What happens now?', type: 'explore',
+            action: () => { addLog('📜 CHAPTER II — THE NEW FLAME: the six fragments converge on you instead of scattering. You are not shattered; you are gathering. The Church prays to a flame that answers for the first time in living memory, and does not yet understand what it is answering. You do. That is the only advantage anyone will have against you, and it will not be enough.', 'hell'); setFlag('chapter2_dark_ascension'); grantXP(150); } },
+          { icon: '🌑', label: 'Reach out to the first mind that prays at dawn.', type: 'explore',
+            action: () => { addLog('A child in Mol, at first light, says the morning hymn without knowing the capitals spell a name. You are the name now. You feel the child say you. You could answer. You have all the time in the world to decide how.', 'hell'); grantHellPoints(5); } },
         ]
       };
     },

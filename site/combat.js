@@ -1622,12 +1622,19 @@ const NPC_ID_ALIASES = {
   harren: 'sir_harren',
   harren_fallen: 'sir_harren',
   varek: 'elder_varek',
+  scribe: 'trembling_scribe',
+  aldran: 'heretic_preacher_aldran',
+  cael: 'brother_cael',
+  theones: 'head_archivist_theones',
 };
 function normalizeNpcId(id, name) {
   let base = (id || (name || '').toLowerCase().replace(/\s+/g, '_'));
   base = base.replace(/_\d{10,}$/, ''); // strip generated timestamp suffix
   return NPC_ID_ALIASES[base] || base;
 }
+// Exposed so the consequence layer (consequences.js) normalizes ids the same way.
+window.normalizeNpcId = normalizeNpcId;
+window.NPC_ID_ALIASES = NPC_ID_ALIASES;
 
 function recordAuthoredCombatVictory(questScene, defeatedIds = []) {
   if (!questScene) return { updates:[], completions:[] };
@@ -1667,6 +1674,7 @@ function endCombat(victory) {
       window.sceneState.flags['npc_dead_' + normId] = true;
       window.sceneState.flags['killed_' + normId] = gameState.character?.name || 'player';
       window.sceneState.flags['fought_' + normId] = true;
+      window.setNPCFate?.(normId, 'dead'); // unified fate → scenes/endings gate on this
     });
     addLog(`━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
     addLog(`⚔ VICTORY! All enemies defeated!`, 'holy');

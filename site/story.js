@@ -543,6 +543,27 @@ function runScene(sceneId) {
     if (built) {
       built.id = sceneId;
       if (isPersonalScene) built.personal = true;
+      // ── NPC-fate appearance guard ────────────────────────────────
+      // A scene may declare fateRedirect / absentIf to reflect who is gone.
+      //   fateRedirect: { sister_mourne: { dead:'mourne_dead_scene', arrested:'mourne_cell' } }
+      //   absentIf:     ['sister_mourne']   → strip options tagged requiresNPC:'sister_mourne'
+      if (built.fateRedirect && window.getNPCFate) {
+        for (const npcId in built.fateRedirect) {
+          const alt = built.fateRedirect[npcId][window.getNPCFate(npcId)];
+          if (alt && SCENES[alt]) { runScene(alt); return; }
+        }
+      }
+      if (Array.isArray(built.absentIf) && window.npcAbsent) {
+        if (built.options) {
+          built.options = built.options.filter(o => !(o.requiresNPC && window.npcAbsent(o.requiresNPC)));
+        }
+        if (built._narrationIfAbsent) {
+          for (const npcId in built._narrationIfAbsent) {
+            if (window.npcAbsent(npcId)) built.narration = built._narrationIfAbsent[npcId];
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────
       showScene(built);
       window.sceneState.currentScene = sceneId;
       processSceneQuestMilestone(sceneId);
@@ -886,6 +907,7 @@ const MISSING_SCENES = {
 
   rhael_with_evidence: () => {
     setFlag('rhael_has_evidence_copy');
+    window.setNPCFate?.('captain_rhael', 'ally');
     addLog('📜 Captain Rhael has seen the document. He\'s with you now.', 'holy');
     grantHolyPoints(5);
     return {
@@ -1236,6 +1258,7 @@ const MISSING_SCENES = {
 
   mourne_surrenders: () => {
     setFlag('mourne_in_custody');
+    window.setNPCFate?.('sister_mourne', 'arrested');
     grantHolyPoints(8);
     grantXP(300);
     addLog('📜 Sister Mourne surrenders peacefully. She will testify against Elder Varek.', 'holy');
@@ -2378,6 +2401,7 @@ const SCENES = {
 
   mourne_becomes_ally: () => {
     setFlag('mourne_ally');
+    window.setNPCFate?.('sister_mourne', 'ally');
     addLog('📜 ALLY GAINED: Sister Mourne will lead you to Elder Varek.', 'holy');
     grantHolyPoints(5);
     grantXP(250);
