@@ -454,11 +454,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -466,7 +472,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2048920
+      "bytes": 2238344
     },
     "character_dwarf": {
       "category": "characters",
@@ -481,11 +487,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -493,7 +505,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2174272
+      "bytes": 2363428
     },
     "character_elf": {
       "category": "characters",
@@ -508,11 +520,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -520,7 +538,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2241180
+      "bytes": 2430508
     },
     "character_high_elf": {
       "category": "characters",
@@ -535,11 +553,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -547,7 +571,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2326220
+      "bytes": 2515968
     },
     "character_dark_elf": {
       "category": "characters",
@@ -562,11 +586,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -574,7 +604,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2391660
+      "bytes": 2582252
     },
     "character_orc": {
       "category": "characters",
@@ -589,11 +619,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -601,7 +637,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2428348
+      "bytes": 2619252
     },
     "character_goblin": {
       "category": "characters",
@@ -616,11 +652,17 @@
         "Turn_Left",
         "Turn_Right",
         "Interact",
+        "Talk",
+        "Work",
+        "Drink",
         "Weapon_Draw",
         "Weapon_Sheathe",
         "Combat_Idle",
+        "Attack_Heavy",
         "Attack_Slash",
+        "Attack_Dual",
         "Attack_Smite",
+        "Staff_Strike",
         "Cast",
         "Bow_Shot",
         "Block",
@@ -628,7 +670,7 @@
         "Hit",
         "Death"
       ],
-      "bytes": 2496088
+      "bytes": 2687120
     }
   }
 }

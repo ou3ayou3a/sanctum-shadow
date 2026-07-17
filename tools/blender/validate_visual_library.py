@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "site"
 MANIFEST_PATH = SITE / "world3d/assets/production/manifest.json"
 REQUIRED_CHARACTER_ACTIONS = {
-    "Idle", "Walk", "Run", "Attack_Slash", "Attack_Smite", "Cast",
+    "Idle", "Walk", "Run", "Talk", "Work", "Drink", "Attack_Heavy",
+    "Attack_Slash", "Attack_Dual", "Attack_Smite", "Staff_Strike", "Cast",
     "Bow_Shot", "Block", "Dodge", "Hit", "Death",
 }
 

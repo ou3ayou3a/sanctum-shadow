@@ -28,7 +28,7 @@ test('the production manifest covers world architecture, interiors, equipment, a
   for(const race of['human','dwarf','elf','high_elf','dark_elf','orc','goblin']){
     const asset=manifest.assets[`character_${race}`];
     assert.equal(asset.race,race);
-    for(const clip of['Idle','Walk','Run','Walk_Start','Walk_Stop','Turn_Left','Turn_Right','Interact','Weapon_Draw','Weapon_Sheathe','Combat_Idle','Attack_Slash','Attack_Smite','Cast','Bow_Shot','Block','Dodge','Hit','Death'])assert.ok(asset.animations.includes(clip),`${race}: ${clip}`);
+    for(const clip of['Idle','Walk','Run','Walk_Start','Walk_Stop','Turn_Left','Turn_Right','Interact','Talk','Work','Drink','Weapon_Draw','Weapon_Sheathe','Combat_Idle','Attack_Heavy','Attack_Slash','Attack_Dual','Attack_Smite','Staff_Strike','Cast','Bow_Shot','Block','Dodge','Hit','Death'])assert.ok(asset.animations.includes(clip),`${race}: ${clip}`);
   }
 });
 

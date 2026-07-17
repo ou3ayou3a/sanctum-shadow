@@ -57,6 +57,7 @@ export async function equipClass(actor,profile){
 
 export function applyClassPose(actor,profile,progress){
   const wave=Math.sin(progress*Math.PI),armR=rigBone(actor.model,'mixamorig:RightArm'),armL=rigBone(actor.model,'mixamorig:LeftArm'),spine=rigBone(actor.model,'mixamorig:Spine2');
+  actor.classPoseBase=actor.classPoseBase||new Map();for(const bone of[armR,armL,spine]){if(!bone)continue;if(!actor.classPoseBase.has(bone))actor.classPoseBase.set(bone,bone.rotation.clone());else bone.rotation.copy(actor.classPoseBase.get(bone));}
   if(profile.pose==='slash'){if(armR)armR.rotation.z-=wave*1.35;if(spine)spine.rotation.y+=Math.sin(progress*Math.PI*2)*.32;}
   if(profile.pose==='smite'){if(armR)armR.rotation.x-=wave*1.15;if(spine)spine.rotation.x-=wave*.18;}
   if(profile.pose==='channel'||profile.pose==='cast'){if(armR)armR.rotation.z-=wave*.9;if(armL)armL.rotation.z+=wave*.9;if(spine)spine.rotation.x-=wave*.12;}

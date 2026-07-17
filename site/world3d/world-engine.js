@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CharacterActor } from './character-actor.js?v=161';
+import { CharacterActor } from './character-actor.js?v=163';
 import { NavigationGrid } from './navigation-grid.mjs';
-import { NPCManager } from './npc-manager.js?v=161';
-import { Combat3DController } from './combat-controller.js?v=161';
+import { NPCManager } from './npc-manager.js?v=163';
+import { Combat3DController } from './combat-controller.js?v=163';
 import { AbilityEffects } from './ability-effects.js?v=141';
-import { Party3DManager } from './party-manager.js?v=161';
+import { Party3DManager } from './party-manager.js?v=163';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=151';
 import { WorldPolish } from './world-polish.js';
 import { CinematicDirector } from './cinematic-director.js?v=145';
@@ -91,7 +91,7 @@ export class WorldEngine extends EventTarget {
   }
   moveActor(target,run=false,onArrive=null){const path=this.navigation.findPath(this.actor.position,target);if(!path.length){this.toast('That route is blocked.');return false;}const destination=path.at(-1);this.marker.position.set(destination.x,destination.y||0,destination.z);this.marker.visible=true;this.actor.moveAlong(path,{run,onArrive:()=>{this.marker.visible=false;this.persistPosition();if(onArrive)onArrive();}});return true;}
   interactionApproach(record){const radius=Math.max(.85,(record.range||1.8)*.72),origin=record.position,bearing=Math.atan2(this.actor.position.x-origin.x,this.actor.position.z-origin.z);let best=null,bestCost=Infinity;for(let index=0;index<16;index++){const angle=bearing+index*Math.PI/8,candidate={x:origin.x+Math.sin(angle)*radius,y:0,z:origin.z+Math.cos(angle)*radius};if(this.navigation.isPointBlocked(candidate))continue;const path=this.navigation.findPath(this.actor.position,candidate);if(!path.length)continue;let cost=0;for(let step=1;step<path.length;step++)cost+=Math.hypot(path[step].x-path[step-1].x,path[step].z-path[step-1].z);cost+=index*.015;if(cost<bestCost){bestCost=cost;best=candidate;}}return best;}
-  goToInteraction(record,run=false){this.closeInteractionMenu();this.pendingInteraction=null;this.hidePrompt();const stop=this.interactionApproach(record);if(!stop){this.toast('There is no clear way to reach that interaction.');return;}this.moveActor(stop,run,()=>{this.actor.faceTarget(record.position);this.actor.playOneShot('interact');this.pendingInteraction=record;this.showPrompt(record);});}
+  goToInteraction(record,run=false){this.closeInteractionMenu();this.pendingInteraction=null;this.hidePrompt();const stop=this.interactionApproach(record);if(!stop){this.toast('There is no clear way to reach that interaction.');return;}this.moveActor(stop,run,()=>{this.actor.turnToward(record.position);this.actor.playOneShot('interact');this.pendingInteraction=record;this.showPrompt(record);});}
   showPrompt(record){this.promptText.textContent=record.label;this.prompt.querySelector('button').setAttribute('aria-label',`Interact: ${record.label}`);this.prompt.hidden=false;}
   hidePrompt(){this.prompt.hidden=true;}
   presentInteraction(record){if(!record||String(record.id).startsWith('npc:'))return;this.cinematicDirector?.playMoment('environment',this.actor,record.position,{duration:.82,caption:record.label});}

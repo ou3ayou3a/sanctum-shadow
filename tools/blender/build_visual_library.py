@@ -835,6 +835,24 @@ def add_combat_actions(armature):
             18: {"mixamorig:Spine2": (-0.03, -0.08, 0.0), "mixamorig:RightArm": (-0.42, -0.12, -0.52), "mixamorig:RightForeArm": (-0.46, 0.0, -0.18)},
             28: {},
         },
+        "Talk": {
+            1: {"mixamorig:Spine2": (-0.03, 0.0, 0.0), "mixamorig:RightArm": (-0.18, 0.0, -0.34), "mixamorig:LeftArm": (-0.16, 0.0, 0.30)},
+            12: {"mixamorig:Spine2": (-0.04, -0.10, 0.02), "mixamorig:RightArm": (-0.42, -0.12, -0.66), "mixamorig:RightForeArm": (-0.58, 0.0, -0.20), "mixamorig:LeftArm": (-0.20, 0.0, 0.34)},
+            24: {"mixamorig:Spine2": (-0.03, 0.12, -0.02), "mixamorig:LeftArm": (-0.38, 0.12, 0.62), "mixamorig:LeftForeArm": (-0.50, 0.0, 0.18), "mixamorig:RightArm": (-0.20, 0.0, -0.34)},
+            36: {"mixamorig:Spine2": (-0.03, 0.0, 0.0), "mixamorig:RightArm": (-0.18, 0.0, -0.34), "mixamorig:LeftArm": (-0.16, 0.0, 0.30)},
+        },
+        "Work": {
+            1: {"mixamorig:Spine": (-0.10, 0.0, 0.0), "mixamorig:RightArm": (-0.35, 0.0, -0.48), "mixamorig:RightForeArm": (-0.48, 0.0, -0.18)},
+            9: {"mixamorig:Spine": (-0.24, -0.12, 0.0), "mixamorig:Spine2": (-0.16, -0.12, 0.0), "mixamorig:RightArm": (-1.10, -0.12, -0.42), "mixamorig:RightForeArm": (-0.66, 0.0, -0.18)},
+            17: {"mixamorig:Spine": (0.16, 0.16, 0.0), "mixamorig:Spine2": (0.12, 0.18, 0.0), "mixamorig:RightArm": (0.46, 0.0, 0.40), "mixamorig:RightForeArm": (-0.18, 0.0, 0.08)},
+            28: {"mixamorig:Spine": (-0.10, 0.0, 0.0), "mixamorig:RightArm": (-0.35, 0.0, -0.48), "mixamorig:RightForeArm": (-0.48, 0.0, -0.18)},
+        },
+        "Drink": {
+            1: {"mixamorig:RightArm": (-0.20, 0.0, -0.34), "mixamorig:RightForeArm": (-0.34, 0.0, -0.12)},
+            10: {"mixamorig:Spine2": (-0.04, -0.08, 0.0), "mixamorig:RightArm": (-0.72, -0.14, -0.62), "mixamorig:RightForeArm": (-1.34, 0.0, -0.20)},
+            22: {"mixamorig:Head": (-0.16, 0.0, 0.0), "mixamorig:RightArm": (-0.76, -0.14, -0.62), "mixamorig:RightForeArm": (-1.42, 0.0, -0.20)},
+            34: {"mixamorig:RightArm": (-0.20, 0.0, -0.34), "mixamorig:RightForeArm": (-0.34, 0.0, -0.12)},
+        },
         "Weapon_Draw": {
             1: {},
             8: {"mixamorig:Spine2": (0.0, -0.18, 0.0), "mixamorig:RightArm": (-0.25, 0.30, -0.82), "mixamorig:RightForeArm": (-0.78, 0.0, -0.32)},
@@ -851,6 +869,25 @@ def add_combat_actions(armature):
             7: {"mixamorig:Spine2": (0.0, -0.30, 0.20), "mixamorig:RightArm": (-0.75, 0.15, -1.05), "mixamorig:RightForeArm": (-0.25, 0.1, -0.65)},
             13: {"mixamorig:Spine2": (0.0, 0.42, -0.26), "mixamorig:RightArm": (0.42, -0.1, 0.72), "mixamorig:RightForeArm": (0.18, 0.0, 0.35)},
             20: {},
+        },
+        "Attack_Heavy": {
+            1: {"mixamorig:Spine": (-0.10, 0.0, 0.0), "mixamorig:RightArm": (-0.22, 0.0, -0.42), "mixamorig:LeftArm": (-0.18, 0.0, 0.32)},
+            9: {"mixamorig:Spine": (-0.22, -0.18, 0.0), "mixamorig:Spine2": (-0.16, -0.32, 0.18), "mixamorig:RightArm": (-1.18, 0.20, -0.88), "mixamorig:RightForeArm": (-0.52, 0.0, -0.42), "mixamorig:LeftArm": (-0.82, -0.08, 0.56), "mixamorig:LeftForeArm": (-0.62, 0.0, 0.22)},
+            17: {"mixamorig:Spine": (0.28, 0.24, 0.0), "mixamorig:Spine2": (0.34, 0.46, -0.24), "mixamorig:RightArm": (0.62, -0.10, 0.68), "mixamorig:RightForeArm": (0.18, 0.0, 0.28), "mixamorig:LeftArm": (0.38, 0.08, -0.46)},
+            29: {"mixamorig:Spine": (-0.08, 0.0, 0.0), "mixamorig:RightArm": (-0.22, 0.0, -0.42), "mixamorig:LeftArm": (-0.18, 0.0, 0.32)},
+        },
+        "Attack_Dual": {
+            1: {"mixamorig:Spine": (-0.10, 0.0, 0.0), "mixamorig:RightArm": (-0.22, 0.0, -0.42), "mixamorig:LeftArm": (-0.22, 0.0, 0.42)},
+            7: {"mixamorig:Spine2": (0.0, -0.30, 0.18), "mixamorig:RightArm": (-0.78, 0.15, -1.05), "mixamorig:LeftArm": (-0.22, 0.0, 0.52)},
+            13: {"mixamorig:Spine2": (0.0, 0.38, -0.22), "mixamorig:RightArm": (0.40, -0.10, 0.68), "mixamorig:LeftArm": (-0.62, 0.14, 0.92)},
+            19: {"mixamorig:Spine2": (0.0, -0.34, -0.20), "mixamorig:RightArm": (-0.26, 0.0, -0.48), "mixamorig:LeftArm": (0.48, -0.12, -0.74)},
+            26: {"mixamorig:Spine": (-0.10, 0.0, 0.0), "mixamorig:RightArm": (-0.22, 0.0, -0.42), "mixamorig:LeftArm": (-0.22, 0.0, 0.42)},
+        },
+        "Staff_Strike": {
+            1: {"mixamorig:Spine": (-0.08, 0.0, 0.0), "mixamorig:RightArm": (-0.28, 0.0, -0.42), "mixamorig:LeftArm": (-0.18, 0.0, 0.32)},
+            8: {"mixamorig:Spine2": (-0.10, -0.30, 0.0), "mixamorig:RightArm": (-0.76, 0.18, -0.90), "mixamorig:RightForeArm": (-0.46, 0.0, -0.28), "mixamorig:LeftArm": (-0.42, -0.08, 0.52)},
+            15: {"mixamorig:Spine2": (0.22, 0.34, 0.0), "mixamorig:RightArm": (0.54, -0.10, 0.62), "mixamorig:RightForeArm": (0.16, 0.0, 0.18), "mixamorig:LeftArm": (0.18, 0.08, -0.28)},
+            25: {"mixamorig:Spine": (-0.08, 0.0, 0.0), "mixamorig:RightArm": (-0.28, 0.0, -0.42), "mixamorig:LeftArm": (-0.18, 0.0, 0.32)},
         },
         "Attack_Smite": {
             1: {},
@@ -902,10 +939,11 @@ def add_combat_actions(armature):
         action.use_fake_user = True
         armature.animation_data.action = action
         for frame, rotations in frames.items():
-            for bone_name in {name for values in frames.values() for name in values}:
-                bone = bones.get(bone_name)
-                if not bone:
-                    continue
+            # Key the complete skeleton for every one-shot. Partial actions can
+            # otherwise inherit an arm or hand pose from the clip that preceded
+            # them, producing the raised-arm/T-pose artifacts seen in game.
+            for bone in bones:
+                bone_name = bone.name
                 set_pose_from_basis(bone, neutral_pose[bone_name], rotations.get(bone_name, (0.0, 0.0, 0.0)))
                 bone.keyframe_insert(data_path="location", frame=frame, group=bone_name)
                 bone.keyframe_insert(data_path="rotation_quaternion", frame=frame, group=bone_name)
@@ -1081,7 +1119,7 @@ def build_characters():
             "category": "characters",
             "url": f"world3d/assets/production/{relative}",
             "race": race_id,
-            "animations": ["Idle", "Walk", "Run", "Walk_Start", "Walk_Stop", "Turn_Left", "Turn_Right", "Interact", "Weapon_Draw", "Weapon_Sheathe", "Combat_Idle", "Attack_Slash", "Attack_Smite", "Cast", "Bow_Shot", "Block", "Dodge", "Hit", "Death"],
+            "animations": ["Idle", "Walk", "Run", "Walk_Start", "Walk_Stop", "Turn_Left", "Turn_Right", "Interact", "Talk", "Work", "Drink", "Weapon_Draw", "Weapon_Sheathe", "Combat_Idle", "Attack_Heavy", "Attack_Slash", "Attack_Dual", "Attack_Smite", "Staff_Strike", "Cast", "Bow_Shot", "Block", "Dodge", "Hit", "Death"],
             "bytes": destination.stat().st_size,
         }
 

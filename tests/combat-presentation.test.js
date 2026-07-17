@@ -6,7 +6,7 @@ const path=require('node:path');
 const CombatPresentation=require('../site/combat-presentation.js');
 
 test('every class has deterministic weapon-specific animation and impact timing',()=>{
-  const expected={warrior:'attack_slash',paladin:'attack_smite',cleric:'cast',mage:'cast',rogue:'attack_slash',ranger:'bow_shot'};
+  const expected={warrior:'attack_heavy',paladin:'attack_smite',cleric:'staff_strike',mage:'cast',rogue:'attack_dual',ranger:'bow_shot'};
   for(const[classId,clip]of Object.entries(expected)){
     const profile=CombatPresentation.profileFor({combatant:{characterClass:classId}});
     assert.equal(profile.classId,classId);

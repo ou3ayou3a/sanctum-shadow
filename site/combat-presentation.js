@@ -6,11 +6,11 @@
   'use strict';
 
   const CLASS_PROFILES=Object.freeze({
-    warrior:Object.freeze({clip:'attack_slash',duration:0.82,impactFraction:0.48,effect:'melee',damageType:'physical',reaction:'block'}),
+    warrior:Object.freeze({clip:'attack_heavy',duration:0.98,impactFraction:0.57,effect:'melee',damageType:'physical',reaction:'block'}),
     paladin:Object.freeze({clip:'attack_smite',duration:0.92,impactFraction:0.57,effect:'melee',damageType:'holy',reaction:'block'}),
-    cleric:Object.freeze({clip:'cast',duration:1.12,releaseFraction:0.42,effect:'projectile',damageType:'holy',reaction:'block'}),
+    cleric:Object.freeze({clip:'staff_strike',duration:0.86,impactFraction:0.51,effect:'melee',damageType:'holy',reaction:'block'}),
     mage:Object.freeze({clip:'cast',duration:1.12,releaseFraction:0.42,effect:'projectile',damageType:'arcane',reaction:'dodge'}),
-    rogue:Object.freeze({clip:'attack_slash',duration:0.72,impactFraction:0.43,effect:'melee',damageType:'shadow',reaction:'dodge',count:2}),
+    rogue:Object.freeze({clip:'attack_dual',duration:0.78,impactFraction:0.46,effect:'melee',damageType:'shadow',reaction:'dodge',count:2}),
     ranger:Object.freeze({clip:'bow_shot',duration:0.96,releaseFraction:0.48,effect:'projectile',damageType:'physical',reaction:'dodge'}),
   });
   const SPELL_TYPES=new Set(['physical','arcane','fire','holy','heal','lightning','shadow','debuff','buff','movement','nature','revive']);
