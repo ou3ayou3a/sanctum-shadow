@@ -140,7 +140,15 @@
   }
 
   // ─── THE ROLL ─────────────────────────────────────────────
+  // Map the game's legacy patron strings to ours.
+  function normalizePatron(p) { return (p === 'holy' || p === 'god') ? 'god' : 'dark'; }
+
   function pray(patron, ask) {
+    // The game's original quick-action buttons call pray('holy') / pray('dark')
+    // with NO ask argument. Route those into the panel (patron preselected)
+    // instead of colliding — this is what supersedes the old pray(type).
+    if (ask === undefined) { openPrayerPanel(normalizePatron(patron)); return null; }
+    patron = normalizePatron(patron);
     const c = char();
     if (!c) { log('You need a living character to pray.', 'system'); return null; }
     if (window.combatState && combatState.active) {
@@ -241,7 +249,7 @@
   }
 
   // ─── UI ───────────────────────────────────────────────────
-  function openPrayerPanel() {
+  function openPrayerPanel(preselect) {
     if (document.getElementById('prayer-panel')) return;
     const wrap = document.createElement('div');
     wrap.id = 'prayer-panel';
@@ -271,6 +279,7 @@
     }
     godBtn.onclick = () => pick('god');
     darkBtn.onclick = () => pick('dark');
+    if (preselect === 'god' || preselect === 'dark') pick(preselect);
     wrap.querySelector('#pp-close').onclick = () => wrap.remove();
     wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
     rollBtn.onclick = () => {
@@ -284,32 +293,16 @@
 
   function injectButton() {
     const qa = document.querySelector('.quick-actions');
-    if (!qa || document.getElementById('prayer-qa-btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'prayer-qa-btn';
-    btn.className = 'qa-btn';
-    btn.style.cssText = 'border-color:rgba(140,110,190,0.45);color:#a98fd0';
-    btn.textContent = '🙏 Pray';
-    btn.onclick = openPrayerPanel;
-    const repBtn = document.getElementById('rep-qa-btn');
-    if (repBtn) repBtn.insertAdjacentElement('afterend', btn); else qa.appendChild(btn);
+    // No-op: the game's native "✝ Holy Prayer" / "⛧ Dark Prayer" quick-action
+    // buttons (index.html) now open this panel via pray('holy'|'dark'), so a
+    // separate injected button would be redundant.
+    return;
   }
 
   // ─── BOOT ─────────────────────────────────────────────────
-  const t = setInterval(function () {
-    injectButton();
-    if (hookCombat() && document.getElementById('prayer-qa-btn')) clearInterval(t);
-  }, 800);
+  // Only install the combat hook; the prayer entry points are the native buttons.
+  const t = setInterval(function () { if (hookCombat()) clearInterval(t); }, 800);
   setTimeout(function () { clearInterval(t); }, 30000);
-  // Also re-inject when screens change (mirrors reputation.js pattern).
-  const _origShow = window.showScreen;
-  if (typeof _origShow === 'function') {
-    window.showScreen = function (name) {
-      const r = _origShow.apply(this, arguments);
-      if (name === 'game') setTimeout(injectButton, 700);
-      return r;
-    };
-  }
 
   console.log('🙏 Prayer & divine intervention loaded — d20 petitions to GOD or the Dark.');
 })();
