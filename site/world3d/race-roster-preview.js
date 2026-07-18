@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CharacterActor} from './character-actor.js?v=165';
+import {CharacterActor} from './character-actor.js?v=166';
 import {RACE_IDS,getRaceProfile} from './race-profiles.mjs';
 
 const canvas=document.getElementById('roster-canvas'),loading=document.getElementById('roster-loading'),errorBox=document.getElementById('roster-error');
@@ -17,7 +17,7 @@ function selectRace(id){selected=id;for(const button of buttons.children)button.
 for(const id of RACE_IDS){const profile=getRaceProfile(id),button=document.createElement('button');button.type='button';button.dataset.race=id;button.textContent=profile.name;button.style.setProperty('--accent',`#${profile.accent.toString(16).padStart(6,'0')}`);button.addEventListener('click',()=>selectRace(selected===id?null:id));buttons.appendChild(button);}
 
 try{
-  await Promise.all(RACE_IDS.map(async(id,index)=>{const actor=new CharacterActor({modelUrl:'prototype/assets/elf-ranger.glb',race:id,identity:`preview_${id}`,isPlayer:true});actor.position.set((index-3)*1.9,.12,0);actor.rotation.y=0;scene.add(actor);actors[index]=actor;await actor.load();}));
+  await Promise.all(RACE_IDS.map(async(id,index)=>{const actor=new CharacterActor({modelUrl:'prototype/assets/elf-ranger.glb',race:id});actor.position.set((index-3)*1.9,.12,0);actor.rotation.y=0;scene.add(actor);actors[index]=actor;await actor.load();}));
   loading.classList.add('loaded');setTimeout(()=>loading.remove(),550);
 }catch(error){console.error(error);loading.hidden=true;errorBox.hidden=false;errorBox.textContent='The animated race roster could not be loaded.';}
 

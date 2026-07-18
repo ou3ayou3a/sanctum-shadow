@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=165';
+import {CharacterActor} from './character-actor.js?v=166';
 import {normalizeGesture} from './animation-policy.mjs?v=163';
 
 function angleDelta(from,to){return Math.atan2(Math.sin(to-from),Math.cos(to-from));}
@@ -11,7 +11,7 @@ export class Party3DManager{
   remotePlayers(session=window.mp?.session){const localId=window.mp?.playerId;return Object.values(session?.players||{}).filter(player=>player&&player.id!==localId&&player.connected!==false&&player.character);}
   async syncRoster(session=window.mp?.session){const players=this.remotePlayers(session),wanted=new Set(players.map(player=>player.id));for(const[id,record]of this.records)if(!wanted.has(id))this.remove(record);await Promise.all(players.map((player,index)=>this.records.has(player.id)||this.spawning.has(player.id)?null:this.spawn(player,index)));}
   async spawn(player,index){
-    this.spawning.add(player.id);const character=player.character||{},actor=new CharacterActor({modelUrl:this.modelUrl,race:character.race||'human',characterClass:character.class||'warrior',identity:character.name||player.name||player.id,isPlayer:true,appearance:character.appearance,scale:.98});const count=Math.max(1,this.remotePlayers().length),angle=index/count*Math.PI*2;actor.position.copy(this.engine.actor.position).add(new THREE.Vector3(Math.sin(angle)*1.7,0,Math.cos(angle)*1.7));actor.userData.partyPlayerId=player.id;this.engine.scene.add(actor);
+    this.spawning.add(player.id);const character=player.character||{},actor=new CharacterActor({modelUrl:this.modelUrl,race:character.race||'human',characterClass:character.class||'warrior',scale:.98});const count=Math.max(1,this.remotePlayers().length),angle=index/count*Math.PI*2;actor.position.copy(this.engine.actor.position).add(new THREE.Vector3(Math.sin(angle)*1.7,0,Math.cos(angle)*1.7));actor.userData.partyPlayerId=player.id;this.engine.scene.add(actor);
     const label=document.createElement('div');label.className='world3d-party-label';const name=document.createElement('strong');name.textContent=character.name||player.name||'Companion';const meta=document.createElement('span');meta.textContent=`${String(character.race||'Human').replaceAll('_',' ')} · ${character.class||'Adventurer'}`;label.append(name,meta);this.engine.overlay.appendChild(label);
     const record={id:player.id,player,actor,label,target:actor.position.clone(),rotation:actor.rotation.y,state:'idle',speed:0,locationId:localLocation(),lastUpdate:performance.now(),gestureSeq:0,pendingGesture:null,audioPosition:actor.position.clone(),stepDistance:0,stepCount:0};this.records.set(player.id,record);
     try{await actor.load();actor.traverse(object=>{object.userData.partyPlayerId=player.id;if(object.isMesh){object.castShadow=false;object.frustumCulled=true;}});}catch(error){console.warn('Party actor could not load',name.textContent,error);}

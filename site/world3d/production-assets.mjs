@@ -35,14 +35,4 @@ export function productionRaceModel(race,fallback='prototype/assets/elf-ranger.g
   return RACE_MODEL_URLS[race]||fallback;
 }
 
-const FANTASY_CHARACTER_ROOT='world3d/assets/characters/rpg';
-export const CLASS_MODEL_URLS=Object.freeze({
-  warrior:`${FANTASY_CHARACTER_ROOT}/Warrior.glb?v=1`,paladin:`${FANTASY_CHARACTER_ROOT}/Warrior.glb?v=1`,cleric:`${FANTASY_CHARACTER_ROOT}/Cleric.glb?v=1`,
-  mage:`${FANTASY_CHARACTER_ROOT}/Wizard.glb?v=1`,rogue:`${FANTASY_CHARACTER_ROOT}/Rogue.glb?v=1`,ranger:`${FANTASY_CHARACTER_ROOT}/Ranger.glb?v=1`,
-});
-
-export function productionClassModel(characterClass,fallback){return CLASS_MODEL_URLS[characterClass]||fallback;}
-const ROLE_MODEL_URLS=Object.freeze({worker:`${FANTASY_CHARACTER_ROOT}/Monk.glb?v=1`,civilian:`${FANTASY_CHARACTER_ROOT}/Monk.glb?v=1`,merchant:`${FANTASY_CHARACTER_ROOT}/Monk.glb?v=1`,scholar:`${FANTASY_CHARACTER_ROOT}/Wizard.glb?v=1`,cleric:`${FANTASY_CHARACTER_ROOT}/Cleric.glb?v=1`});
-export function productionCharacterModel({characterClass,role}={},fallback){return ROLE_MODEL_URLS[role]||productionClassModel(characterClass,fallback);}
-
 export function interiorAssetFor(location){return interiorDefinitionFor(location)?.asset||null;}
