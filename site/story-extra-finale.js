@@ -956,7 +956,7 @@
           : (window.getNPCFate && (window.getNPCFate('sister_mourne') === 'ally' || window.getNPCFate('sister_mourne') === 'spared')) ? 'mourne'
           : 'the crowd';
         addLog('👥 QUEST COMPLETE: The Shattered God — THE UPRISING. Nobody warranted this. Seven hundred people from Mol and Cupside Lane and the Temple Quarter walked out to a tower they were told did not exist, because you told them the truth and they believed you, and a warrant is only a piece of paper that says a crowd is allowed to do what this crowd did anyway.', 'holy');
-        if (leader === 'rhael') addLog('🛡 Captain Rhael stands at the front, out of uniform, because the Watch would not sanction this and she came anyway. She spared you once. You spared her back. Tonight she leads.', 'holy');
+        if (leader === 'rhael') addLog('🛡 Captain Rhael stands at the front, out of uniform, because the Watch would not sanction this and he came anyway. He spared you once. You spared him back. Tonight he leads.', 'holy');
         else if (leader === 'mourne') addLog('🕯 Sister Mourne stands at the front. She never meant a word of the faith — but she means this, the first thing she has ever meant, and it turns out that is enough when there are seven hundred people meaning it with you.', 'holy');
       }
       return {
@@ -1034,50 +1034,5 @@
 
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);
   if (typeof window !== 'undefined') { window.SCENES = window.SCENES || SCENES; Object.assign(window.SCENES, S); }
-
-  // ── WORLD REACHABILITY ────────────────────────────────────────────────────
-  // map.js hardcodes its arrival triggers for c1q1–c1q6 only. Wrap narrateLocation
-  // additively (idempotent, delegates to whatever is already installed) so the
-  // finale quests have real entry points on the world map: church_archive →
-  // c1q18, archive_scriptorium → c1q19, tower_ash → c1q20.
-  if (typeof window !== 'undefined' && !window._finaleArrivalHooked) {
-    window._finaleArrivalHooked = true;
-    var prevNarrate = window.narrateLocation;
-    if (typeof prevNarrate === 'function') {
-      window.narrateLocation = function (loc) {
-        var out = prevNarrate.apply(this, arguments);
-        try {
-          setTimeout(function () { maybeQueueFinaleScene(loc); }, 2400);
-        } catch (e) { /* an arrival hook must never break travel */ }
-        return out;
-      };
-    }
-  }
-
-  function maybeQueueFinaleScene(loc) {
-    if (!loc || typeof window.runScene !== 'function') return;
-    if (window.combatState && window.combatState.active) return;
-    if (window._pendingArrivalScene) return;
-    if (document.getElementById('scene-panel')) return;
-    if (window.npcConvState && window.npcConvState.active) return;
-    var flags = (window.sceneState && window.sceneState.flags) || {};
-    var active = ((window.gameState && window.gameState.activeQuests) || []).map(function (q) { return q && q.id; });
-    var queue = window.queueArrivalScene || window.runScene;
-
-    if (loc.id === 'church_archive' && !flags.archive_voice_quest_started
-      && (flags.clue_founders_minutes || flags.clue_aldric_exception || active.indexOf('c1q18') !== -1)) {
-      queue('archive_lowest_level'); return;
-    }
-    if (loc.id === 'church_archive' && flags.archive_voice_quest_complete && !flags.covenant_author_quest_started) {
-      queue('chancery_records_room'); return;
-    }
-    if (loc.id === 'archive_scriptorium' && !flags.covenant_author_quest_started
-      && (flags.clue_voice_cannot_say_own_name || active.indexOf('c1q19') !== -1)) {
-      queue('chancery_records_room'); return;
-    }
-    if (loc.id === 'tower_ash' && !flags.tower_ash_entered) {
-      queue('tower_ash_approach'); return;
-    }
-  }
 
 })();

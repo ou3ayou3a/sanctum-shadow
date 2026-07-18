@@ -63,7 +63,7 @@
         .filter(id => window.getNPCFate && window.getNPCFate(id) === 'dead');
       if (fallen.length) {
         const id = fallen[0];
-        window.setNPCFate(id, 'spared');
+        synchronizeResurrection(id);
         const name = id.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
         log('☩ GRANTED. The prayer is answered with the rarest coin heaven spends: ' + name +
           ' draws breath again. Death has been told no — once, for you. Do not spend it cheaply.', 'holy');
@@ -88,6 +88,24 @@
           (wasCursed ? 'The curse on you burns away like fog. ' : '') + 'You are whole. +2 Holy Points.', 'holy');
       }
     }
+  }
+
+  function synchronizeResurrection(id) {
+    const inMultiplayer = !!(window.mp && window.mp.sessionCode && window.mp.socket);
+    if (!inMultiplayer) {
+      window.setNPCFate?.(id, 'spared');
+      return;
+    }
+    if (window.mp.isHost) {
+      window.setNPCFate?.(id, 'spared');
+      window.mpBroadcastCampaignState?.('prayer_resurrection:' + id);
+      return;
+    }
+    // Guests request the shared change; the Session Master verifies that the
+    // NPC is currently dead, commits it, and broadcasts canonical campaign state.
+    window.mpBroadcastStoryEvent?.('npc_fate_request', {
+      npcId:id, fate:'spared', reason:'prayer_resurrection', actorId:window.mp.playerId,
+    });
   }
 
   function applyDarkBoon(ask) {

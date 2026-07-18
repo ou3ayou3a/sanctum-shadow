@@ -46,8 +46,8 @@ test('defeating the Church soldiers completes Aldran\'s final objective',()=>{
   assert.deepEqual(result.completions,['c1q5']);
 });
 
-test('the first six campaign quests expose readable objective checklists', () => {
-  for (let order = 1; order <= 6; order++) {
+test('all twenty campaign quests expose readable objective checklists', () => {
+  for (let order = 1; order <= 20; order++) {
     const objectives = Quests.getObjectives(`c1q${order}`);
     assert.ok(objectives.length >= 3);
     assert.ok(objectives.some(objective => objective.completes));
@@ -55,16 +55,10 @@ test('the first six campaign quests expose readable objective checklists', () =>
   }
 });
 
-test('all six campaign arcs complete through a canonical event walkthrough', () => {
-  const canonicalEvents={
-    c1q1:['scene:arrival_vaelthar','scene:covenant_hall_scene','scene:scribe_names_varek_location','scene:monastery_arrival','scene:chapter1_end_arrest'],
-    c1q2:['scene:monastery_dungeon_entry','scene:monastery_deep_chamber','scene:monastery_dungeon_cleared'],
-    c1q3:['scene:cartographer_missing','scene:thornwood_search','scene:cartographer_found'],
-    c1q4:['scene:merchant_road_investigation','scene:merchant_road_ambush','combat:victory:merchant_road_ambush'],
-    c1q5:['scene:aldran_meeting','scene:aldran_shares_intel','outcome:aldran_protected'],
-    c1q6:['scene:fortress_harren_arrival','scene:harren_confession','scene:harren_joins'],
-  };
-  for(const [questId,events] of Object.entries(canonicalEvents)){
+test('all twenty campaign arcs complete through a canonical event walkthrough', () => {
+  for(let order=1;order<=20;order++){
+    const questId=`c1q${order}`;
+    const events=Quests.getObjectives(questId).map(objective=>objective.events[0]);
     const state={activeQuestIds:[questId],completedQuestIds:[],progress:{}};
     let completions=[];
     for(const eventKey of events){
@@ -79,6 +73,18 @@ test('all six campaign arcs complete through a canonical event walkthrough', () 
     assert.deepEqual(completions,[questId]);
     const repeated=Quests.reduceQuestEvent(state,events.at(-1));
     assert.deepEqual(repeated,{updates:[],completions:[]});
+  }
+});
+
+test('every consequence-driven Chapter I ending completes The Shattered God',()=>{
+  for(const ending of ['uprising','restoration','devour']){
+    const state={
+      activeQuestIds:['c1q20'],completedQuestIds:[],
+      progress:{c1q20:{objectives:{reach_tower:{},climb:{}}}},
+    };
+    const result=Quests.reduceQuestEvent(state,`scene:tower_ending_${ending}`);
+    assert.equal(result.updates[0].objectiveId,'end_it');
+    assert.deepEqual(result.completions,['c1q20']);
   }
 });
 

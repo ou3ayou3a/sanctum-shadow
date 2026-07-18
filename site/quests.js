@@ -125,7 +125,7 @@
     c1q20:{ objectives:[
       { id:"reach_tower", label:"Reach the Tower of Ash — Stone VII.", events:["scene:tower_ash_approach"] },
       { id:"climb", label:"Face what is on the thirty-seventh step.", events:["scene:tower_thirty_seventh_step"] },
-      { id:"end_it", label:"End Chapter I: the sword, the charter, or the third day.", events:["scene:tower_ending_sword","scene:tower_ending_charter","scene:tower_ending_third_day","combat:victory:tower_thirty_seventh_step"], completes:true },
+      { id:"end_it", label:"Choose the fate of the Shattered God — and end Chapter I.", events:["scene:tower_ending_sword","scene:tower_ending_charter","scene:tower_ending_third_day","scene:tower_ending_uprising","scene:tower_ending_restoration","scene:tower_ending_devour","combat:victory:tower_thirty_seventh_step"], completes:true },
     ] },
   });
 

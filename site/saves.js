@@ -477,6 +477,11 @@ function loadSaveSlot(slotId, options = {}) {
     if (window.renderStatsMini) renderStatsMini();
     if (window.updateXPBar) updateXPBar();
 
+    // Quest entrances are derived from the restored active quest and objective
+    // state. Re-arm the current physical location after every load so an
+    // interrupted introduction cannot disappear with the previous JS session.
+    window.resumeQuestEntries?.();
+
     // ── Multiplayer rejoin after refresh ──
     // If there's a saved MP session and socket is ready, attempt to rejoin
     _attemptMPRejoin();

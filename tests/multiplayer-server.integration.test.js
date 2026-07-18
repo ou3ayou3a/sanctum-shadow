@@ -169,6 +169,15 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
     assert.equal((await observedResponse).payload.text,'The Archive doors are watched.');
     assert.equal((await speaker.request('conversation_update',{code,type:'close',payload:{conversationId:opened.conversation.id,graceful:true}})).ok,true);
 
+    // A guest resurrection request is routed only to the authoritative host,
+    // which will validate the current campaign fate and broadcast the snapshot.
+    const resurrectionP=host.once('story_event',message=>message.eventType==='npc_fate_request');
+    speaker.emit('story_event',{code,eventType:'npc_fate_request',payload:{npcId:'captain_rhael',fate:'spared',reason:'prayer_resurrection'}});
+    const resurrection=await resurrectionP;
+    assert.equal(resurrection.payload.npcId,'captain_rhael');
+    assert.equal(resurrection.payload.reason,'prayer_resurrection');
+    assert.equal(resurrection.fromPlayer,'Player 5');
+
     const combatStarts=clients.map(client=>client.once('combat_started'));
     host.emit('start_combat',{code,enemies:[{id:'qa_cultist',name:'QA Cultist',hp:1,maxHp:1,ac:1,atk:0,xp:80,tacticalRole:'frontline'}],encounter:{id:'standard'}});
     let combatState=(await Promise.all(combatStarts))[0];

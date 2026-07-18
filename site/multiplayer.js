@@ -375,6 +375,18 @@ function initMultiplayer() {
     const _prevReceiving = window.mp._receiving;
     window.mp._receiving = true;
     try {
+    if (eventType === 'npc_fate_request' && window.mp.isHost) {
+      const allowed = new Set(['sister_mourne', 'captain_rhael', 'sir_harren']);
+      const npcId = String(payload.npcId || '').toLowerCase();
+      if (payload.reason === 'prayer_resurrection' && allowed.has(npcId)
+          && window.getNPCFate?.(npcId) === 'dead') {
+        window.setNPCFate?.(npcId, 'spared');
+        const name = npcId.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+        addLog(`☙ ${name} draws breath again. ${fromPlayer || 'A companion'}'s prayer has changed the Chronicle.`, 'holy');
+        window.mpBroadcastCampaignState?.(`prayer_resurrection:${npcId}`);
+      }
+      return;
+    }
     if (eventType === 'player_vote') {
       if (window.receiveVote) {
         window.receiveVote(payload.playerId, payload.playerName, payload.index, payload.roll);
@@ -580,6 +592,19 @@ function initMultiplayer() {
         window.recordAuthoredCombatVictory?.(questScene, enemies.map(enemy => enemy.id));
       }
       if (window.mp.isHost) {
+        // Mirror single-player's persistent consequence writes. The host owns
+        // campaign state; every client receives these fates in the next snapshot.
+        window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
+        window.sceneState.flags = window.sceneState.flags || {};
+        for (const enemy of enemies) {
+          const normId = window.normalizeNpcId?.(enemy.sourceId || enemy.id, enemy.name)
+            || String(enemy.sourceId || enemy.id || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+          if (!normId) continue;
+          window.sceneState.flags[`npc_dead_${normId}`] = true;
+          window.sceneState.flags[`killed_${normId}`] = gameState.character?.name || 'party';
+          window.sceneState.flags[`fought_${normId}`] = true;
+          window.setNPCFate?.(normId, 'dead');
+        }
         if (enemies.some(enemy => String(enemy.sourceId || enemy.id || '').startsWith('cupside_sergeant'))) {
           window.sceneState = window.sceneState || { flags:{}, knownFacts:{} };
           window.sceneState.flags = window.sceneState.flags || {};
@@ -591,6 +616,7 @@ function initMultiplayer() {
         if (enemies.some(enemy => /voice below/i.test(enemy.name || ''))) {
           setTimeout(() => window.runScene?.('monastery_dungeon_cleared'), 800);
         }
+        window.mpBroadcastCampaignState?.('combat_npc_fates');
       }
     } else {
       (window.addLog._orig || window.addLog)('💀 The party falls...', 'combat');

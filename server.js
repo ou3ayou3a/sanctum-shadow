@@ -962,6 +962,21 @@ io.on('connection', (socket) => {
       socket.emit('session_error',{msg:'Legacy conversation events are no longer accepted.'});
       return;
     }
+    if (eventType === 'npc_fate_request') {
+      const allowed = new Set(['sister_mourne', 'captain_rhael', 'sir_harren']);
+      const npcId = String(payload?.npcId || '').toLowerCase();
+      if (!allowed.has(npcId) || payload?.fate !== 'spared' || payload?.reason !== 'prayer_resurrection' || !s.host) {
+        socket.emit('session_error', { msg:'That resurrection cannot alter the shared Chronicle.' });
+        return;
+      }
+      const player = s.players[socket.id];
+      io.to(s.host).emit('story_event', {
+        eventType:'npc_fate_request',
+        payload:{ npcId, fate:'spared', reason:'prayer_resurrection', actorId:socket.id },
+        fromPlayer:player?.name || 'Unknown',
+      });
+      return;
+    }
     try { if (JSON.stringify(payload || {}).length > 50000) return; } catch { return; }
     const player = s.players[socket.id];
     socket.to(code).emit('story_event', { eventType, payload, fromPlayer: player?.name || 'Unknown' });

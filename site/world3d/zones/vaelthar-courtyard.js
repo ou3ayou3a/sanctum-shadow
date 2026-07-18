@@ -91,6 +91,12 @@ export function buildVaeltharCourtyard(){
 
   function landmarkMessage(id){const messages={north_gate:'The Crown Gate is watched from both towers. Beyond it, the northern road disappears into smoke.',signing_hall:'The signing hall still smells of ash. Broken seals and scorched stone mark where the Covenant failed.',church_archive:'The Archive doors are sealed by Crown order. Fresh scratches surround the lock.',temple_quarter:'Incense and smoke mingle beneath the Temple spire. The district is tense but open.',watch_post:'Maps, arrest orders, and patrol routes cover the Watch table. Captain Rhael normally commands from here.',covenant_fountain:'Someone broke the treaty statue at the waist. Coins glitter beneath the dark water.',ash_market:'Merchants trade through eight crowded stalls, loaded carts, and the public auction well.',tarnished_cup:'Warm light spills across the Cupside tables outside the Tarnished Cup.',crown_citadel:'The Crown Citadel rises above a terraced northern ridge, visible from almost every district.',southward_square:'Couriers, masons, and incoming wagons crowd the broad square inside the southern gate.',south_gate:'The southern gate opens onto the Merchant Road. Wagon tracks leave the city, but few return.',thornwood_cave:'Cold air carries the smell of wet stone from a worked cave mouth beneath the birches. The passage continues beyond the current city patrol.'};return messages[id]||'Vaelthar watches in silence.';}
   function useLandmark(landmark,engine){
+    if(landmark.action?.startsWith('quest:')){
+      const questId=landmark.action.slice(6);
+      if(window.tryQuestEntryAtLandmark?.(landmark.id,questId))return;
+      engine.toast('There is no unfinished business for you here.',2600);
+      return;
+    }
     const destination={tarnished_cup:'tarnished_cup',temple_quarter:'temple_quarter',church_archive:'church_archive',south_gate:'merchant_road',thornwood_cave:'thornwood_passage'}[landmark.id];
     if(destination){const destinationName=window.WORLD_LOCATIONS?.[destination]?.name||landmark.label;assetSlice.openDoor(landmark.id);engine.toast(`Entering ${destinationName}…`,700);setTimeout(()=>engine.transitionToWorldLocation?.(destination,destinationName)||window.travelToWorldLocation?.(destination),320);return;}
     if(landmark.action?.startsWith('scene:')&&typeof window.runScene==='function'){window.runScene(landmark.action.slice(6));return;}
