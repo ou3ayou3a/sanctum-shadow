@@ -4,7 +4,9 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getRaceProfile } from './race-profiles.mjs';
 import { getClassProfile } from './class-profiles.mjs';
 import { equipClass,applyClassPose,rigBone } from './class-equipment.js?v=163';
-import { productionRaceModel } from './production-assets.mjs?v=144';
+import {productionCharacterModel,productionRaceModel} from './production-assets.mjs?v=146';
+import {createCharacterAppearance} from './character-appearance.mjs?v=1';
+import {applyCharacterCustomization} from './character-customization.js?v=1';
 import {WALK_SPEED,RUN_SPEED,advanceSpeed,angleDelta,locomotionBlend,normalizePresenceState,normalizeNetworkSpeed,turnState} from './locomotion.mjs';
 import {blendDuration,equipmentSwapFraction,isCombatGesture,normalizeGesture} from './animation-policy.mjs?v=163';
 
@@ -12,22 +14,22 @@ const MODEL_CACHE=new Map();
 async function loadModelTemplate(url){if(!MODEL_CACHE.has(url))MODEL_CACHE.set(url,new GLTFLoader().loadAsync(url).catch(error=>{MODEL_CACHE.delete(url);throw error;}));return MODEL_CACHE.get(url);}
 
 export class CharacterActor extends THREE.Group {
-  constructor({ modelUrl, race = 'human', characterClass = 'warrior', scale = 1, rotationOffset = Math.PI } = {}) {
+  constructor({ modelUrl, race = 'human', characterClass = 'warrior', scale = 1, rotationOffset = Math.PI, identity, role, title, action, isPlayer = false, isHostile = false, appearance } = {}) {
     super();
-    this.profile=getRaceProfile(race);this.race=this.profile.id;this.modelUrl=productionRaceModel(this.race,modelUrl);this.productionModel=this.modelUrl.includes('/assets/production/characters/');this.modelScale = scale; this.rotationOffset = rotationOffset;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.actionTime=0;this.actionDuration=.72;
+    this.profile=getRaceProfile(race);this.race=this.profile.id;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.identity=identity||`${this.race}_${this.characterClass}`;this.appearanceProfile=createCharacterAppearance({identity:this.identity,race:this.race,classId:this.characterClass,role,title,action,isPlayer,isHostile,appearance});this.modelUrl=productionCharacterModel({characterClass:this.characterClass,role:this.appearanceProfile.role},productionRaceModel(this.race,modelUrl));this.nativeFantasyModel=this.modelUrl.includes('/assets/characters/rpg/');this.productionModel=this.nativeFantasyModel||this.modelUrl.includes('/assets/production/characters/');this.modelScale = scale; this.rotationOffset = rotationOffset;this.actionTime=0;this.actionDuration=.72;
     this.mixer = null; this.actions = {}; this.activeAction = null; this.state = 'loading';
     this.path=[];this.speed=WALK_SPEED;this.targetSpeed=0;this.currentSpeed=0;this.arrivalRadius=.12;this.onArrive=null;this.movementIntent='walk';this.transitionTime=0;this.lastRemoteState='idle';this.gestureSequence=0;this.currentGesture=null;this.gestureUntil=0;this.reactionTime=0;this.reactionDuration=.32;this.reactionVector=new THREE.Vector3();
   }
 
   async load() {
     const template=await loadModelTemplate(this.modelUrl);const gltf={scene:cloneSkeleton(template.scene),animations:template.animations};
-    this.model = gltf.scene;const [width,height,depth]=this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
+    this.model = gltf.scene;const [width,height,depth]=this.nativeFantasyModel?this.profile.proportions:this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.nativeFantasyModel?0:this.rotationOffset;
     const tint=new THREE.Color(this.profile.materialTint);
     this.model.traverse(o => { if (o.isMesh) {o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];for(const material of materials){if(material.color)material.color.multiply(tint);material.envMapIntensity=1.15;material.needsUpdate=true;}o.castShadow = true; o.receiveShadow = true; } });
-    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();this.addSelectionRing();this.addWeaponTrail();await equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
+    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();applyCharacterCustomization(this,this.appearanceProfile);this.addSelectionRing();this.addWeaponTrail();if(this.nativeFantasyModel)this.bindNativeEquipment();else if(this.appearanceProfile.showClassEquipment)await equipClass(this,this.classProfile);else{this.heldEquipment=[];this.stowedEquipment=[];}this.mixer = new THREE.AnimationMixer(this.model);
     for (const clip of gltf.animations) {
       const name = clip.name.toLowerCase();
-      if (name.includes('combat_idle')) this.actions.combat_idle = this.mixer.clipAction(clip);
+      if (name.includes('combat_idle')||name.includes('idle_attacking')||name.includes('attacking_idle')||name.includes('idle_weapon')) this.actions.combat_idle = this.mixer.clipAction(clip);
       else if (name.includes('walk_start')) this.actions.walk_start = this.mixer.clipAction(clip);
       else if (name.includes('walk_stop')) this.actions.walk_stop = this.mixer.clipAction(clip);
       else if (name.includes('turn_left')) this.actions.turn_left = this.mixer.clipAction(clip);
@@ -38,23 +40,29 @@ export class CharacterActor extends THREE.Group {
       else if (name.includes('talk')) this.actions.talk = this.mixer.clipAction(clip);
       else if (name.includes('work')) this.actions.work = this.mixer.clipAction(clip);
       else if (name.includes('drink')) this.actions.drink = this.mixer.clipAction(clip);
-      else if (name.includes('idle')) this.actions.idle = this.mixer.clipAction(clip);
+      else if (name.includes('pickup')) {const gesture=this.mixer.clipAction(clip);this.actions.interact=gesture;this.actions.talk=gesture;this.actions.work=gesture;this.actions.drink=gesture;}
+      else if (name==='idle'||name.includes('idle')) this.actions.idle = this.mixer.clipAction(clip);
       else if (name.includes('walk')) this.actions.walk = this.mixer.clipAction(clip);
       else if (name.includes('run')) this.actions.run = this.mixer.clipAction(clip);
       else if (name.includes('death')) this.actions.death = this.mixer.clipAction(clip);
       else if (name.includes('hit')) this.actions.hit = this.mixer.clipAction(clip);
-      else if (name.includes('dodge')) this.actions.dodge = this.mixer.clipAction(clip);
+      else if (name.includes('dodge')||name.includes('roll')) this.actions.dodge = this.mixer.clipAction(clip);
       else if (name.includes('block')) this.actions.block = this.mixer.clipAction(clip);
-      else if (name.includes('bow')) this.actions.bow_shot = this.mixer.clipAction(clip);
-      else if (name.includes('cast')) this.actions.cast = this.mixer.clipAction(clip);
-      else if (name.includes('heavy')) this.actions.attack_heavy = this.mixer.clipAction(clip);
-      else if (name.includes('dual')) this.actions.attack_dual = this.mixer.clipAction(clip);
-      else if (name.includes('staff_strike')) this.actions.staff_strike = this.mixer.clipAction(clip);
+      else if (name.includes('bow_shoot')||name.includes('bow_draw')||name.includes('bow')) this.actions.bow_shot = this.mixer.clipAction(clip);
+      else if (name.includes('cast')||name.includes('spell')) this.actions.cast = this.mixer.clipAction(clip);
+      else if (name.includes('heavy')||name.includes('sword_attack2')) this.actions.attack_heavy = this.mixer.clipAction(clip);
+      else if (name.includes('dual')||name.includes('dagger_attack2')) this.actions.attack_dual = this.mixer.clipAction(clip);
+      else if (name.includes('staff_strike')||name.includes('staff_attack')) this.actions.staff_strike = this.mixer.clipAction(clip);
       else if (name.includes('smite')) this.actions.attack_smite = this.mixer.clipAction(clip);
       else if (name.includes('attack')||name.includes('slash')) this.actions.attack_slash = this.mixer.clipAction(clip);
     }
+    this.actions.talk ||= this.actions.interact;this.actions.work ||= this.actions.interact;this.actions.drink ||= this.actions.interact;this.actions.block ||= this.actions.combat_idle;
     this.setState('idle', true);
     return this;
+  }
+
+  bindNativeEquipment(){
+    this.heldEquipment=[];this.stowedEquipment=[];this.model.traverse(object=>{if(/(warrior_sword|ranger_bow|wizard_staff|cleric_staff|rogue_dagger)/i.test(object.name)){object.userData.equipmentSlot='held';this.heldEquipment.push(object);}});this.setEquipmentDrawn(false);
   }
 
   applyRaceDetails(){
@@ -111,7 +119,7 @@ export class CharacterActor extends THREE.Group {
   updateLocomotionBlend(speed=this.currentSpeed){if(this.actionTime>0||this.transitionTime>0||this.oneShotTime>0||this.oneShotLocked)return;const blend=locomotionBlend(speed),idleState=this.combatStance?'combat_idle':'idle';if(blend.state==='idle'){this.setState(idleState);return;}const walk=this.actions.walk,run=this.actions.run;if(!walk||!run){this.setState(blend.state);return;}for(const action of[walk,run])if(!action.isRunning()){action.reset().play();}walk.enabled=run.enabled=true;walk.setEffectiveWeight(blend.walk);run.setEffectiveWeight(blend.run);walk.setEffectiveTimeScale(.82+Math.min(1,speed/WALK_SPEED)*.28);run.setEffectiveTimeScale(.84+Math.min(1,speed/RUN_SPEED)*.3);if(this.activeAction!==walk&&this.activeAction!==run)this.activeAction?.fadeOut(.14);this.activeAction=blend.state==='run'?run:walk;const previous=this.state;this.state=blend.state;if(previous!==this.state)this.dispatchEvent({type:'statechange',state:this.state});}
   setRemoteLocomotion(state,speed=0){this.remoteControlled=true;const normalized=normalizePresenceState(state),value=normalizeNetworkSpeed(speed);if(normalized!==this.lastRemoteState&&['walk_start','walk_stop','turn_left','turn_right'].includes(normalized))this.playLocomotionTransition(normalized);this.lastRemoteState=normalized;this.remoteSpeed=value;this.remoteState=normalized;}
 
-  actionForClass(){if(this.classProfile.id==='warrior')return this.actions.attack_heavy||this.actions.attack_slash;if(this.classProfile.id==='rogue')return this.actions.attack_dual||this.actions.attack_slash;if(this.classProfile.id==='cleric')return this.actions.staff_strike||this.actions.cast;if(this.classProfile.pose==='smite')return this.actions.attack_smite;if(this.classProfile.pose==='cast')return this.actions.cast;if(this.classProfile.pose==='draw')return this.actions.bow_shot;return this.actions.attack_slash;}
+  actionForClass(){if(this.classProfile.id==='warrior')return this.actions.attack_heavy||this.actions.attack_slash;if(this.classProfile.id==='rogue')return this.actions.attack_dual||this.actions.attack_slash;if(this.classProfile.id==='cleric')return this.actions.staff_strike||this.actions.cast||this.actions.attack_slash;if(this.classProfile.pose==='smite')return this.actions.attack_smite||this.actions.attack_heavy||this.actions.attack_slash;if(this.classProfile.pose==='cast')return this.actions.cast||this.actions.attack_slash;if(this.classProfile.pose==='draw')return this.actions.bow_shot||this.actions.attack_slash;return this.actions.attack_slash;}
   setCombatStance(active,{animate=true}={}){const desired=!!active;if(this.combatStance===desired&&this.equipmentDrawn===desired)return;this.stop();this.combatStance=desired;const transition=desired?'weapon_draw':'weapon_sheathe',action=this.actions[transition];clearTimeout(this.equipmentSwapTimer);clearTimeout(this.stanceTimer);if(animate&&action){this.setEquipmentDrawn(!desired);this.playOneShot(transition,{returnToIdle:false});const duration=Math.max(.25,action.getClip().duration);this.equipmentSwapTimer=setTimeout(()=>this.setEquipmentDrawn(desired),duration*equipmentSwapFraction(transition)*1000);this.stanceTimer=setTimeout(()=>{this.setEquipmentDrawn(desired);this.setState(desired?'combat_idle':'idle',true);},duration*1000);}else{this.setEquipmentDrawn(desired);this.setState(desired?'combat_idle':'idle',true);}}
   faceTarget(target){if(!target)return;const position=target.position||target,dx=position.x-this.position.x,dz=position.z-this.position.z;if(Math.hypot(dx,dz)>.001){this.rotation.y=Math.atan2(dx,dz);this.desiredFacing=null;}}
   turnToward(target){if(!target)return;const position=target.position||target,dx=position.x-this.position.x,dz=position.z-this.position.z;if(Math.hypot(dx,dz)>.001)this.desiredFacing=Math.atan2(dx,dz);}

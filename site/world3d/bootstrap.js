@@ -1,4 +1,4 @@
-import { WorldEngine } from './world-engine.js?v=170';
+import { WorldEngine } from './world-engine.js?v=172';
 import { buildZone } from './zone-registry.js?v=171';
 
 let engine=null;let loading=null;
@@ -11,7 +11,9 @@ window.loadWorld3D=async function loadWorld3D(){
   const locationId=window.mapState?.currentLocation||'vaelthar_city';
   const race=window.gameState?.character?.race||'human';
   const characterClass=window.gameState?.character?.class||'warrior';
-  loading=(async()=>{const instance=new WorldEngine({canvas,overlay,zoneFactory:()=>buildZone(locationId),character:{modelUrl:characterModel,race,characterClass}});await instance.initialize();engine=instance;window.__world3d=engine;engine.start();return engine;})();
+  const characterName=window.gameState?.character?.name||'Vaelthar Wanderer';
+  const appearance=window.gameState?.character?.appearance;
+  loading=(async()=>{const instance=new WorldEngine({canvas,overlay,zoneFactory:()=>buildZone(locationId),character:{modelUrl:characterModel,race,characterClass,identity:characterName,isPlayer:true,appearance}});await instance.initialize();engine=instance;window.__world3d=engine;engine.start();return engine;})();
   try{return await loading;}finally{loading=null;}
 };
 window.unloadWorld3D=function unloadWorld3D(){if(!engine)return;engine.dispose();engine=null;window.__world3d=null;};

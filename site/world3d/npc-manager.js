@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=163';
+import {CharacterActor} from './character-actor.js?v=165';
 import {ambientDelay,ambientGesture} from './animation-policy.mjs?v=163';
 
 export class NPCManager{
   constructor(engine,configs=[]){this.engine=engine;this.configs=configs;this.records=[];this.modelUrl=engine.characterConfig.modelUrl;}
   async initialize(){await Promise.all(this.configs.map((config,index)=>this.spawn(config,index)));return this;}
   async spawn(config,index){
-    const actor=new CharacterActor({modelUrl:this.modelUrl,race:config.race||'human',characterClass:config.classId||'warrior',scale:.94});actor.position.set(...config.position);actor.rotation.y=config.facing||0;actor.userData.npcId=config.id;this.engine.scene.add(actor);await actor.load();actor.mixer?.setTime((index*.731)%2.8);
+    const actor=new CharacterActor({modelUrl:this.modelUrl,race:config.race||'human',characterClass:config.classId||'warrior',identity:config.appearanceId||config.id,role:config.role,title:config.title,action:config.action,appearance:config.appearance,scale:.94});actor.position.set(...config.position);actor.rotation.y=config.facing||0;actor.userData.npcId=config.id;this.engine.scene.add(actor);await actor.load();actor.mixer?.setTime((index*.731)%2.8);
     actor.traverse(object=>{object.userData.npcId=config.id;if(object.isMesh){object.castShadow=false;object.frustumCulled=true;}});
     const collider=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,3,14),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));collider.position.copy(actor.position);collider.position.y=1.45;collider.userData.npcId=config.id;this.engine.scene.add(collider);
     const label=document.createElement('button');label.type='button';label.className='world3d-npc-label';label.dataset.npcAction=config.action||'dialogue';label.setAttribute('aria-label',`${config.action==='shop'?'Trade with':'Speak with'} ${config.name}`);label.innerHTML=`<strong>${config.name}</strong><span>${config.title}</span>`;this.engine.overlay.appendChild(label);

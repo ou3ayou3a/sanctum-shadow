@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=163';
+import {CharacterActor} from './character-actor.js?v=165';
 
 const MOVE_RANGE=4.5;
 
@@ -27,7 +27,7 @@ export class Combat3DController{
       const angle=combatant.isPlayer?Math.PI/2+(ally++-.5)*.75:Math.PI+(enemy++-.5)*.62;
       const radius=combatant.isPlayer?2.2:4.7+Math.floor(enemy/4)*1.15;
       const desired=combatant.position?this.battleOrigin.clone().add(new THREE.Vector3(combatant.position.x,0,combatant.position.z)):origin.clone().add(new THREE.Vector3(Math.sin(angle)*radius,0,Math.cos(angle)*radius));const cell=this.engine.navigation.nearestOpen(this.engine.navigation.cellAt(desired)),position=cell?this.engine.navigation.pointAt(cell):desired;
-      const actor=new CharacterActor({modelUrl:this.modelUrl,race:partyCharacter?.race||inferRace(combatant),characterClass:partyCharacter?.class||inferClass(combatant),scale:combatant.boss?1.12:.94});actor.position.set(position.x,0,position.z);actor.lookAt(origin.x,0,origin.z);actor.userData.combatantId=combatant.id;this.engine.scene.add(actor);
+      const actor=new CharacterActor({modelUrl:this.modelUrl,race:partyCharacter?.race||inferRace(combatant),characterClass:partyCharacter?.class||inferClass(combatant),identity:partyCharacter?.name||combatant.id||combatant.name,isPlayer:!!combatant.isPlayer,isHostile:!combatant.isPlayer,appearance:partyCharacter?.appearance,scale:combatant.boss?1.12:.94});actor.position.set(position.x,0,position.z);actor.lookAt(origin.x,0,origin.z);actor.userData.combatantId=combatant.id;this.engine.scene.add(actor);
       try{await actor.load();actor.setCombatStance(true);actor.traverse(object=>{object.userData.combatantId=combatant.id;if(object.isMesh)object.castShadow=false;});}catch(error){console.warn('Combat actor could not load',displayName(combatant),error);}
       this.records.set(combatant.id,{combatant,actor,owned:true,label:this.makeLabel(combatant),audioPosition:actor.position.clone(),stepDistance:0,stepCount:0});
     });
