@@ -536,13 +536,43 @@ function processSceneQuestMilestone(sceneId) {
   window.recordQuestEvent?.(`scene:${sceneId}`, { sceneId });
 }
 
+const PHYSICAL_NPC_SCENE_RULES = Object.freeze([
+  Object.freeze({ pattern:/^rhael_(?!visits_cell)/, npcId:'captain_rhael', hint:'Captain Rhael in Covenant Square' }),
+  Object.freeze({ pattern:/^scribe_/, npcId:'trembling_scribe', hint:'Aldis inside the Tarnished Cup' }),
+  Object.freeze({ pattern:/^mourne_/, npcId:'sister_mourne', hint:'Sister Mourne in Vaelthar' }),
+  Object.freeze({ pattern:/^tarnished_cup_scribe_/, npcId:'trembling_scribe', hint:'Aldis inside the Tarnished Cup' }),
+  Object.freeze({ pattern:/^tarnished_cup_lyra$/, npcId:'lyra_innkeeper', hint:'Lyra inside the Tarnished Cup' }),
+  Object.freeze({ pattern:/^tarnished_cup_cartographer$/, npcId:'drunk_cartographer', hint:'the cartographer inside the Tarnished Cup' }),
+]);
+
+function requirePhysicalNpcForScene(sceneId) {
+  if (!document.body?.classList.contains('vt-3d-active')) return true;
+  const rule = PHYSICAL_NPC_SCENE_RULES.find(entry => entry.pattern.test(sceneId));
+  if (!rule) return true;
+  const pending = window._pendingPhysicalNpcScenes || (window._pendingPhysicalNpcScenes = {});
+  pending[rule.npcId] = sceneId;
+  const engine = window.__world3d;
+  if (!engine?.ensureNearbyNpcInteraction) {
+    window._pendingWorldExplorationToast = `Find ${rule.hint} and interact to continue.`;
+    return false;
+  }
+  const presentHere = engine.npcManager?.records?.some(record =>
+    record.config?.id === rule.npcId || record.config?.dialogueId === rule.npcId
+  );
+  const nearby = engine.ensureNearbyNpcInteraction(rule.npcId, sceneId);
+  if (nearby) delete pending[rule.npcId];
+  else if (!presentHere) engine.toast(`Find ${rule.hint} and interact to continue.`, 4600);
+  return nearby;
+}
+
 function runScene(sceneId) {
+  if (!requirePhysicalNpcForScene(sceneId)) return false;
   const scene = SCENES[sceneId];
   const isPersonalScene = sceneId.startsWith('pq_');
   if (!scene) {
     // AI-generate the scene
     generateAIScene(sceneId);
-    return;
+    return false;
   }
   if (typeof scene === 'function') {
     const built = scene();
@@ -582,6 +612,7 @@ function runScene(sceneId) {
     processSceneQuestMilestone(sceneId);
     if (window.mp?.isHost && !isPersonalScene) window.mpBroadcastCampaignState?.(`scene:${sceneId}`);
   }
+  return true;
 }
 
 // ─── AI SCENE GENERATOR ──────────────────────
@@ -3173,10 +3204,18 @@ function startStoryEngine() {
     return;
   }
   setTimeout(() => {
+    if (getFlag('world_exploration_started')) return;
+    setFlag('world_exploration_started');
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-    runScene('arrival_vaelthar');
-  }, 2000);
-  // Trigger personal quest hook after opening scene
+    addLog('🏰 VAELTHAR — You have control. Explore the city and approach people or landmarks to interact.', 'system');
+    processSceneQuestMilestone('arrival_vaelthar');
+    const guidance = 'Explore Vaelthar. Walk to a person or landmark, then interact.';
+    if (window.__world3d?.toast) window.__world3d.toast(guidance, 5200);
+    else window._pendingWorldExplorationToast = guidance;
+    window.dispatchEvent(new CustomEvent('sanctum:exploration-started', { detail:{ location:'vaelthar_city' } }));
+    if (window.mp?.isHost) window.mpBroadcastCampaignState?.('world_exploration_started');
+  }, 600);
+  // Origin contacts remain physical NPCs in the world; this only registers them.
   startPersonalQuestHook();
 }
 

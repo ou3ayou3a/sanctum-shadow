@@ -14,13 +14,21 @@ test('camera controls use standard WASD directions',async()=>{
   const diagonal=input.cameraPanAxes(['KeyW','KeyA']);
   assert.ok(Math.abs(Math.hypot(diagonal.forward,diagonal.right)-1)<1e-12);
   assert.deepEqual(input.cameraPanStep(['KeyW'],.5,8),{forward:4,right:0});
+  assert.equal(input.cameraKeyCode({code:'',key:'A'}),'KeyA');
+  assert.equal(input.cameraKeyCode({code:'KeyD',key:'q'}),'KeyD');
+  assert.equal(input.cameraKeyCode({code:'KeyQ',key:'q'}),null);
+  assert.deepEqual(input.cameraWorldPan({forward:1,right:0},{x:0,y:-.7,z:-.7}),{x:0,z:-1});
+  assert.deepEqual(input.cameraWorldPan({forward:0,right:-1},{x:0,y:-.7,z:-.7}),{x:-1,z:0});
+  assert.deepEqual(input.cameraWorldPan({forward:0,right:1},{x:1,y:-.7,z:0}),{x:0,z:1});
   const clamped=input.clampCameraPan(30,40,10);
   assert.deepEqual(clamped,{x:6,z:8});
 });
 
-test('world camera input is focus-safe and integrated into actor follow',()=>{
+test('world camera input is responsive, combat-safe, and integrated into actor follow',()=>{
   const source=read('site/world3d/world-engine.js');
-  for(const feature of['cameraInputAllowed','CAMERA_KEY_DIRECTIONS','cameraPanOffset','add(this.cameraPanOffset)','keyup','esc-menu'])assert.ok(source.includes(feature),`missing ${feature}`);
+  for(const feature of['cameraInputAllowed','cameraKeyCode','cameraPanOffset','applyCameraPan','keyup','visibleCameraBlocker','esc-menu'])assert.ok(source.includes(feature),`missing ${feature}`);
+  assert.match(source,/!e\.repeat&&!this\.cameraKeys\.has\(cameraCode\)/);
+  assert.doesNotMatch(source,/cameraInputAllowed\(editing=false\)[^{]*\{[^}]*combatController\?\.active/);
   assert.match(source,/W\/S camera forward\/back/);
   assert.match(source,/A\/D camera left\/right/);
 });

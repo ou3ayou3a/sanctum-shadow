@@ -1,5 +1,5 @@
 import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=181';
-import { buildTarnishedCup } from './zones/tarnished-cup.js?v=140';
+import { buildTarnishedCup } from './zones/tarnished-cup.js?v=185';
 import { buildGenericZone } from './zones/generic-zone.js?v=171';
 
 const productionZones={vaelthar_city:buildVaeltharCourtyard,tarnished_cup:buildTarnishedCup};

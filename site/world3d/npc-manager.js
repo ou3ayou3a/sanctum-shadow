@@ -38,7 +38,7 @@ export class NPCManager{
     }finally{this.streaming=false;}
   }
 
-  interact(record){record.actor?.stop();record.actor?.turnToward(this.engine.actor);record.actor?.playOneShot('interact');if(!record.actor)this.ensureActor(record);const config=record.config;if(config.action==='shop'){window.openShop?.();return;}if(config.action==='ambient'){this.engine.toast(config.ambientLine||`${config.name} nods, then returns to work.`,4200);return;}window.startNPCConversation?.(config.dialogueId||config.id);}
+  interact(record){record.actor?.stop();record.actor?.turnToward(this.engine.actor);record.actor?.playOneShot('interact');if(!record.actor)this.ensureActor(record);const config=record.config,pending=window._pendingPhysicalNpcScenes||{},sceneId=record.pendingSceneId||pending[config.id]||pending[config.dialogueId];if(sceneId){record.pendingSceneId=null;delete pending[config.id];if(config.dialogueId)delete pending[config.dialogueId];window.runScene?.(sceneId);return;}if(config.action==='shop'){window.openShop?.();return;}if(config.action==='ambient'){this.engine.toast(config.ambientLine||`${config.name} nods, then returns to work.`,4200);return;}window.startNPCConversation?.(config.dialogueId||config.id);}
   activeAt(config,hour){if(!config.activeHours)return true;const[from,to]=config.activeHours;return from<=to?hour>=from&&hour<to:hour>=from||hour<to;}
 
   applySchedule(record,force=false){

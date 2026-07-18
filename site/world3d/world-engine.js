@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CharacterActor } from './character-actor.js?v=179';
 import { NavigationGrid } from './navigation-grid.mjs';
-import { NPCManager } from './npc-manager.js?v=182';
+import { NPCManager } from './npc-manager.js?v=185';
 import { Combat3DController } from './combat-controller.js?v=179';
 import { AbilityEffects } from './ability-effects.js?v=170';
 import { Party3DManager } from './party-manager.js?v=179';
@@ -13,13 +13,13 @@ import { CityAtmosphere } from './city-atmosphere.mjs?v=169';
 import { CameraObstruction } from './camera-obstruction.mjs?v=179';
 import { WorldPerformanceManager } from './world-performance.mjs?v=181';
 import { environmentAssetLoadStats } from './environment-asset-loader.js?v=144';
-import { CAMERA_KEY_DIRECTIONS, cameraPanStep, clampCameraPan } from './camera-input.mjs?v=167';
+import { cameraKeyCode, cameraPanStep, cameraWorldPan, clampCameraPan } from './camera-input.mjs?v=183';
 
 export class WorldEngine extends EventTarget {
   constructor({canvas,overlay,zoneFactory,character}) {
     super(); this.canvas=canvas; this.overlay=overlay; this.zoneFactory=zoneFactory; this.characterConfig=character;
     this.clock=new THREE.Clock(); this.running=false; this.raycaster=new THREE.Raycaster(); this.pointer=new THREE.Vector2();this.cameraTargetBefore=new THREE.Vector3();this.cameraFollowDelta=new THREE.Vector3();this.cameraFocus=new THREE.Vector3();this.environmentElapsed=0;this.labelElapsed=0;
-    this.cameraKeys=new Set();this.cameraPanOffset=new THREE.Vector3();this.cameraForward=new THREE.Vector3();this.cameraRight=new THREE.Vector3();
+    this.cameraKeys=new Set();this.cameraPanOffset=new THREE.Vector3();this.cameraForward=new THREE.Vector3();
     this.interactionObjects=[]; this.pendingInteraction=null;
   }
 
@@ -37,7 +37,7 @@ export class WorldEngine extends EventTarget {
     this.interactionObjects=this.zone.interactables.map(i=>i.object);
     this.actor=new CharacterActor(this.characterConfig);this.actor.position.copy(this.restoredPosition());this.actor.rotation.y=this.restoredRotation();this.scene.add(this.actor);this.controls.target.copy(this.actor.position).add(new THREE.Vector3(0,1.25,0));this.camera.position.copy(this.actor.position).add(this.zone.cameraOffset||new THREE.Vector3(0,7.5,8));this.controls.update();
     this.actor.addEventListener('statechange',e=>this.setStateLabel(e.state));
-    this.buildOverlay();this.bindInput();this.resize();if(this.zone.ready){const detail=this.loadingElement?.querySelector('span');if(detail)detail.textContent='Loading authored buildings and forest…';this.loadingProgressTimer=setInterval(()=>{if(!detail)return;const stats=environmentAssetLoadStats();detail.textContent=stats.queued||stats.active?`Loading world assets · ${stats.active} active · ${stats.queued} queued`:'Finalizing navigation and lighting…';},180);try{await this.zone.ready;}finally{clearInterval(this.loadingProgressTimer);this.loadingProgressTimer=null;}}await this.actor.load();this.worldPolish=new WorldPolish(this);this.worldPolish.initialize();if(this.zone.npcs?.length){this.npcManager=new NPCManager(this,this.zone.npcs);await this.npcManager.initialize();}this.abilityEffects=new AbilityEffects(this);this.combatController=new Combat3DController(this);this.partyManager=new Party3DManager(this);await this.partyManager.initialize();this.cinematicDirector=new CinematicDirector(this);this.chronicleAdapter=new Chronicle3DAdapter(this);this.chronicleAdapter.initialize();this.cityAtmosphere=new CityAtmosphere(this).initialize();this.cameraObstruction=new CameraObstruction(this);this.performanceManager=new WorldPerformanceManager(this);window.AudioEngine?.startCityAmbience?.({zoneId:this.zone.id});this.loadingElement?.remove();this.setStateLabel('idle');this.updateVitals(true);const hpPercent=Math.round((Number(window.gameState?.character?.hp)||0)/Math.max(1,Number(window.gameState?.character?.maxHp)||1)*100);this.toast(hpPercent<=50?`You are wounded (${hpPercent}% HP). Rest at camp before a dangerous encounter.`:'Click the ground to move. Shift-click to run.',hpPercent<=50?5200:3200);
+    this.buildOverlay();this.bindInput();this.resize();if(this.zone.ready){const detail=this.loadingElement?.querySelector('span');if(detail)detail.textContent='Loading authored buildings and forest…';this.loadingProgressTimer=setInterval(()=>{if(!detail)return;const stats=environmentAssetLoadStats();detail.textContent=stats.queued||stats.active?`Loading world assets · ${stats.active} active · ${stats.queued} queued`:'Finalizing navigation and lighting…';},180);try{await this.zone.ready;}finally{clearInterval(this.loadingProgressTimer);this.loadingProgressTimer=null;}}await this.actor.load();this.worldPolish=new WorldPolish(this);this.worldPolish.initialize();if(this.zone.npcs?.length){this.npcManager=new NPCManager(this,this.zone.npcs);await this.npcManager.initialize();}this.abilityEffects=new AbilityEffects(this);this.combatController=new Combat3DController(this);this.partyManager=new Party3DManager(this);await this.partyManager.initialize();this.cinematicDirector=new CinematicDirector(this);this.chronicleAdapter=new Chronicle3DAdapter(this);this.chronicleAdapter.initialize();this.cityAtmosphere=new CityAtmosphere(this).initialize();this.cameraObstruction=new CameraObstruction(this);this.performanceManager=new WorldPerformanceManager(this);window.AudioEngine?.startCityAmbience?.({zoneId:this.zone.id});this.loadingElement?.remove();this.setStateLabel('idle');this.updateVitals(true);const hpPercent=Math.round((Number(window.gameState?.character?.hp)||0)/Math.max(1,Number(window.gameState?.character?.maxHp)||1)*100),pendingGuidance=window._pendingWorldExplorationToast;delete window._pendingWorldExplorationToast;this.toast(pendingGuidance||(hpPercent<=50?`You are wounded (${hpPercent}% HP). Rest at camp before a dangerous encounter.`:'Click the ground to move. Shift-click to run.'),pendingGuidance||hpPercent<=50?5200:3200);
     this.dispatchEvent(new Event('ready')); return this;
   }
 
@@ -76,20 +76,29 @@ export class WorldEngine extends EventTarget {
   bindInput(){
     let down=null;this.onPointerDown=e=>{down={x:e.clientX,y:e.clientY};};
     this.onPointerUp=e=>{if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7){down=null;return;}down=null;this.handleTap(e);};
-    this.onKey=e=>{if(!this.running)return;const editing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');if(e.code==='Escape')this.cameraKeys.clear();if(this.cameraInputAllowed(editing)&&CAMERA_KEY_DIRECTIONS[e.code]){e.preventDefault();this.cameraKeys.add(e.code);}if(e.code==='KeyF'&&this.cameraInputAllowed(editing)){e.preventDefault();this.cameraPanOffset.set(0,0,0);this.toast('Camera recentered.',900);}if(e.code==='Escape'&&!this.interactionMenu?.hidden){e.preventDefault();this.closeInteractionMenu();return;}if(e.code==='Escape'&&window.npcConvState?.active){e.preventDefault();window.closeConvPanel?.();return;}if(!editing&&this.combatController?.active&&this.combatController.handleKey(e.code)){e.preventDefault();return;}if((e.code==='KeyE'||e.code==='Enter')&&this.pendingInteraction&&!editing){e.preventDefault();this.confirmInteraction();}if(e.code==='Digit1'&&!editing&&!window.npcConvState?.active){e.preventDefault();this.playClassAction();}if(!editing&&!this.combatController?.active&&!window.npcConvState?.active){const shortcuts={KeyC:'character',KeyI:'inventory',KeyJ:'journal',KeyM:'map'};if(shortcuts[e.code]){e.preventDefault();this.openUtility(shortcuts[e.code]);}}};
-    this.onKeyUp=e=>{if(CAMERA_KEY_DIRECTIONS[e.code])this.cameraKeys.delete(e.code);};this.onWindowBlur=()=>this.cameraKeys.clear();
+    this.onKey=e=>{if(!this.running)return;const editing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''),cameraCode=cameraKeyCode(e);if(e.code==='Escape')this.cameraKeys.clear();if(cameraCode&&this.cameraInputAllowed(editing)){e.preventDefault();if(!e.repeat&&!this.cameraKeys.has(cameraCode))this.applyCameraPan(cameraPanStep([cameraCode],.075,10.5));this.cameraKeys.add(cameraCode);}if(e.code==='KeyF'&&this.cameraInputAllowed(editing)){e.preventDefault();this.cameraPanOffset.set(0,0,0);this.toast('Camera recentered.',900);}if(e.code==='Escape'&&!this.interactionMenu?.hidden){e.preventDefault();this.closeInteractionMenu();return;}if(e.code==='Escape'&&window.npcConvState?.active){e.preventDefault();window.closeConvPanel?.();return;}if(!editing&&this.combatController?.active&&this.combatController.handleKey(e.code)){e.preventDefault();return;}if((e.code==='KeyE'||e.code==='Enter')&&this.pendingInteraction&&!editing){e.preventDefault();this.confirmInteraction();}if(e.code==='Digit1'&&!editing&&!window.npcConvState?.active){e.preventDefault();this.playClassAction();}if(!editing&&!this.combatController?.active&&!window.npcConvState?.active){const shortcuts={KeyC:'character',KeyI:'inventory',KeyJ:'journal',KeyM:'map'};if(shortcuts[e.code]){e.preventDefault();this.openUtility(shortcuts[e.code]);}}};
+    this.onKeyUp=e=>{const code=cameraKeyCode(e);if(code)this.cameraKeys.delete(code);};this.onWindowBlur=()=>this.cameraKeys.clear();
     this.onContextMenu=e=>e.preventDefault();this.onResize=()=>this.resize();this.canvas.addEventListener('pointerdown',this.onPointerDown);this.canvas.addEventListener('pointerup',this.onPointerUp);this.canvas.addEventListener('contextmenu',this.onContextMenu);addEventListener('keydown',this.onKey);addEventListener('keyup',this.onKeyUp);addEventListener('blur',this.onWindowBlur);addEventListener('resize',this.onResize);
   }
 
-  cameraInputAllowed(editing=false){return this.running&&!editing&&!this.combatController?.active&&!window.npcConvState?.active&&!document.getElementById('scene-panel')&&!document.getElementById('esc-menu')&&this.interactionMenu?.hidden!==false&&!this.cinematicDirector?.active;}
+  visibleCameraBlocker(id){const element=document.getElementById(id);if(!element||element.hidden||!element.isConnected)return false;const style=getComputedStyle(element);return style.display!=='none'&&style.visibility!=='hidden'&&style.pointerEvents!=='none';}
+  cameraInputAllowed(editing=false){return this.running&&!editing&&!window.npcConvState?.active&&!this.visibleCameraBlocker('scene-panel')&&!this.visibleCameraBlocker('esc-menu')&&this.interactionMenu?.hidden!==false&&!this.cinematicDirector?.active;}
+  ensureNearbyNpcInteraction(npcId,pendingSceneId=null){
+    const needle=String(npcId||'').toLowerCase(),record=this.npcManager?.records.find(entry=>String(entry.config.id||'').toLowerCase()===needle||String(entry.config.dialogueId||'').toLowerCase()===needle);
+    if(!record||!record.active){this.toast('That person is not nearby. Explore the world or check the journal for their location.',3600);return false;}
+    const reach=(record.interaction?.range||2.3)+.85,distance=this.actor.position.distanceTo(record.position);if(distance<=reach)return true;
+    if(pendingSceneId)record.pendingSceneId=String(pendingSceneId);
+    this.goToInteraction(record.interaction);this.toast(`Move closer to ${record.config.name} and interact to begin the conversation.`,3600);return false;
+  }
+  applyCameraPan(step){
+    this.camera.getWorldDirection(this.cameraForward);const movement=cameraWorldPan(step,this.cameraForward);
+    this.cameraPanOffset.x+=movement.x;this.cameraPanOffset.z+=movement.z;
+    const clamped=clampCameraPan(this.cameraPanOffset.x,this.cameraPanOffset.z,24);this.cameraPanOffset.set(clamped.x,0,clamped.z);
+  }
   updateCameraPan(dt){
     if(!this.cameraInputAllowed())this.cameraKeys.clear();
     if(!this.cameraKeys.size)return;
-    const step=cameraPanStep(this.cameraKeys,dt,10.5);if(!step.forward&&!step.right)return;
-    this.camera.getWorldDirection(this.cameraForward);this.cameraForward.y=0;if(this.cameraForward.lengthSq()<.001)this.cameraForward.set(0,0,-1);else this.cameraForward.normalize();
-    this.cameraRight.crossVectors(this.cameraForward,this.camera.up).normalize();
-    this.cameraPanOffset.addScaledVector(this.cameraForward,step.forward).addScaledVector(this.cameraRight,step.right);
-    const clamped=clampCameraPan(this.cameraPanOffset.x,this.cameraPanOffset.z,24);this.cameraPanOffset.set(clamped.x,0,clamped.z);
+    const step=cameraPanStep(this.cameraKeys,dt,10.5);if(!step.forward&&!step.right)return;this.applyCameraPan(step);
   }
 
   ndc(e){const r=this.canvas.getBoundingClientRect();return new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);}

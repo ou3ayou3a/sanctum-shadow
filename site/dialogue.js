@@ -662,9 +662,15 @@ function applyDialogueChoiceEffects(effects,reason){
 // ─── START CONVERSATION ───────────────────────
 async function startNPCConversation(npcIdOrName, playerOpener) {
   const originNpcId = String(npcIdOrName || '').toLowerCase();
+  const resolvedWorldNpc = resolveNPCFull(npcIdOrName);
+  if (document.body?.classList.contains('vt-3d-active')) {
+    const engine = window.__world3d;
+    const physicalNpcId = resolvedWorldNpc?.id || originNpcId;
+    if (!engine?.ensureNearbyNpcInteraction?.(physicalNpcId)) return false;
+  }
   if (window.PartyOriginQuests?.isQuestNpc(originNpcId)
       && window.PartyOriginQuests.beginNpcQuest(originNpcId)) return;
-  const npc = resolveNPCFull(npcIdOrName);
+  const npc = resolvedWorldNpc;
   if (!npc) {
     await runFreeformNPCScene(npcIdOrName, playerOpener);
     return;

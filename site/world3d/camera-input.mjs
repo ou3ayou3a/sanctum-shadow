@@ -5,6 +5,19 @@ export const CAMERA_KEY_DIRECTIONS = Object.freeze({
   KeyD: Object.freeze({ forward: 0, right: 1 }),
 });
 
+const CAMERA_KEY_ALIASES = Object.freeze({
+  w: 'KeyW',
+  s: 'KeyS',
+  a: 'KeyA',
+  d: 'KeyD',
+});
+
+export function cameraKeyCode(input) {
+  const code = String(input?.code || input || '');
+  if (CAMERA_KEY_DIRECTIONS[code]) return code;
+  return CAMERA_KEY_ALIASES[String(input?.key || input || '').toLowerCase()] || null;
+}
+
 export function cameraPanAxes(pressedCodes) {
   let forward = 0;
   let right = 0;
@@ -20,6 +33,19 @@ export function cameraPanAxes(pressedCodes) {
     right /= length;
   }
   return { forward, right };
+}
+
+export function cameraWorldPan(step, forwardVector) {
+  const x = Number(forwardVector?.x) || 0;
+  const z = Number(forwardVector?.z) || 0;
+  const length = Math.hypot(x, z);
+  const forwardX = length > 0.001 ? x / length : 0;
+  const forwardZ = length > 0.001 ? z / length : -1;
+  const rightX = -forwardZ;
+  const rightZ = forwardX;
+  const worldX = forwardX * (Number(step?.forward) || 0) + rightX * (Number(step?.right) || 0);
+  const worldZ = forwardZ * (Number(step?.forward) || 0) + rightZ * (Number(step?.right) || 0);
+  return { x: Math.abs(worldX) < 1e-12 ? 0 : worldX, z: Math.abs(worldZ) < 1e-12 ? 0 : worldZ };
 }
 
 export function cameraPanStep(pressedCodes, deltaSeconds, speed = 8) {

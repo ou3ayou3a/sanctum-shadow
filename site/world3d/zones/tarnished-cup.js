@@ -66,6 +66,7 @@ export function buildTarnishedCup(location={}){
   addInteraction(root,interactables,{id:'interior_exit',label:'Return to Cupside Lane',x:0,z:-6.28,range:1.7,actions:[direct('leave','↩','Return to Cupside Lane',engine=>{const destination=window.world3dReturnLocation||location.connections?.[0]||'vaelthar_city';if(!engine.transitionToWorldLocation(destination,'Vaelthar — Cupside Lane'))engine.toast('The way outside is blocked.');})]});
 
   const npcs=[
+    {id:'trembling_scribe',name:'Aldis',title:'The Trembling Scribe · Waiting in Shadow',position:[-5.55,0,2.15],facing:1.1,race:'human',classId:'mage',action:'dialogue'},
     {id:'lyra_innkeeper',name:'Lyra',title:'Keeper of the Cup',position:[0,0,5.18],facing:Math.PI,race:'human',classId:'ranger',action:'dialogue'},
     {id:'drunk_cartographer',name:'Eron',title:'Cartographer · Deep in His Cups',position:[-3.55,0,-2.72],facing:.15,race:'human',classId:'mage',action:'dialogue'},
     {id:'nervous_merchant',name:'Cael',title:'Merchant · Watching the Door',position:[2.95,0,-2.82],facing:-.2,race:'human',classId:'rogue',action:'dialogue'},

@@ -271,9 +271,10 @@ window.initGameScreen = function() {
     // fires, so we also check the persistent _loadedThisSession flag.
     if (_loading) return;
 
-    // Opening DM narration
-    const opening = `You stand in Vaelthar, a city holding its breath. The Covenant shattered three days ago — no one admits how. Guards watch the Church's torn banners with nervous eyes. Captain Rhael of the Watch stands near the gate, jaw tight. The Trembling Scribe has been seen outside the Archive, which is unusual. Where do you begin?`;
-    setTimeout(() => { showDMStrip(opening, true); addLog('📖 ' + opening, 'narrator'); }, 1500);
+    // The 3D world owns the opening. Arrival context stays in the journal rather
+    // than opening a text prompt or presenting remote actions over the city.
+    const opening = `Vaelthar is holding its breath after the Covenant shattered. Captain Rhael, the surviving Scribe, and the ruined signing hall are physical leads inside the city.`;
+    addLog('📖 ' + opening, 'narrator');
   }, 500);
 
 };
