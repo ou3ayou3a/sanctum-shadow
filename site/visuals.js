@@ -69,39 +69,13 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 
-// ─── PHASE 1: NPC PORTRAITS ──────────────────
-// Maps NPC IDs to portrait images.
-// DROP your Midjourney portraits into site/art/portraits/
-// Each should be ~300×400px, dark fantasy painterly style.
-
-const NPC_PORTRAITS = {
-  captain_rhael:    { img: 'art/portraits/captain_rhael.jpg',    prompt: 'stern weathered male city guard captain, dark armour with city crest, piercing grey eyes, scar on jaw, oil painting style, dark fantasy' },
-  sister_mourne:    { img: 'art/portraits/sister_mourne.jpg',    prompt: 'pale haunted female cleric, black robes with blood-red trim, hollow dark eyes, candle shadows, sinister beauty, oil painting dark fantasy' },
-  elder_varek:      { img: 'art/portraits/elder_varek.jpg',      prompt: 'powerful menacing elder, deep crimson robes, shaved head with ritual tattoos, orange fire in eyes, commanding and terrifying, oil painting' },
-  the_voice_below:  { img: 'art/portraits/voice_below.jpg',      prompt: 'faceless void entity, swirling darkness where face should be, tendrils of shadow, ancient cosmic horror, dark fantasy art' },
-  harren_fallen:    { img: 'art/portraits/harren_fallen.jpg',    prompt: 'corrupted fallen knight, cracked black plate armour, bleeding eyes, holy symbols defaced, tragic nobility, oil painting dark fantasy' },
-  trembling_scribe: { img: 'art/portraits/trembling_scribe.jpg', prompt: 'nervous terrified young scribe, ink-stained fingers, wide fearful eyes, crumpled documents, candlelight, dark fantasy' },
-};
-
-// Called from dialogue.js conv panel render — upgrade emoji to real portrait
+// Named and dynamic characters resolve through the bundled local portrait library.
 function getPortraitHTML(npcIdOrPortrait, npcName, fallbackPortrait = '👤') {
-  // Look up by id first
-  const entry = NPC_PORTRAITS[npcIdOrPortrait] || NPC_PORTRAITS[
-    Object.keys(NPC_PORTRAITS).find(k => npcName?.toLowerCase().includes(k.replace(/_/g,' ')))
-  ];
-
-  if (!entry) {
-    // Fallback: big emoji in styled frame
-    return `<div class="npc-portrait-emoji" aria-hidden="true">${fallbackPortrait}</div>`;
-  }
-
+  const path = window.getPortraitPath?.(npcIdOrPortrait, npcName, { role: 'adventurer' });
+  const safeName = window.escapeHtml ? window.escapeHtml(npcName || 'Character') : String(npcName || 'Character');
   return `
     <div class="npc-portrait-wrap">
-      <img src="${entry.img}"
-           alt="${npcName}"
-           class="npc-portrait-img"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <div class="npc-portrait-emoji" style="display:none" aria-hidden="true">${fallbackPortrait}</div>
+      <img src="${path}" alt="${safeName}" class="npc-portrait-img">
       <div class="npc-portrait-vignette"></div>
     </div>
   `;
@@ -259,12 +233,6 @@ window.playVFX = playVFX;
 // LOCATION BACKGROUNDS (16:9, dark fantasy painterly):
 // Each LOCATION_BACKGROUNDS entry has a .prompt field
 //
-// NPC PORTRAITS (3:4, dark fantasy oil painting):
-// Each NPC_PORTRAITS entry has a .prompt field
-// Suggested suffix for all portraits:
-// "--ar 3:4 --style raw --v 6 --q 2 dark fantasy RPG portrait, painterly, dramatic lighting"
-//
-// Run: Object.entries(NPC_PORTRAITS).forEach(([k,v]) => console.log(k + ':\n' + v.prompt))
-// in browser console to dump all prompts
+// Character portraits are bundled or rendered deterministically on-device.
 
 console.log('🎨 Visuals engine loaded — portraits, backgrounds, VFX ready');

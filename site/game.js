@@ -397,11 +397,7 @@ function nextStep(num) {
   if (step) step.classList.add('active');
   gameState.currentStep = num;
 
-  // When arriving at step 6, silently pre-generate a portrait in background
-  if (num === 6 && !gameState.pendingPortrait && !gameState._portraitGenerating) {
-    gameState._portraitGenerating = true;
-    _autoGeneratePortrait().finally(() => { gameState._portraitGenerating = false; });
-  }
+  if (num === 6) generateCharacterPortrait();
 }
 
 function updateBackstoryHints() {
@@ -472,91 +468,23 @@ function rollStats(isReroll = false) {
   }, 80);
 }
 
-// ─── PORTRAIT GENERATION ─────────────────────
-function buildPortraitPrompt(description) {
-  const race  = RACES.find(r => r.id === gameState.selectedRace);
-  const cls   = CLASSES.find(c => c.id === gameState.selectedClass);
-  const origin = document.getElementById('char-origin')?.value || '';
-  const originLabels = {
-    fallen_noble:'fallen noble with a haunted dignity', orphan_war:'war orphan hardened by loss',
-    cursed_bloodline:'bearer of a dark cursed bloodline', divine_chosen:'divinely chosen with a holy mark',
-    exile:'exiled wanderer with a hunted look', monster_hunter:'seasoned monster hunter, scarred and alert',
-    corrupted_saint:'corrupted saint, once holy now tainted', blood_debt:'indebted soul carrying a heavy burden'
-  };
-  const originDesc = originLabels[origin] || 'mysterious traveler';
-  const base = description?.trim()
-    ? description.trim()
-    : `${race?.name || 'human'} ${cls?.name || 'warrior'}, ${originDesc}`;
-
-  return `Dark fantasy RPG character portrait, ${base}, painterly oil painting style, dramatic rim lighting, dark background, Divinity Original Sin 2 art style, highly detailed face, professional game art, no text, no watermark, 3:4 portrait`;
-}
-
-async function generateCharacterPortrait() {
+// ─── LOCAL RACE PORTRAITS ─────────────────────
+function generateCharacterPortrait() {
   const previewArea = document.getElementById('portrait-preview-area');
   const loading = document.getElementById('portrait-loading');
   const result = document.getElementById('portrait-result');
   const stepNav = document.getElementById('portrait-step-nav');
   const acceptNav = document.getElementById('portrait-accept-nav');
-
-  const description = document.getElementById('char-appearance')?.value || '';
-  const prompt = buildPortraitPrompt(description);
-
+  const imgUrl = window.PortraitLibrary?.getPlayerPortrait(gameState.selectedRace)
+    || 'art/portraits/races/human.jpg';
+  gameState.pendingPortrait = imgUrl;
   previewArea.style.display = 'block';
-  loading.style.display = 'flex';
-  result.style.display = 'none';
+  loading.style.display = 'none';
+  result.style.display = 'block';
   stepNav.style.display = 'none';
-
-  try {
-    // Step 1: Submit generation job
-    const genRes = await fetch('/api/portrait', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspect_ratio: '3:4', size: '1K', format: 'jpg' })
-    });
-    const genData = await genRes.json();
-
-    if (!genData.task_id) throw new Error(genData.message || 'Generation failed');
-
-    // Gemini returns synchronously — image_url comes with the task_id
-    let imgUrl;
-    if (genData.task_id === 'done' && genData.image_url) {
-      imgUrl = genData.image_url;
-    } else {
-      imgUrl = await pollPortraitResult(genData.task_id);
-    }
-    gameState.pendingPortrait = imgUrl;
-
-    const img = document.getElementById('portrait-img');
-    img.src = imgUrl;
-    img.onload = () => {
-      loading.style.display = 'none';
-      result.style.display = 'block';
-      acceptNav.style.display = 'flex';
-    };
-  } catch (err) {
-    loading.style.display = 'none';
-    stepNav.style.display = 'flex';
-    toast('Portrait generation failed — auto-generating from your class...', 'error');
-    console.error('Portrait error:', err);
-    _autoGeneratePortrait();
-  }
-}
-
-async function pollPortraitResult(taskId, attempts = 0) {
-  if (attempts > 30) throw new Error('Timed out waiting for portrait');
-  await new Promise(r => setTimeout(r, 2000));
-  const res = await fetch('/api/portrait/status/' + taskId);
-  const data = await res.json();
-  if (data.status === 'completed' && data.image_url) return data.image_url;
-  if (data.status === 'failed') throw new Error('Generation failed');
-  return pollPortraitResult(taskId, attempts + 1);
-}
-
-function regeneratePortrait() {
-  document.getElementById('portrait-result').style.display = 'none';
-  document.getElementById('portrait-accept-nav').style.display = 'none';
-  document.getElementById('portrait-step-nav').style.display = 'flex';
-  gameState.pendingPortrait = null;
+  acceptNav.style.display = 'flex';
+  const img = document.getElementById('portrait-img');
+  if (img) img.src = imgUrl;
 }
 
 function acceptPortrait() {
@@ -565,36 +493,7 @@ function acceptPortrait() {
 }
 
 function skipPortrait() {
-  // Auto-generate silently in background based on class/race/origin
-  // Show finalize immediately, portrait will be ready by the time game starts
-  document.getElementById('portrait-step-nav').style.display = 'none';
-  document.getElementById('portrait-accept-nav').style.display = 'flex';
-  toast('Generating your portrait in the background...', 'info');
-  _autoGeneratePortrait();
-}
-
-async function _autoGeneratePortrait() {
-  try {
-    const prompt = buildPortraitPrompt(''); // empty = auto from race/class/origin
-    const res = await fetch('/api/portrait', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
-    });
-    const data = await res.json();
-    let imgUrl = null;
-    if (data.task_id === 'done' && data.image_url) {
-      imgUrl = data.image_url;
-    } else if (data.task_id) {
-      imgUrl = await pollPortraitResult(data.task_id);
-    }
-    if (imgUrl) {
-      gameState.pendingPortrait = imgUrl;
-      toast('Portrait ready!', 'success');
-    }
-  } catch (e) {
-    console.warn('Auto portrait generation failed silently:', e);
-  }
+  generateCharacterPortrait();
 }
 
 // ─── FRESH-RUN WORLD RESET (#5) ───────────────
@@ -677,7 +576,7 @@ function finalizeCharacter() {
     origin,
     secret,
     appearance: document.getElementById('char-appearance')?.value?.trim() || '',
-    portrait: gameState.pendingPortrait || null,
+    portrait: gameState.pendingPortrait || window.PortraitLibrary?.getPlayerPortrait(gameState.selectedRace) || 'art/portraits/races/human.jpg',
     stats: { ...gameState.rolledStats },
     level: 1,
     xp: 0,

@@ -76,9 +76,7 @@ function openCharSheet(section = 'character') {
 
       <!-- PORTRAIT -->
       <div class="cs-portrait-block">
-        ${char.portrait
-          ? `<img src="${char.portrait}" class="cs-portrait-img" alt="${char.name}">`
-          : `<div class="cs-portrait-placeholder">${cls?.icon||'⚔'}</div>`}
+        <img src="${char.portrait || window.PortraitLibrary?.getPlayerPortrait(char.race)}" class="cs-portrait-img" alt="${char.name}">
         <div class="cs-portrait-overlay">
           <div class="cs-morality">
             <span class="cs-holy">✝ ${char.holyPoints||0}</span>

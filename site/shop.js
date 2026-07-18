@@ -48,6 +48,7 @@ const SHOP_ITEMS = {
 // ─── MERCHANT INVENTORIES BY LOCATION ────────────────────
 const MERCHANTS = {
   vaelthar_city: {
+    id: 'merchant_old_brennan', race: 'human', role: 'merchant',
     name: 'Brennan\'s Sundries',
     keeper: 'Old Brennan',
     keeperIcon: '👴',
@@ -58,6 +59,7 @@ const MERCHANTS = {
   },
   // #28: re-keyed to real WORLD_LOCATIONS ids so all 7 merchants are reachable.
   thornwood_passage: {
+    id: 'merchant_sylva', race: 'elf', role: 'merchant',
     name: 'The Wanderer\'s Pack',
     keeper: 'Sylva',
     keeperIcon: '🧝',
@@ -67,6 +69,7 @@ const MERCHANTS = {
     faction: 'citizens', factionLabel:'Thornwood Folk', alignment:'neutral',
   },
   temple_quarter: {
+    id: 'merchant_brother_edric', race: 'human', role: 'cleric',
     name: 'The Church Armory',
     keeper: 'Brother Edric',
     keeperIcon: '⛪',
@@ -76,6 +79,7 @@ const MERCHANTS = {
     faction: 'church', factionLabel:'Church of the Eternal Flame', alignment:'holy',
   },
   tarnished_cup: {
+    id: 'merchant_mira', race: 'human', role: 'rogue',
     name: 'The Black Shelf',
     keeper: 'Mira (no last name)',
     keeperIcon: '🕵️',
@@ -85,6 +89,7 @@ const MERCHANTS = {
     faction: 'underworld', factionLabel:'Vaelthar Underworld', alignment:'dark',
   },
   merchant_road: {
+    id: 'merchant_big_kes', race: 'orc', role: 'merchant',
     name: 'Harbormaster\'s Surplus',
     keeper: 'Big Kes',
     keeperIcon: '⚓',
@@ -94,6 +99,7 @@ const MERCHANTS = {
     faction: 'citizens', factionLabel:'Road Merchants', alignment:'neutral',
   },
   church_archive: {
+    id: 'merchant_osric', race: 'human', role: 'occult',
     name: 'The Bone Trader',
     keeper: 'Osric the Gray',
     keeperIcon: '💀',
@@ -103,6 +109,7 @@ const MERCHANTS = {
     faction: 'covenant', factionLabel:'Covenant Remnants', alignment:'dark',
   },
   monastery_aldric: {
+    id: 'merchant_novice_tael', race: 'human', role: 'monk',
     name: 'The Pilgrim\'s Store',
     keeper: 'Novice Tael',
     keeperIcon: '🧎',
@@ -115,6 +122,7 @@ const MERCHANTS = {
 
 // Default fallback merchant
 const DEFAULT_MERCHANT = {
+  id: 'merchant_traveling', race: 'human', role: 'merchant',
   name: 'Traveling Merchant',
   keeper: 'The Merchant',
   keeperIcon: '🧳',
@@ -226,7 +234,7 @@ function renderShop(merchant) {
     <div class="shop-inner">
       <div class="shop-header">
         <div class="shop-keeper">
-          <span class="shop-keeper-icon">${merchant.keeperIcon}</span>
+          <img class="shop-keeper-icon" src="${window.getPortraitPath?.(merchant.id, merchant.keeper, { race: merchant.race, role: merchant.role })}" alt="${esc(merchant.keeper)}">
           <div class="shop-keeper-info">
             <span class="shop-name">${merchant.name}</span>
             <span class="shop-keeper-name">${merchant.keeper}</span>
@@ -555,7 +563,7 @@ function useConsumable(itemName) {
     border-bottom: 1px solid rgba(201,168,76,0.15);
   }
   .shop-keeper { display:flex; gap:12px; flex:1; }
-  .shop-keeper-icon { font-size:40px; flex-shrink:0; }
+  .shop-keeper-icon { width:58px; height:72px; object-fit:cover; object-position:center top; border:1px solid rgba(201,168,76,0.55); border-radius:3px; box-shadow:0 4px 14px #000; flex-shrink:0; }
   .shop-keeper-info { display:flex; flex-direction:column; gap:2px; }
   .shop-name { font-family:'Cinzel',serif; color:var(--gold,#c9a84c); font-size:0.95rem; }
   .shop-keeper-name { font-size:0.75rem; color:rgba(201,168,76,0.6); }

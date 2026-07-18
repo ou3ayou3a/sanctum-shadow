@@ -1,4 +1,4 @@
-// Load .env for local dev (ANTHROPIC_API_KEY, NANOBANANA_API_KEY, DEBUG_KEY).
+// Load .env for local dev (ANTHROPIC_API_KEY, DEBUG_KEY).
 // In production Railway injects real env vars; dotenv never overrides those.
 try { require('dotenv').config(); } catch (_) { /* dotenv optional */ }
 
@@ -196,77 +196,6 @@ app.post('/api/npc', apiRateLimit(30, 60_000), (req, res) => {
   });
   request.write(body);
   request.end();
-});
-
-// ─── PORTRAIT PROXY (Google Gemini image generation) ───
-app.post('/api/portrait', apiRateLimit(10, 60_000), (req, res) => {
-  const apiKey = process.env.NANOBANANA_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Portrait API key not configured.' });
-
-  const prompt = req.body.prompt || 'dark fantasy RPG character portrait';
-
-  const geminiBody = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-  });
-
-  const geminiOptions = {
-    hostname: 'generativelanguage.googleapis.com',
-    path: `/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(geminiBody),
-    },
-  };
-
-  // Mirror the /api/npc hardening: settled-guard so we respond exactly once, a
-  // request timeout that destroys the socket and returns 504, and forwarding of
-  // the real upstream status code instead of hard-coding 200/500.
-  let settled = false;
-  const request = https.request(geminiOptions, (response) => {
-    let data = '';
-    response.on('data', chunk => data += chunk);
-    response.on('end', () => {
-      if (settled) return;
-      settled = true;
-      // Forward the upstream HTTP status code instead of always 200/500.
-      const status = response.statusCode || 502;
-      try {
-        const parsed = JSON.parse(data);
-        const parts = parsed.candidates?.[0]?.content?.parts || [];
-        const imgPart = parts.find(p => p.inlineData);
-        if (imgPart?.inlineData?.data) {
-          const mimeType = imgPart.inlineData.mimeType || 'image/jpeg';
-          const dataUrl = `data:${mimeType};base64,${imgPart.inlineData.data}`;
-          res.json({ task_id: 'done', image_url: dataUrl });
-        } else {
-          console.error('Gemini portrait no image. Response:', JSON.stringify(parsed).substring(0, 400));
-          // Use the upstream status when it signalled an error, else 500 (no image).
-          res.status(status >= 400 ? status : 500).json({ error: 'No image in response', detail: JSON.stringify(parsed).substring(0, 300) });
-        }
-      } catch (e) {
-        res.status(status >= 400 ? status : 500).json({ error: 'Parse error: ' + e.message });
-      }
-    });
-  });
-  request.setTimeout(NPC_TIMEOUT_MS, () => {
-    if (settled) return;
-    settled = true;
-    request.destroy();
-    res.status(504).json({ error: 'Upstream request timed out' });
-  });
-  request.on('error', err => {
-    if (settled) return;
-    settled = true;
-    res.status(502).json({ error: err.message });
-  });
-  request.write(geminiBody);
-  request.end();
-});
-
-app.get('/api/portrait/status/:taskId', (req, res) => {
-  res.json({ status: 'failed' });
 });
 
 // ─── SESSION STORE (in-memory + disk persistence) ───────────────

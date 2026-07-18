@@ -189,10 +189,10 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
           </div>
         </div>
 
-        <!-- STEP 6: PORTRAIT GENERATION -->
+        <!-- STEP 6: LOCAL RACE PORTRAIT -->
         <div class="creation-step" id="step-6">
           <h3>Step 6: Your Face in the Dark</h3>
-          <p class="step-hint">Describe your appearance — or leave it blank and fate will choose for you.</p>
+          <p class="step-hint">Your launch portrait is included with your chosen race. Custom portraits will come in a later character-customization update.</p>
           <div class="form-group">
             <label>Appearance (optional)</label>
             <textarea id="char-appearance" class="form-input" rows="3"
@@ -207,17 +207,13 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
             </div>
             <div id="portrait-result" style="display:none">
               <img id="portrait-img" src="" alt="Your character" class="portrait-preview-img">
-              <div class="portrait-preview-actions">
-                <button class="btn-ghost" onclick="regeneratePortrait()">🔄 Regenerate</button>
-                <button class="btn-primary" onclick="acceptPortrait()">✓ Use This Portrait</button>
-              </div>
+              <div class="portrait-preview-actions"><span class="step-hint">Bundled locally — always available, including offline.</span></div>
             </div>
           </div>
 
           <div class="step-nav" id="portrait-step-nav">
             <button class="btn-ghost" onclick="nextStep(5)">← Back</button>
-            <button class="btn-primary" onclick="generateCharacterPortrait()">🎨 Generate Portrait</button>
-            <button class="btn-ghost" onclick="skipPortrait()">Skip →</button>
+            <button class="btn-primary" onclick="generateCharacterPortrait()">Use Race Portrait →</button>
           </div>
 
           <div class="step-nav" id="portrait-accept-nav" style="display:none">
@@ -435,6 +431,7 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
 </div>
 
 <script src="data.js?v=92"></script>
+<script src="portrait-library.js?v=1"></script>
 <script src="rules.js?v=93"></script>
 <script src="tactical-combat.js?v=2"></script>
 <script src="combat-presentation.js?v=163"></script>
@@ -445,8 +442,8 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
 <script src="offline-narration.js?v=147"></script>
 <script src="audio.js?v=170"></script>
 <script src="map.js?v=174"></script>
-<script src="game.js?v=166"></script>
-<script src="combat.js?v=170"></script>
+<script src="game.js?v=175"></script>
+<script src="combat.js?v=175"></script>
 <script src="consequences.js?v=2"></script>
 <script src="prayer.js?v=5"></script>
 <script src="additions.js?v=169"></script>
@@ -459,14 +456,14 @@ window.mp = window.mp || { sessionCode: null, socket: null, connected: false, pl
   <script src="story-extra-finale.js?v=3"></script>
   <script src="quest-entry-hooks.js?v=2"></script>
 <script src="party-origin-quests.js?v=1"></script>
-<script src="dialogue.js?v=162"></script>
+<script src="dialogue.js?v=175"></script>
 <script src="romance.js?v=113"></script>
 <script src="senses.js?v=91"></script>
-<script src="multiplayer.js?v=174"></script>
+<script src="multiplayer.js?v=175"></script>
 <script src="saves.js?v=174"></script>
-<script src="visuals.js?v=159"></script>
+<script src="visuals.js?v=175"></script>
 <script src="merchant-pricing.js?v=1"></script>
-<script src="shop.js?v=92"></script>
+<script src="shop.js?v=175"></script>
 <script src="travel.js?v=153"></script>
 <script src="camp.js?v=154"></script>
 <script src="reputation.js?v=91"></script>

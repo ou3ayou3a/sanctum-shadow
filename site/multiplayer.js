@@ -1086,8 +1086,12 @@ function renderSpectatorCombat(cs) {
     </div>
     <div class="cp-enemies">${living.map(combatant => {
       const hp = combatant.boss ? '??? HP' : `${Math.max(0, combatant.hp)}/${combatant.maxHp}`;
+      const participant = combatant.isPlayer ? window.mp?.session?.players?.[combatant.playerId || combatant.id] : null;
+      const portrait = combatant.isPlayer
+        ? (participant?.character?.portrait || window.PortraitLibrary?.getPlayerPortrait(participant?.character?.race))
+        : window.getPortraitPath?.(combatant.id, combatant.name, { role: combatant.boss ? 'boss' : 'adventurer' });
       return `<div class="combat-enemy ${combatant.isPlayer ? 'player' : ''}">
-        <div class="ce-portrait ce-portrait-icon">${esc(combatant.icon || (combatant.isPlayer ? '⚔' : '👹'))}</div>
+        <div class="ce-portrait"><img src="${portrait}" alt="${esc(combatant.name)}"></div>
         <div class="ce-info"><span class="ce-name">${esc(combatant.name)}</span><span class="ce-hp-num">${hp}</span></div>
       </div>`;
     }).join('')}</div>

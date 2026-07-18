@@ -640,11 +640,8 @@ function updateCombatUI() {
       const enemyStatuses = (combatState.statusEffects[c.id] || []).map(s =>
         `<span class="status-badge enemy-status" title="${s.name}">${s.icon}</span>`
       ).join('');
-      // Portrait: use NPC_PORTRAITS if available, else icon
-      const npcPortraitPath = window.NPC_PORTRAITS?.[c.id]?.path;
-      const portraitHTML = npcPortraitPath
-        ? `<div class="ce-portrait"><img src="${npcPortraitPath}" alt="${c.name}"></div>`
-        : `<div class="ce-portrait ce-portrait-icon">${c.icon}</div>`;
+      const npcPortraitPath = window.getPortraitPath?.(c.id, c.name, { role: c.boss ? 'boss' : 'adventurer' });
+      const portraitHTML = `<div class="ce-portrait"><img src="${npcPortraitPath}" alt="${c.name}"></div>`;
       return `<div class="combat-enemy ${isTarget ? 'targeted' : ''} ${c.boss ? 'boss' : ''}"
         onclick="window.selectTarget('${c.id}')">
         ${portraitHTML}
@@ -693,9 +690,7 @@ function updateCombatUI() {
         ? (partyPortrait
             ? `<img src="${partyPortrait}" class="to-thumb" alt="${c.name}">`
             : `<span class="to-thumb-icon">${c.icon}</span>`)
-        : (window.NPC_PORTRAITS?.[c.id]?.path
-            ? `<img src="${window.NPC_PORTRAITS[c.id].path}" class="to-thumb" alt="${c.name}">`
-            : `<span class="to-thumb-icon">${c.icon}</span>`);
+        : `<img src="${window.getPortraitPath?.(c.id, c.name, { role: c.boss ? 'boss' : 'adventurer' })}" class="to-thumb" alt="${c.name}">`;
       return `<span class="to-badge ${isCurrent ? 'current' : ''} ${c.isPlayer ? 'player' : 'enemy'}">
         ${thumb} ${c.name.split(' ')[0]}
       </span>`;
@@ -712,10 +707,8 @@ function updateCombatUI() {
         ? `<img src="${partyPortrait}" class="active-turn-portrait player-portrait" alt="${activeCombatant.name}">`
         : `<span class="active-turn-icon">${activeCombatant.icon}</span>`;
     }
-    const npcPath = window.NPC_PORTRAITS?.[activeCombatant.id]?.path;
-    return npcPath
-      ? `<img src="${npcPath}" class="active-turn-portrait enemy-portrait" alt="${activeCombatant.name}">`
-      : `<span class="active-turn-icon">${activeCombatant.icon}</span>`;
+    const npcPath = window.getPortraitPath?.(activeCombatant.id, activeCombatant.name, { role: activeCombatant.boss ? 'boss' : 'adventurer' });
+    return `<img src="${npcPath}" class="active-turn-portrait enemy-portrait" alt="${activeCombatant.name}">`;
   })();
 
   panel.innerHTML = `

@@ -1501,13 +1501,8 @@ function configureConversationControls(){
 // ── Player portrait helpers ──
 function getPlayerPortraitHTML(char) {
   if (!char) return `<div class="cp-player-portrait-box"><span style="font-size:32px">👤</span></div>`;
-  if (char.portrait) {
-    return `<div class="cp-player-portrait-box"><img src="${char.portrait}" alt="${char.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;"></div>`;
-  }
-  // Fallback: class icon
-  const classIcons = { paladin:'✝', shadow_blade:'🗡', void_herald:'🌑', blood_cleric:'🩸', iron_warden:'🛡', whisper_sage:'📜' };
-  const icon = classIcons[char.class] || '⚔';
-  return `<div class="cp-player-portrait-box cp-player-icon">${icon}</div>`;
+  const portrait = char.portrait || window.PortraitLibrary?.getPlayerPortrait(char.race);
+  return `<div class="cp-player-portrait-box"><img src="${portrait}" alt="${char.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;"></div>`;
 }
 
 function getClassLabel(char) {
@@ -1525,8 +1520,9 @@ function updateConvPlayerPortrait(playerName, playerChar) {
 
   const portraitBox = side.querySelector('.cp-player-portrait-box');
   if (portraitBox) {
-    if (playerChar?.portrait) {
-      portraitBox.innerHTML = `<img src="${playerChar.portrait}" alt="${playerName}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;">`;
+    const portrait = playerChar?.portrait || window.PortraitLibrary?.getPlayerPortrait(playerChar?.race);
+    if (portrait) {
+      portraitBox.innerHTML = `<img src="${portrait}" alt="${playerName}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:2px;">`;
       portraitBox.classList.remove('cp-player-icon');
     } else {
       const classIcons = { paladin:'✝', shadow_blade:'🗡', void_herald:'🌑', blood_cleric:'🩸', iron_warden:'🛡', whisper_sage:'📜' };
