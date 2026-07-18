@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CharacterActor} from './character-actor.js?v=166';
+import {CharacterActor} from './character-actor.js?v=179';
 import {RACE_IDS,getRaceProfile} from './race-profiles.mjs';
 
 const canvas=document.getElementById('roster-canvas'),loading=document.getElementById('roster-loading'),errorBox=document.getElementById('roster-error');

@@ -4,7 +4,7 @@ import {VAELTHAR_NPCS} from '../vaelthar-npcs.mjs';
 import {getLandmarkActions} from '../environment-actions.mjs';
 import {createArchitectureKit} from '../architecture-kit.mjs';
 import {createNatureKit} from '../nature-kit.mjs';
-import {buildVaeltharAssetSlice} from '../vaelthar-asset-slice.mjs?v=165';
+import {buildVaeltharAssetSlice} from '../vaelthar-asset-slice.mjs?v=181';
 import {createMedievalMaterialLibrary} from '../medieval-materials.mjs';
 import {createCityDetailKit} from '../city-detail-kit.mjs';
 import {buildVaeltharVerticalSlice} from '../vaelthar-vertical-slice.mjs?v=158';

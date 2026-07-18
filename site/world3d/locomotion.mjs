@@ -1,6 +1,6 @@
-export const WALK_SPEED=2.5;
-export const RUN_SPEED=4.8;
-export const MAX_NETWORK_SPEED=6;
+export const WALK_SPEED=3.35;
+export const RUN_SPEED=6.15;
+export const MAX_NETWORK_SPEED=7;
 export const PRESENCE_STATES=Object.freeze(['idle','walk_start','walk','run','walk_stop','turn_left','turn_right']);
 
 export function clamp(value,min,max){return Math.max(min,Math.min(max,value));}

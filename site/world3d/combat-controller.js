@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=166';
+import {CharacterActor} from './character-actor.js?v=179';
 
 const MOVE_RANGE=4.5;
 
@@ -17,7 +17,7 @@ export class Combat3DController{
 
   async start(){
     if(this.active||this.starting)return;this.starting=true;this.active=true;this.victoryShown=false;document.body.classList.add('world3d-combat');this.engine.actor.stop();this.engine.pendingInteraction=null;this.engine.hidePrompt();this.engine.marker.visible=false;
-    if(this.engine.npcManager){for(const record of this.engine.npcManager.records){record.actor.visible=false;record.collider.visible=false;record.label.style.display='none';}}
+    if(this.engine.npcManager){for(const record of this.engine.npcManager.records){if(record.actor)record.actor.visible=false;record.collider.visible=false;record.label.style.display='none';}}
     this.makeRange();this.makeHud();
     const state=this.state(),origin=this.engine.actor.position.clone(),local=localCombatantId(),localPosition=state.combatants?.[local]?.position||state.combatants?.player?.position||{x:0,z:0};this.battleOrigin=origin.clone().sub(new THREE.Vector3(localPosition.x||0,0,localPosition.z||0));let ally=0,enemy=0;this.makeCover();
     const tasks=Object.values(state.combatants||{}).map(async combatant=>{
@@ -27,7 +27,7 @@ export class Combat3DController{
       const angle=combatant.isPlayer?Math.PI/2+(ally++-.5)*.75:Math.PI+(enemy++-.5)*.62;
       const radius=combatant.isPlayer?2.2:4.7+Math.floor(enemy/4)*1.15;
       const desired=combatant.position?this.battleOrigin.clone().add(new THREE.Vector3(combatant.position.x,0,combatant.position.z)):origin.clone().add(new THREE.Vector3(Math.sin(angle)*radius,0,Math.cos(angle)*radius));const cell=this.engine.navigation.nearestOpen(this.engine.navigation.cellAt(desired)),position=cell?this.engine.navigation.pointAt(cell):desired;
-      const actor=new CharacterActor({modelUrl:this.modelUrl,race:partyCharacter?.race||inferRace(combatant),characterClass:partyCharacter?.class||inferClass(combatant),scale:combatant.boss?1.12:.94});actor.position.set(position.x,0,position.z);actor.lookAt(origin.x,0,origin.z);actor.userData.combatantId=combatant.id;this.engine.scene.add(actor);
+      const actor=new CharacterActor({modelUrl:this.modelUrl,race:partyCharacter?.race||inferRace(combatant),characterClass:partyCharacter?.class||inferClass(combatant),scale:combatant.boss?1.12:.94});actor.position.set(position.x,0,position.z);actor.lookAt(origin.x,0,origin.z);actor.userData.combatantId=combatant.id;actor.showLoadingFallback();this.engine.scene.add(actor);
       try{await actor.load();actor.setCombatStance(true);actor.traverse(object=>{object.userData.combatantId=combatant.id;if(object.isMesh)object.castShadow=false;});}catch(error){console.warn('Combat actor could not load',displayName(combatant),error);}
       this.records.set(combatant.id,{combatant,actor,owned:true,label:this.makeLabel(combatant),audioPosition:actor.position.clone(),stepDistance:0,stepCount:0});
     });
@@ -136,7 +136,7 @@ export class Combat3DController{
     const state=this.state();if(state?.active&&!this.active){this.start();return;}if(!state?.active&&this.active&&performance.now()>=(this.endingUntil||0)){this.stop();return;}if(!this.active)return;for(const record of this.records.values())if(record.owned){record.actor.update(dt);if(record.targetPosition)record.actor.position.lerp(record.targetPosition,1-Math.exp(-dt*8));}this.sync();for(const record of this.records.values()){this.updateCombatAudio(record);if(record.actor.visible){this.positionElement(record.label,record.actor.position,2.5*record.actor.profile.proportions[1]);record.label.style.display='block';const c=record.combatant,pct=Math.max(0,Math.round(c.hp/c.maxHp*100));record.label.textContent=`${displayName(c)} · ${c.boss?'???':`${pct}%`}`;}else record.label.style.display='none';}
   }
   stop(){
-    if(!this.active&&!this.starting)return;this.active=false;this.starting=false;this.actionLocked=false;this.actionLockUntil=0;this.endingUntil=0;this.pendingLocalPresentation=null;this.spellSignature='';this.victoryShown=false;for(const timer of this.presentationTimers)clearTimeout(timer);this.presentationTimers.clear();this.presented.clear();document.body.classList.remove('world3d-combat');if(this.engine.cinematicDirector?.mode==='moment')this.engine.cinematicDirector.exit({immediate:true});this.engine.actor?.setCombatStance(false);this.engine.abilityEffects?.dispose();for(const record of this.records.values()){window.AudioEngine?.removeWorldEmitter?.(`combat:${record.combatant.id}`);record.label.remove();if(record.owned){this.engine.scene.remove(record.actor);record.actor.dispose();}}delete this.engine.actor?.userData?.combatantId;this.records.clear();this.hp.clear();this.hud?.remove();this.hud=null;if(this.range){this.engine.scene.remove(this.range);this.range.geometry.dispose();this.range.material.dispose();this.range=null;}for(const object of this.coverMeshes||[]){this.engine.scene.remove(object);object.geometry.dispose();object.material.dispose();}this.coverMeshes=[];if(this.engine.npcManager)for(const record of this.engine.npcManager.records){record.actor.visible=true;record.collider.visible=true;}this.engine.toast('Combat ended. Exploration resumed.');
+    if(!this.active&&!this.starting)return;this.active=false;this.starting=false;this.actionLocked=false;this.actionLockUntil=0;this.endingUntil=0;this.pendingLocalPresentation=null;this.spellSignature='';this.victoryShown=false;for(const timer of this.presentationTimers)clearTimeout(timer);this.presentationTimers.clear();this.presented.clear();document.body.classList.remove('world3d-combat');if(this.engine.cinematicDirector?.mode==='moment')this.engine.cinematicDirector.exit({immediate:true});this.engine.actor?.setCombatStance(false);this.engine.abilityEffects?.dispose();for(const record of this.records.values()){window.AudioEngine?.removeWorldEmitter?.(`combat:${record.combatant.id}`);record.label.remove();if(record.owned){this.engine.scene.remove(record.actor);record.actor.dispose();}}delete this.engine.actor?.userData?.combatantId;this.records.clear();this.hp.clear();this.hud?.remove();this.hud=null;if(this.range){this.engine.scene.remove(this.range);this.range.geometry.dispose();this.range.material.dispose();this.range=null;}for(const object of this.coverMeshes||[]){this.engine.scene.remove(object);object.geometry.dispose();object.material.dispose();}this.coverMeshes=[];this.engine.npcManager?.restoreAfterCombat();this.engine.toast('Combat ended. Exploration resumed.');
   }
   dispose(){this.stop();}
 }

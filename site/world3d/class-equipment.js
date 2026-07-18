@@ -7,7 +7,7 @@ export function rigBone(model,boneName){return model?.getObjectByName(boneName)|
 async function productionEquipment(name){
   const url=`${EQUIPMENT_ROOT}/${name}.glb`;
   if(!EQUIPMENT_CACHE.has(url))EQUIPMENT_CACHE.set(url,new GLTFLoader().loadAsync(url).then(gltf=>gltf.scene).catch(error=>{EQUIPMENT_CACHE.delete(url);throw error;}));
-  const object=(await EQUIPMENT_CACHE.get(url)).clone(true);object.name=`production-equipment:${name}`;object.traverse(child=>{if(child.isMesh){child.castShadow=true;child.receiveShadow=true;}});return object;
+  const object=(await EQUIPMENT_CACHE.get(url)).clone(true);object.name=`production-equipment:${name}`;object.traverse(child=>{if(child.isMesh){child.castShadow=true;child.receiveShadow=true;child.userData.sharedActorGeometry=true;child.userData.sharedActorMaterial=true;}});return object;
 }
 
 const material=(color,{metalness=.55,roughness=.38,emissive=0,emissiveIntensity=0}={})=>new THREE.MeshStandardMaterial({color,metalness,roughness,emissive,emissiveIntensity});

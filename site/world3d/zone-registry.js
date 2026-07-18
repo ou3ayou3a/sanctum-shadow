@@ -1,4 +1,4 @@
-import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=165';
+import { buildVaeltharCourtyard } from './zones/vaelthar-courtyard.js?v=181';
 import { buildTarnishedCup } from './zones/tarnished-cup.js?v=140';
 import { buildGenericZone } from './zones/generic-zone.js?v=171';
 

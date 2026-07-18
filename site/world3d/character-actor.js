@@ -19,12 +19,28 @@ export class CharacterActor extends THREE.Group {
     this.path=[];this.speed=WALK_SPEED;this.targetSpeed=0;this.currentSpeed=0;this.arrivalRadius=.12;this.onArrive=null;this.movementIntent='walk';this.transitionTime=0;this.lastRemoteState='idle';this.gestureSequence=0;this.currentGesture=null;this.gestureUntil=0;this.reactionTime=0;this.reactionDuration=.32;this.reactionVector=new THREE.Vector3();
   }
 
+  showLoadingFallback(){
+    if(this.model||this.loadingFallback)return this.loadingFallback;
+    const group=new THREE.Group(),skin=new THREE.MeshStandardMaterial({color:this.profile.skinColor||0xd3b08d,roughness:.78}),cloth=new THREE.MeshStandardMaterial({color:this.classProfile.accent||this.profile.accent||0x496056,roughness:.72,metalness:.08});
+    const part=(geometry,material,position,scale=null)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...position);if(scale)mesh.scale.set(...scale);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;};
+    part(new THREE.CapsuleGeometry(.34,.72,5,8),cloth,[0,1.08,0]);part(new THREE.SphereGeometry(.28,12,9),skin,[0,1.82,0]);
+    for(const side of[-1,1]){part(new THREE.CapsuleGeometry(.1,.62,4,7),cloth,[side*.43,1.14,0], [1,1,1]);part(new THREE.CapsuleGeometry(.12,.72,4,7),cloth,[side*.2,.38,0]);}
+    group.scale.setScalar(this.modelScale);group.name='character-loading-fallback';group.userData.actorFallback=true;this.add(group);this.loadingFallback=group;this.model=group;if(!this.selectionRing)this.addSelectionRing();if(!this.weaponTrail)this.addWeaponTrail();return group;
+  }
+
+  clearLoadingFallback(){
+    const group=this.loadingFallback;if(!group)return;group.traverse(object=>{object.geometry?.dispose();if(object.material)(Array.isArray(object.material)?object.material:[object.material]).forEach(material=>material.dispose());});this.remove(group);if(this.model===group)this.model=null;this.loadingFallback=null;
+  }
+
   async load() {
+    this.showLoadingFallback();
+    try{
     const template=await loadModelTemplate(this.modelUrl);const gltf={scene:cloneSkeleton(template.scene),animations:template.animations};
+    this.clearLoadingFallback();
     this.model = gltf.scene;const [width,height,depth]=this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
     const tint=new THREE.Color(this.profile.materialTint);
-    this.model.traverse(o => { if (o.isMesh) {o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];for(const material of materials){if(material.color)material.color.multiply(tint);material.envMapIntensity=1.15;material.needsUpdate=true;}o.castShadow = true; o.receiveShadow = true; } });
-    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();this.addSelectionRing();this.addWeaponTrail();await equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
+    this.model.traverse(o => { if (o.isMesh) {o.userData.sharedActorGeometry=true;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];for(const material of materials){if(material.color)material.color.multiply(tint);material.envMapIntensity=1.15;material.needsUpdate=true;}o.castShadow = true; o.receiveShadow = true; } });
+    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();if(!this.selectionRing)this.addSelectionRing();if(!this.weaponTrail)this.addWeaponTrail();await equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
     for (const clip of gltf.animations) {
       const name = clip.name.toLowerCase();
       if (name.includes('combat_idle')) this.actions.combat_idle = this.mixer.clipAction(clip);
@@ -54,6 +70,9 @@ export class CharacterActor extends THREE.Group {
       else if (name.includes('attack')||name.includes('slash')) this.actions.attack_slash = this.mixer.clipAction(clip);
     }
     this.setState('idle', true);
+    }catch(error){
+      this.loadError=error;this.showLoadingFallback();this.state='idle';this.dispatchEvent({type:'statechange',state:'idle'});console.warn(`Character model failed for ${this.race}; using the lightweight fallback.`,error);
+    }
     return this;
   }
 
@@ -160,6 +179,6 @@ export class CharacterActor extends THREE.Group {
 
   dispose() {
     this.combatStance=false;this.stop();clearTimeout(this.oneShotTimer);clearTimeout(this.stanceTimer);clearTimeout(this.equipmentSwapTimer);clearTimeout(this.networkEquipmentTimer); if (this.mixer) this.mixer.stopAllAction();
-    this.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); });
+    this.traverse(o => { if (o.geometry&&!o.userData?.sharedActorGeometry) o.geometry.dispose(); if (o.material&&!o.userData?.sharedActorMaterial) (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); });
   }
 }

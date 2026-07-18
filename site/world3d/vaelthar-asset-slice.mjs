@@ -11,11 +11,9 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
   const place=(spec,placement,{sway=0,doorId=null,plot=null,index=0}={})=>{const job=placeEnvironmentAsset(root,spec,placement).then(object=>{materialLibrary?.apply(object);if(plot)facades.weatherAsset(object,plot,index);if(sway)animated.push({object,phase:placement.position[0]*.37+placement.position[2]*.19,strength:sway});if(doorId)object.traverse(child=>{if(/INTERACT.*Door/i.test(child.name))doors.push({id:doorId,object:child,closed:child.rotation.y,target:0,amount:0});});return object;}).catch(error=>{failures.push({name:placement.name,error});console.warn(`Environment asset failed: ${placement.name}`,error);return null;});jobs.push(job);return job;};
   const placeBatch=(spec,placements,name)=>{const job=placeEnvironmentAssetBatch(root,spec,placements,{name}).then(object=>{if(object)materialLibrary?.apply(object);return object;}).catch(error=>{failures.push({name,error});console.warn(`Environment asset batch failed: ${name}`,error);return null;});jobs.push(job);return job;};
 
-  for(const [index,plot] of buildingPlots.entries()){
-    registerObstacle(obstacles,plot);
-    const asset=plot.asset||['house_a','house_b','house_c'][index%3];
-    place(productionAssetSpec(asset),{name:`production:${plot.id}`,position:[plot.x,0,plot.z],rotation:plot.rotation,size:[plot.width,plot.height,plot.depth]},{plot,index});
-  }
+  const buildingBatches=new Map();for(const [index,plot] of buildingPlots.entries()){
+    registerObstacle(obstacles,plot);const asset=plot.asset||['house_a','house_b','house_c'][index%3];if(!buildingBatches.has(asset))buildingBatches.set(asset,[]);buildingBatches.get(asset).push({name:`production:${plot.id}`,position:[plot.x,0,plot.z],rotation:plot.rotation,size:[plot.width,plot.height,plot.depth]});
+  }for(const[asset,placements]of buildingBatches)placeBatch(productionAssetSpec(asset),placements,`production:instanced-city-${asset}`);
 
   registerObstacle(obstacles,{x:-16,z:13,width:10,depth:7.4});
   place(productionAssetSpec('tavern'),{name:'production:tarnished-cup',position:[-16,0,13],rotation:0,size:[10,8.4,8.7]},{doorId:'tarnished_cup'});
@@ -45,8 +43,8 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
 
   // The northern citadel is a layered authored silhouette rather than one inflated primitive castle.
   place(productionAssetSpec('castle_keep'),{name:'production:crown-citadel',position:[0,4,-51],rotation:0,size:[16,19,13.5]});
-  for(const [x,z,height]of[[-10,-48,15],[10,-48,15],[-10,-56,13],[10,-56,13]])place(productionAssetSpec('castle_tower'),{name:`production:citadel-tower-${x}-${z}`,position:[x,4,z],rotation:0,size:[6.4,height,6.4]});
-  for(const [x,z,rotation]of[[0,-43,0],[0,-59,0],[-12,-51,Math.PI/2],[12,-51,Math.PI/2]])place(productionAssetSpec('castle_wall'),{name:`production:citadel-wall-${x}-${z}`,position:[x,4,z],rotation,size:[12,6.5,2.2]});
+  placeBatch(productionAssetSpec('castle_tower'),[[-10,-48,15],[10,-48,15],[-10,-56,13],[10,-56,13]].map(([x,z,height])=>({name:`production:citadel-tower-${x}-${z}`,position:[x,4,z],rotation:0,size:[6.4,height,6.4]})),'production:instanced-citadel-towers');
+  placeBatch(productionAssetSpec('castle_wall'),[[0,-43,0],[0,-59,0],[-12,-51,Math.PI/2],[12,-51,Math.PI/2]].map(([x,z,rotation])=>({name:`production:citadel-wall-${x}-${z}`,position:[x,4,z],rotation,size:[12,6.5,2.2]})),'production:instanced-citadel-walls');
   place(productionAssetSpec('street_chapel'),{name:'production:citadel-chapel',position:[-18,4,-52],rotation:0,size:[7.4,10,7]});
   place(productionAssetSpec('guild_hall'),{name:'production:citadel-barracks',position:[18,4,-52],rotation:0,size:[10.4,10,8.2]});
 
@@ -61,10 +59,10 @@ export function buildVaeltharAssetSlice({root,obstacles,buildingPlots,materialLi
     const angle=random()*Math.PI*2,radius=47+random()*15,x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
     if(z>38)continue;treePositions.push([x,z]);
   }
-  for(const [index,[x,z]] of treePositions.entries()){
+  const treeBatches={forest_tree:[],oak_tree:[]};for(const [index,[x,z]] of treePositions.entries()){
     const height=6.4+random()*3.5,scale=.82+random()*.26;
-    place(productionAssetSpec(treeNames[index%treeNames.length]),{name:`production:tree-${index}`,position:[x,-.12,z],rotation:random()*Math.PI*2,size:[4.6*scale,height,4.6*scale]},{sway:.005+random()*.004});
-  }
+    const asset=treeNames[index%treeNames.length];treeBatches[asset].push({name:`production:tree-${index}`,position:[x,-.12,z],rotation:random()*Math.PI*2,size:[4.6*scale,height,4.6*scale]});
+  }for(const[asset,placements]of Object.entries(treeBatches))placeBatch(productionAssetSpec(asset),placements,`production:instanced-${asset}-forest`);
   registerObstacle(obstacles,{x:-25,z:55,width:11,depth:7,rotation:.18});
   place(productionAssetSpec('cave_entrance'),{name:'production:thornwood-cave',position:[-25,-.1,55],rotation:.18,size:[12,8,8]});
 

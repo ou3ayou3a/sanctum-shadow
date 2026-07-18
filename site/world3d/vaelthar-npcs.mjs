@@ -14,6 +14,8 @@ export const VAELTHAR_NPCS=Object.freeze([
   Object.freeze({id:'guard_north_1',dialogueId:'vaelthar_guard',name:'Watchman',title:'Royal Guard',position:[-3,0,-35],facing:0,race:'human',classId:'warrior',action:'dialogue',patrol:[[-3,-35],[-6,-24],[-3,-12]]}),
   Object.freeze({id:'guard_north_2',dialogueId:'vaelthar_guard',name:'Watchman',title:'Royal Guard',position:[3,0,-35],facing:0,race:'orc',classId:'paladin',action:'dialogue',patrol:[[3,-35],[6,-24],[4,-12]]}),
   Object.freeze({id:'guard_square',dialogueId:'vaelthar_guard',name:'Watchman',title:'Square Patrol',position:[-6,0,5],facing:1.2,race:'dwarf',classId:'warrior',action:'dialogue',patrol:[[-6,5],[-6,11],[0,14],[7,8]]}),
+  Object.freeze({id:'guard_south_1',dialogueId:'vaelthar_guard',name:'Watchman',title:'South Gate Guard',position:[-2.8,0,42],facing:Math.PI,race:'human',classId:'warrior',action:'dialogue',patrol:[[-2.8,42],[-5,36],[-2,31]]}),
+  Object.freeze({id:'guard_south_2',dialogueId:'vaelthar_guard',name:'Watchman',title:'South Gate Guard',position:[2.8,0,42],facing:Math.PI,race:'orc',classId:'paladin',action:'dialogue',patrol:[[2.8,42],[5,36],[2,31]]}),
   Object.freeze({id:'old_brennan',name:'Old Brennan',title:'Market Merchant',position:[7,0,10],facing:1.3,race:'human',classId:'rogue',action:'shop'}),
   Object.freeze({id:'lyra_innkeeper',name:'Lyra',title:'Keeper of the Cup',position:[-19,0,18],facing:1.4,race:'human',classId:'ranger',action:'dialogue'}),
   Object.freeze({id:'drunk_cartographer',name:'The Cartographer',title:'Deep in His Cups',position:[-15.5,0,18.5],facing:-.4,race:'human',classId:'mage',action:'dialogue'}),

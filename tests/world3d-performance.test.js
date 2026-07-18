@@ -22,6 +22,17 @@ test('environment loading is concurrency-bounded and shares one versioned cache'
 test('world runtime connects cached navigation, progressive obstruction fading, and distance budgets',()=>{
   const engine=read('world-engine.js'),obstruction=read('camera-obstruction.mjs'),performance=read('world-performance.mjs');
   assert.match(engine,/cellSize:\.65,padding:\.62/);assert.match(engine,/WorldPerformanceManager/);assert.match(engine,/performanceManager\?\.update/);
-  assert.match(obstruction,/updateFades/);assert.match(obstruction,/intersectObjects\(this\.occluders,false\)/);assert.match(obstruction,/origins=\[/);
+  assert.match(obstruction,/updateFades/);assert.match(obstruction,/intersectObjects\(candidates,false\)/);assert.match(obstruction,/occluderRecords/);assert.match(obstruction,/this\.related\.get/);
   assert.match(performance,/frustumCulled=true/);assert.match(performance,/shadowDistance/);assert.match(performance,/cullDistance/);
+});
+
+test('Vaelthar batches repeated production trees instead of creating one draw hierarchy per tree',()=>{
+  const slice=read('vaelthar-asset-slice.mjs');
+  assert.match(slice,/treeBatches/);assert.match(slice,/production:instanced-\$\{asset\}-forest/);assert.doesNotMatch(slice,/place\(productionAssetSpec\(treeNames\[/);
+});
+
+test('Vaelthar instances repeated buildings and citadel sections',()=>{
+  const slice=read('vaelthar-asset-slice.mjs');
+  assert.match(slice,/buildingBatches/);assert.match(slice,/production:instanced-city-\$\{asset\}/);
+  assert.match(slice,/production:instanced-citadel-towers/);assert.match(slice,/production:instanced-citadel-walls/);
 });

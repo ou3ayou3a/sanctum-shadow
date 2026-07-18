@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 test('exploration speed accelerates and decelerates without overshoot',async()=>{
   const locomotion=await import('../site/world3d/locomotion.mjs');
   assert.ok(Math.abs(locomotion.advanceSpeed(0,locomotion.WALK_SPEED,.1)-.85)<1e-9);
-  assert.equal(locomotion.advanceSpeed(2.4,locomotion.WALK_SPEED,.1),locomotion.WALK_SPEED);
+  assert.equal(locomotion.advanceSpeed(locomotion.WALK_SPEED-.4,locomotion.WALK_SPEED,.1),locomotion.WALK_SPEED);
   assert.equal(locomotion.advanceSpeed(1,0,.1),0);
   assert.ok(Math.abs(locomotion.advanceSpeed(NaN,locomotion.RUN_SPEED,.1)-.85)<1e-9);
 });
@@ -23,5 +23,5 @@ test('turn and presence states are deterministic and bounded',async()=>{
   assert.equal(locomotion.turnState(-.7),'turn_right');
   assert.equal(locomotion.normalizePresenceState('walk_stop'),'walk_stop');
   assert.equal(locomotion.normalizePresenceState('teleport'),'idle');
-  assert.equal(locomotion.normalizeNetworkSpeed(999),6);
+  assert.equal(locomotion.normalizeNetworkSpeed(999),locomotion.MAX_NETWORK_SPEED);
 });
