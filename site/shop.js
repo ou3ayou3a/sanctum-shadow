@@ -54,6 +54,7 @@ const MERCHANTS = {
     desc: 'A cluttered stall near the market square. Brennan\'s seen better days — and so has his stock.',
     stock: ['health_potion_sm','health_potion_lg','bandage','rations','iron_dagger','leather_armor','shield','torch','rope','city_pass'],
     sellMultiplier: 0.5,
+    faction: 'citizens', factionLabel:'Citizens of Vaelthar', alignment:'neutral',
   },
   // #28: re-keyed to real WORLD_LOCATIONS ids so all 7 merchants are reachable.
   thornwood_passage: {
@@ -63,6 +64,7 @@ const MERCHANTS = {
     desc: 'A ranger\'s cart on the forest road. She trades in things that keep you alive out here.',
     stock: ['bandage','antidote','rations','smoke_bomb','shadow_knife','void_cloak','rope','thieves_tools','shadow_oil'],
     sellMultiplier: 0.45,
+    faction: 'citizens', factionLabel:'Thornwood Folk', alignment:'neutral',
   },
   temple_quarter: {
     name: 'The Church Armory',
@@ -71,6 +73,7 @@ const MERCHANTS = {
     desc: 'The Church sells protection — for a price. Everything here is blessed. Most of it works.',
     stock: ['holy_water','health_potion_lg','mp_potion','holy_blade','church_vestments','shield','bandage','strength_draft'],
     sellMultiplier: 0.55,
+    faction: 'church', factionLabel:'Church of the Eternal Flame', alignment:'holy',
   },
   tarnished_cup: {
     name: 'The Black Shelf',
@@ -79,6 +82,7 @@ const MERCHANTS = {
     desc: 'A back room behind the tavern. Third knock, pause, two more. She sells what others won\'t.',
     stock: ['poison_vial','false_identity','thieves_tools','shadow_oil','shadow_knife','smoke_bomb','mp_potion','staff_of_ruin'],
     sellMultiplier: 0.6,
+    faction: 'underworld', factionLabel:'Vaelthar Underworld', alignment:'dark',
   },
   merchant_road: {
     name: 'Harbormaster\'s Surplus',
@@ -87,6 +91,7 @@ const MERCHANTS = {
     desc: 'A wagon of surplus goods parked along the trade road. No questions asked. Prices reflect that.',
     stock: ['rations','rope','crossbow','iron_dagger','leather_armor','chain_shirt','antidote','health_potion_sm','torch'],
     sellMultiplier: 0.4,
+    faction: 'citizens', factionLabel:'Road Merchants', alignment:'neutral',
   },
   church_archive: {
     name: 'The Bone Trader',
@@ -95,6 +100,7 @@ const MERCHANTS = {
     desc: 'He\'s been here longer than anyone remembers, down among the sealed shelves. He\'ll be here after everyone else is gone.',
     stock: ['health_potion_lg','mp_potion','holy_water','staff_of_ruin','void_cloak','poison_vial','antidote','shadow_oil'],
     sellMultiplier: 0.65,
+    faction: 'covenant', factionLabel:'Covenant Remnants', alignment:'dark',
   },
   monastery_aldric: {
     name: 'The Pilgrim\'s Store',
@@ -103,6 +109,7 @@ const MERCHANTS = {
     desc: 'Simple goods for simple needs. The monastery provides what wanderers require.',
     stock: ['rations','bandage','health_potion_sm','mp_potion','church_vestments','rope','torch','holy_water'],
     sellMultiplier: 0.5,
+    faction: 'church', factionLabel:'Monastery of Saint Aldric', alignment:'holy',
   },
 };
 
@@ -114,6 +121,7 @@ const DEFAULT_MERCHANT = {
   desc: 'A road-worn trader with a battered cart.',
   stock: ['health_potion_sm','bandage','rations','iron_dagger','leather_armor','torch','rope'],
   sellMultiplier: 0.45,
+  faction: 'citizens', factionLabel:'Independent Traders', alignment:'neutral',
 };
 
 // ─── SHOP STATE ───────────────────────────────────────────
@@ -187,6 +195,21 @@ function openShop() {
   renderShop(merchant);
 }
 
+function merchantPriceState(char=gameState.character){
+  return {reputation:window.reputation||{},holyPoints:char?.holyPoints||0,hellPoints:char?.hellPoints||0};
+}
+
+function getMerchantQuote(item,merchant=window.shopState.merchant,char=gameState.character){
+  if(!item)return null;
+  return window.MerchantPricing?.quote(item.price,merchant||DEFAULT_MERCHANT,merchantPriceState(char))
+    || {basePrice:item.price,buyPrice:item.price,sellPrice:Math.max(1,Math.floor(item.price*(merchant?.sellMultiplier||.45))),adjustment:0,reasons:[]};
+}
+
+function merchantPriceSummary(merchant,char=gameState.character){
+  return window.MerchantPricing?.describe(merchant,merchantPriceState(char))
+    || {faction:merchant.factionLabel||'Independent',alignment:'unaligned',result:'standard prices',adjustment:0,reasons:[]};
+}
+
 function renderShop(merchant) {
   document.getElementById('shop-panel')?.remove();
 
@@ -196,6 +219,8 @@ function renderShop(merchant) {
 
   const char = gameState.character;
   const gold = char?.gold || 0;
+  const pricing = merchantPriceSummary(merchant,char);
+  const esc = window.escapeHtml || (value=>String(value));
 
   panel.innerHTML = `
     <div class="shop-inner">
@@ -206,6 +231,7 @@ function renderShop(merchant) {
             <span class="shop-name">${merchant.name}</span>
             <span class="shop-keeper-name">${merchant.keeper}</span>
             <span class="shop-desc">"${merchant.desc}"</span>
+            <span class="shop-loyalty">${esc(pricing.faction)} · ${esc(pricing.alignment)}</span>
           </div>
         </div>
         <div class="shop-gold">
@@ -214,6 +240,11 @@ function renderShop(merchant) {
           <span class="shop-gold-label">gold</span>
         </div>
         <button class="shop-close" onclick="closeShop()">✕ Leave</button>
+      </div>
+
+      <div class="shop-pricing ${pricing.adjustment<0?'favorable':pricing.adjustment>0?'hostile':'neutral'}">
+        <strong>${pricing.adjustment<0?'◆ FAVORABLE TERMS':pricing.adjustment>0?'⚠ INFLATED PRICES':'◇ STANDARD TERMS'}</strong>
+        <span>${esc(pricing.result)}${pricing.reasons.length?` — ${pricing.reasons.map(reason=>esc(reason.label)).join(' · ')}`:''}</span>
       </div>
 
       <div class="shop-tabs">
@@ -255,7 +286,9 @@ function renderBuyTab(merchant) {
   return merchant.stock.map(itemId => {
     const item = SHOP_ITEMS[itemId];
     if (!item) return '';
-    const canAfford = gold >= item.price;
+    const quote = getMerchantQuote(item,merchant,char);
+    const price = quote.buyPrice;
+    const canAfford = gold >= price;
     const owned = (char?.inventory || []).filter(i => i === item.name).length;
     return `
       <div class="shop-item ${canAfford ? '' : 'unaffordable'}" onclick="${canAfford ? `buyItem('${item.id}')` : ''}">
@@ -268,7 +301,8 @@ function renderBuyTab(merchant) {
           ${item.effect ? `<span class="si-stat eff">✨ ${formatEffect(item.effect)}</span>` : ''}
         </div>
         <div class="si-right">
-          <span class="si-price ${canAfford ? '' : 'cant-afford'}">🪙 ${item.price}</span>
+          <span class="si-price ${canAfford ? '' : 'cant-afford'}">🪙 ${price}</span>
+          ${price!==item.price?`<span class="si-base-price">base ${item.price}</span>`:''}
           ${owned > 0 ? `<span class="si-owned">own ${owned}</span>` : ''}
           ${canAfford ? `<button class="si-buy-btn">Buy</button>` : `<span class="si-broke">Not enough gold</span>`}
         </div>
@@ -296,12 +330,12 @@ function renderSellTab(merchant) {
   const html = Object.entries(grouped).map(([name, qty]) => {
     // Find item in catalogue or estimate value
     const catalogItem = Object.values(SHOP_ITEMS).find(i => i.name === name);
-    const sellPrice = catalogItem ? Math.floor(catalogItem.price * merchant.sellMultiplier) : 5;
+    const sellPrice = catalogItem ? getMerchantQuote(catalogItem,merchant,char).sellPrice : 5;
     const icon = catalogItem?.icon || '📦';
     const desc = catalogItem?.desc || 'An item from your travels.';
 
     return `
-      <div class="shop-item sellable" data-sell-name="${esc(name)}" data-sell-price="${sellPrice}">
+      <div class="shop-item sellable" data-sell-name="${esc(name)}">
         <span class="si-icon">${icon}</span>
         <div class="si-info">
           <span class="si-name">${esc(name)} ${qty > 1 ? `<span class="si-qty">×${qty}</span>` : ''}</span>
@@ -325,8 +359,7 @@ function _wireSellButtons() {
     el._sellWired = true;
     el.addEventListener('click', () => {
       const name = el.getAttribute('data-sell-name');
-      const price = parseInt(el.getAttribute('data-sell-price'), 10) || 0;
-      sellItem(name, price);
+      sellItem(name);
     });
   });
 }
@@ -348,13 +381,15 @@ function buyItem(itemId) {
   const item = SHOP_ITEMS[itemId];
   const char = gameState.character;
   if (!item || !char) return;
+  const quote = getMerchantQuote(item,window.shopState.merchant,char);
+  const price = quote.buyPrice;
 
-  if ((char.gold || 0) < item.price) {
+  if ((char.gold || 0) < price) {
     toast('Not enough gold!', 'error');
     return;
   }
 
-  char.gold = (char.gold || 0) - item.price;
+  char.gold = (char.gold || 0) - price;
   char.inventory = char.inventory || [];
   char.inventory.push(item.name);
 
@@ -366,7 +401,7 @@ function buyItem(itemId) {
     applyGearBonus(char, item.name, item.type);
   }
 
-  addLog(`🪙 Purchased ${item.icon} ${item.name} for ${item.price} gold.`, 'system');
+  addLog(`🪙 Purchased ${item.icon} ${item.name} for ${price} gold${price!==item.price?` (base ${item.price}; reputation and alignment adjusted)`:''}.`, 'system');
   toast(`${item.icon} ${item.name} acquired!`, 'success');
 
   if (window.autoSave) autoSave();
@@ -378,12 +413,14 @@ function buyItem(itemId) {
 }
 
 // ─── SELL ITEM ────────────────────────────────────────────
-function sellItem(itemName, price) {
+function sellItem(itemName) {
   const char = gameState.character;
   if (!char) return;
 
   const idx = char.inventory.indexOf(itemName);
   if (idx === -1) { toast('Item not found!', 'error'); return; }
+  const catalogItem=Object.values(SHOP_ITEMS).find(item=>item.name===itemName);
+  const price=catalogItem?getMerchantQuote(catalogItem,window.shopState.merchant,char).sellPrice:5;
 
   char.inventory.splice(idx, 1);
   char.gold = (char.gold || 0) + price;
@@ -523,6 +560,14 @@ function useConsumable(itemName) {
   .shop-name { font-family:'Cinzel',serif; color:var(--gold,#c9a84c); font-size:0.95rem; }
   .shop-keeper-name { font-size:0.75rem; color:rgba(201,168,76,0.6); }
   .shop-desc { font-size:0.72rem; color:rgba(255,255,255,0.4); font-style:italic; max-width:320px; }
+  .shop-loyalty { margin-top:3px; color:rgba(201,168,76,.72); font:600 .58rem Cinzel,serif; letter-spacing:.05em; text-transform:uppercase; }
+
+  .shop-pricing { display:flex;align-items:center;gap:9px;padding:7px 18px;border-bottom:1px solid rgba(201,168,76,.12);font-size:.64rem; }
+  .shop-pricing strong { flex-shrink:0;font:700 .6rem Cinzel,serif;letter-spacing:.07em; }
+  .shop-pricing span { color:rgba(255,255,255,.54); }
+  .shop-pricing.favorable { background:rgba(62,145,91,.11);color:#75c990; }
+  .shop-pricing.hostile { background:rgba(180,62,50,.12);color:#dc786e; }
+  .shop-pricing.neutral { background:rgba(201,168,76,.05);color:rgba(201,168,76,.7); }
 
   .shop-gold { display:flex; align-items:center; gap:6px; padding:8px 14px; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.2); margin-left:auto; }
   .shop-gold-icon { font-size:18px; }
@@ -564,6 +609,7 @@ function useConsumable(itemName) {
   .si-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
   .si-price { font-family:'Cinzel',serif; color:var(--gold,#c9a84c); font-size:0.8rem; }
   .si-price.cant-afford { color:#c06060; }
+  .si-base-price { color:rgba(255,255,255,.3);font-size:.56rem;text-decoration:line-through; }
   .si-owned { font-size:0.62rem; color:rgba(201,168,76,0.5); }
   .si-broke { font-size:0.62rem; color:#c06060; }
   .si-buy-btn { background:rgba(201,168,76,0.15); border:1px solid rgba(201,168,76,0.3); color:var(--gold,#c9a84c); font-family:'Cinzel',serif; font-size:0.62rem; padding:3px 10px; cursor:pointer; transition:all .2s; }
@@ -583,5 +629,8 @@ console.log('🛒 Shop system loaded.');
 // ─── GLOBAL EXPORTS ──────────────────────────────────────
 window.useConsumable = useConsumable;
 window.openShop = openShop;
+window.getMerchantQuote = getMerchantQuote;
+window.merchantPriceSummary = merchantPriceSummary;
 
 window.SHOP_ITEMS = SHOP_ITEMS;
+window.MERCHANTS = MERCHANTS;
