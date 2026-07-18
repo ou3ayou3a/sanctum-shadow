@@ -1612,15 +1612,15 @@ const MISSING_SCENES = {
       sub: `The Voice Below. It\'s been waiting. Not just for you.`,
       options: [
         { icon: '⚔', label: 'Fight it — this is what you came for', type: 'combat',
-          action: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          action: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
         { icon: '💬', label: '"What are you? What do you want?"', type: 'talk',
           roll: { stat: 'WIS', dc: 14 },
           onSuccess: () => runScene('voice_below_speaks'),
-          onFail: () => { addLog('It speaks anyway. "I want what every broken thing wants. To be whole, or to end."', 'narrator'); startCombat([generateEnemy('the_voice_below', 4)]); } },
+          onFail: () => { addLog('It speaks anyway. "I want what every broken thing wants. To be whole, or to end."', 'narrator'); startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }); } },
         { icon: '🔍', label: 'Look for something that binds it — the monks must have had a way', type: 'explore',
           roll: { stat: 'INT', dc: 15 },
           onSuccess: () => runScene('voice_weakness_found'),
-          onFail: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          onFail: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
       ]
     };
   },
@@ -1635,11 +1635,11 @@ const MISSING_SCENES = {
       sub: `The Covenant was a prison seal for a shattered god. Varek broke it without knowing what he released.`,
       options: [
         { icon: '⚔', label: 'Fight it — seal or not, this thing is dangerous', type: 'combat',
-          action: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          action: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
         { icon: '💬', label: '"Can you be rebound? Contained again?"', type: 'talk',
           roll: { stat: 'CHA', dc: 15 },
           onSuccess: () => runScene('voice_binding_option'),
-          onFail: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          onFail: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
       ]
     };
   },
@@ -1663,11 +1663,11 @@ const MISSING_SCENES = {
               runScene('monastery_dungeon_cleared');
             } else {
               addLog('Not enough Holy Points. You need 15. The runes remain incomplete.', 'system');
-              startCombat([generateEnemy('the_voice_below', 4)]);
+              startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' });
             }
           }},
         { icon: '⚔', label: 'No time for runes — fight it now', type: 'combat',
-          action: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          action: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
       ]
     };
   },
@@ -1691,11 +1691,11 @@ const MISSING_SCENES = {
               runScene('monastery_dungeon_cleared');
             } else {
               addLog('Not enough Holy Points. You need 15.', 'system');
-              startCombat([generateEnemy('the_voice_below', 4)]);
+              startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' });
             }
           }},
         { icon: '⚔', label: 'I don\'t trust it. Fight.', type: 'combat',
-          action: () => startCombat([generateEnemy('the_voice_below', 4)]) },
+          action: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
       ]
     };
   },
@@ -2073,11 +2073,11 @@ const MISSING_SCENES = {
       sub: `He\'s going to fight. This was avoidable.`,
       options: [
         { icon: '⚔', label: 'Fight Sir Harren', type: 'combat',
-          action: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }]) },
+          action: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }], { victoryScene:'harren_fallen' }) },
         { icon: '✋', label: '"STOP. I\'m not Order. I forced the gate — that was wrong."', type: 'talk',
           roll: { stat: 'CHA', dc: 16 },
           onSuccess: () => { addLog('He stops. Reassesses. "Explain yourself. Quickly."', 'system'); runScene('harren_opens_door'); },
-          onFail: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }]) },
+          onFail: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }], { victoryScene:'harren_fallen' }) },
       ]
     };
   },
@@ -2096,7 +2096,7 @@ const MISSING_SCENES = {
             { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok1', xp: 100 },
             { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok2', xp: 100 },
             { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok3', xp: 100 },
-          ]);
+          ], { victoryScene:'harren_joins' });
         }},
       { icon: '💬', label: 'Negotiate with Vael — you have evidence about the Order\'s illegal orders', type: 'talk',
         roll: { stat: 'CHA', dc: 15 },
@@ -2104,9 +2104,24 @@ const MISSING_SCENES = {
         onFail: () => startCombat([
           { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok1', xp: 100 },
           { name: 'Commander Vael', hp: 75, ac: 16, atk: 7, icon: '⚔', id: 'vael', xp: 200, boss: false },
-        ]) },
+        ], { victoryScene:'harren_joins' }) },
     ]
   }),
+
+  harren_fallen: () => {
+    setFlag('harren_dead');
+    grantHellPoints(6);
+    return {
+      location: 'Fortress Harren — After the Duel',
+      locationIcon: '🏯',
+      narration: `Sir Harren dies beside the gate he built to keep his former Order out. In his chamber the party finds the Grand Master's field order, signed and countersigned: Harren was commanded to march armed paladins into Church sanctuaries if the Covenant transfer met resistance. He refused, barricaded the fortress, and waited for someone willing to hear why. You learned the truth too late to spare him, but not too late to carry it back to Vaelthar.`,
+      sub: `Harren's standoff is over. His written confession survives him, and the party must live with the cost of forcing the gate.`,
+      options: [
+        { icon: '📜', label: 'Take Harren’s field order and return to Vaelthar', type: 'move',
+          action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
+      ]
+    };
+  },
 
 };
 
@@ -2548,59 +2563,53 @@ const SCENES = {
   // ── CHAPTER 1 FINALE ─────────────────────
   monastery_arrival: () => {    setFlag('chapter1_finale');    const flags = window.sceneState?.flags || {};    const hasBackRoute = flags.has_monastery_back_route;    const rhaelComing = flags.rhael_comes_along;    if (hasBackRoute) {      return {        location: 'Monastery of Saint Aldric — East Wall',        locationIcon: '⛪',        threat: '⚔ UNDETECTED — For Now',        narration: `The cartographer\'s sketch is right. Behind the root cellar, the eastern wall has buckled inward — enough to slip through. You move through empty corridors, past cells with doors hanging open. You find Varek alone in the monastery library, reading. He looks up without surprise. "I wondered which door you\'d use," he says.`,        sub: `You arrived undetected. No soldiers between you and Varek. He was expecting someone.`,        options: [          { icon: '💬', label: '"Elder Varek. I have your sealed order. This is over."', type: 'talk',            action: () => runScene('varek_confrontation_talk') },          { icon: '💬', label: '"Tell me who gave you the order before I decide what to do."', type: 'talk',            action: () => runScene('varek_confrontation_negotiate') },          { icon: '⚔', label: 'Attack immediately — no conversation', type: 'combat',            action: () => { addLog(`Varek stands slowly from the desk. "Very well."`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }          },        ]      };    }    return {      location: 'Monastery of Saint Aldric',      locationIcon: '⛪',      threat: '⚔ HIGH DANGER',      narration: `The monastery sits on a ridge above Vaelthar — walls of grey stone, torches burning despite the daylight. Four Church soldiers guard the courtyard gate. Elder Varek stands among them in white robes — heavyset, unhurried. He sees you before you reach the gate. He doesn\'t move away.${rhaelComing ? ' Captain Rhael\'s squad arrives at your flank. The Watch is here.' : ''} He waits.`,      sub: `Varek sees you coming and doesn\'t run. He\'s made his choice too.`,      options: [        { icon: '⚔', label: 'Storm the gate — scatter the soldiers and reach Varek', type: 'combat',          roll: { stat: 'STR', dc: 14 },          onSuccess: () => { addLog(`Your charge breaks the line. Varek steps forward. "I won\'t be taken in chains." Calm.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); },          onFail: () => { addLog(`The soldiers hold. Varek watches without expression.`, 'combat'); startCombat([{ name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' }, { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' }, { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },        { icon: '💬', label: 'Call out to Varek — face you without soldiers between you', type: 'talk',          roll: { stat: 'CHA', dc: 13 },          onSuccess: () => { setFlag('varek_dismissed_soldiers'); addLog(`Varek raises one hand. The soldiers step back. "Come in," he says. "Let\'s finish this properly."`, 'system'); runScene('varek_confrontation_talk'); },          onFail: () => { addLog(`Varek signals. "Kill them." The soldiers move.`, 'combat'); startCombat([{ name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs1' }, { name: 'Church Soldier', hp:45, ac:14, atk:5, icon:'⚔', id:'cs2' }, { name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },        { icon: '🕵', label: 'Find the eastern wall — try to slip in through the back', type: 'explore',          roll: { stat: 'DEX', dc: 14 },          onSuccess: () => { setFlag('found_back_route'); runScene('varek_confrontation_talk'); },          onFail: () => runScene('monastery_caught_sneaking') },        { icon: '🏃', label: 'Alert Captain Rhael — don\'t face this alone', type: 'move',          action: () => { setFlag('called_rhael_help'); runScene('chapter1_end_rhael_leads'); } },      ]    };  },  varek_confrontation_talk: () => {    setFlag('confronted_varek_peacefully');    return {      location: 'Monastery of Saint Aldric — With Varek',      locationIcon: '⛪',      narration: `Varek sits across from you with the stillness of a man who has been waiting for this. "You have the Scribe\'s document," he says. Not a question. "My seal. My order. Yes." He sets a second page on the table. "Before you decide what happens next — page four of the original Covenant draft. Read the treasury oversight clause." He waits.`,      sub: `He\'s not denying it. He\'s showing you why. You can read his argument or move directly to the ending.`,      options: [        { icon: '📜', label: 'Read his argument', type: 'explore',          action: () => runScene('varek_reveals_his_truth') },        { icon: '⚖', label: '"I\'ve heard enough. Come with me to Rhael. Peacefully."', type: 'talk',          roll: { stat: 'CHA', dc: 14 },          onSuccess: () => { setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); },          onFail: () => runScene('varek_refuses_surrender') },        { icon: '⚔', label: 'No more words — fight', type: 'combat',          action: () => { addLog(`Varek closes the document. "If that\'s your decision." He stands.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },      ]    };  },  varek_confrontation_negotiate: () => {    setFlag('negotiated_with_varek');    return {      location: 'Monastery — Varek',      locationIcon: '⛪',      narration: `Varek sets down his book. He studies you for a long moment, recalibrating. "You want the name above me." A pause. "That is the right question." He stands. "The hidden treasury clause was drafted by a Crown clerk named Caelan Vey — office of institutional affairs. The Covenant was a trap. The Church would have signed itself out of existence." He meets your eyes. "I can give you written testimony of that, signed, in exchange for a tribunal rather than a street arrest."`,      sub: `Varek is offering a deal — information on the Crown official who set the trap, in exchange for due process.`,      options: [        { icon: '⚖', label: 'Accept — tribunal, not summary arrest', type: 'talk',          action: () => { setFlag('varek_deal_accepted'); setFlag('knows_caelan_vey'); addLog('📜 REVELATION: Caelan Vey — the Crown clerk who drafted the trap. A thread for Chapter II.', 'holy'); runScene('chapter1_end_surrender'); } },        { icon: '🚫', label: 'Refuse — a deal with Varek isn\'t justice', type: 'talk',          action: () => { addLog(`"I understand," Varek says quietly. "Then let\'s finish this the other way."`, 'system'); runScene('varek_confrontation_talk'); } },        { icon: '⚔', label: 'Take the name — then arrest him anyway', type: 'combat',          roll: { stat: 'CHA', dc: 10 },          onSuccess: () => { setFlag('knows_caelan_vey'); addLog('📜 He says the name before he realises your intent. Caelan Vey.', 'hell'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); },          onFail: () => { addLog(`Varek stops mid-sentence. "You\'ve already decided." He stands.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); } },      ]    };  },  varek_reveals_his_truth: () => {    setFlag('knows_full_picture');    setFlag('knows_caelan_vey');    addLog('📜 REVELATION: The Covenant clause would have ended the Church\'s independence. Varek burned a trap, not a peace treaty. Crown clerk Caelan Vey drafted it.', 'holy');    grantXP(200);    return {      location: 'Monastery — The Whole Truth',      locationIcon: '⛪',      narration: `You read. The clause is exactly what he said — financial oversight transferred within a year, the Church a Crown department within two. The institution ceases to exist. Varek watches your face. "I broke the law," he says when you look up. "People died in the fallout. I accept both of those things." A pause. "The man who drafted that clause is named Caelan Vey. He is still employed. Still in his office." He folds his hands. "You can arrest me. I won\'t resist. But that name should come with me."`,      sub: `Varek burned a trap to save his institution. The truth is bigger than either side admits. How this ends is your choice.`,      options: [        { icon: '⚖', label: '"Come with me. You\'ll face trial. That\'s the deal."', type: 'talk',          action: () => { setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); } },        { icon: '💬', label: '"You had other options. You chose fire and you know it."', type: 'talk',          roll: { stat: 'WIS', dc: 12 },          onSuccess: () => { setFlag('varek_confronted_on_choice'); addLog('"Yes," he says, after a long silence. "I did." He stands. "Take me to Rhael."', 'narrator'); setFlag('varek_surrenders_peacefully'); runScene('chapter1_end_surrender'); },          onFail: () => runScene('varek_refuses_surrender') },        { icon: '⚔', label: 'Whatever his reasons — he still has to answer with blood', type: 'combat',          action: () => { addLog(`"I understand," Varek says. He doesn\'t raise his voice. He draws a blade.`, 'combat'); startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]); }        },      ]    };  },  varek_refuses_surrender: () => ({    location: 'Monastery — Varek Refuses',    locationIcon: '⛪',    threat: '⚔ FIGHT UNAVOIDABLE',    narration: `"I will not be chained," Varek says. Not anger. A statement. "Take me by force if you must. But I will not walk into a Watch cell." He steps back from the table. Something in his robes moves. "I\'ve made my peace with what I did. I won\'t make peace with what comes after."`,    sub: `He won\'t go quietly. The fight is the only path left.`,    options: [      { icon: '⚔', label: 'Fight', type: 'combat',        action: () => startCombat([{ name: 'Elder Varek', hp:120, ac:17, atk:8, icon:'🔥', id:'elder_varek', boss:true, spells:['hellfire','divine_wrath','summon_flame'], level:6, xp:600 }]) },    ]  }),
   chapter1_end_arrest: () => {
-    setFlag('chapter1_complete');
+    setFlag('varek_crisis_resolved');
     grantHolyPoints(15);
-    grantXP(600);
-    grantXP(800);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
-    addLog('Elder Varek is in chains. The truth about the Covenant is out. Vaelthar will never be the same.', 'narrator');
+    addLog('📖 CHAPTER I MILESTONE — Elder Varek is in chains.', 'holy');
+    addLog('The immediate conspiracy is resolved, but the broken Covenant awakened something beneath Saint Aldric.', 'narrator');
     return {
       location: 'Monastery Courtyard — After the Storm',
       locationIcon: '⛪',
-      narration: `The soldiers yielded when Varek fell. He\'s on his knees in the monastery courtyard, wrists bound, his white robes dusty and torn. He looks older suddenly — not an elder of the Church, just a frightened man who made a catastrophic decision and got caught. Captain Rhael arrives within the hour, takes Varek into Watch custody, and looks at you for a long moment. "The city owes you something," he says. "It won\'t say so publicly. But it does." Chapter I is over. The road ahead leads deeper into the shadow of what the Covenant's death has already set in motion.`,
-      sub: `Chapter I complete. Chapter II begins: "What the Covenant Left Behind."`,
+      narration: `The soldiers yielded when Varek fell. He\'s on his knees in the monastery courtyard, wrists bound, his white robes dusty and torn. Captain Rhael arrives within the hour and takes him into Watch custody. Then the flagstones below the wine cellar pulse once, like a buried lung drawing breath. Varek looks toward the sound. "Burning the Covenant was only the first break," he says. "If you want to know what comes next, go below."`,
+      sub: `Varek's conspiracy is resolved. Chapter I continues beneath Saint Aldric.`,
       options: [
-        { icon: '📖', label: 'Begin Chapter II — the aftermath', type: 'move',
-          action: () => beginChapterTwo('arrest', `Chapter I ended with Elder Varek defeated in combat and taken in chains. The truth about the Covenant is public. Vaelthar is shaken but the immediate crisis is over. Captain Rhael has taken Varek into Watch custody. The road ahead leads into the consequences the Covenant's death set in motion.`) },
+        { icon: '🕳', label: 'Continue Chapter I — descend beneath Saint Aldric', type: 'move',
+          action: () => runScene('monastery_dungeon_entry') },
       ]
     };
   },
 
   chapter1_end_surrender: () => {
-    setFlag('chapter1_complete');
+    setFlag('varek_crisis_resolved');
     grantHolyPoints(12);
-    grantXP(500);
-    grantXP(700);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
+    addLog('📖 CHAPTER I MILESTONE — Elder Varek has surrendered.', 'holy');
     return {
       location: 'Monastery — Varek Yields',
       locationIcon: '⛪',
-      narration: `The document does what a sword could not. Varek reads it once — his own seal, his own order — and something goes out of him. He dismisses his soldiers with a gesture, and when they hesitate he repeats it. He surrenders quietly, without theatrics. "I acted to protect the Church," he says. "Whether that justifies it — that\'s for the magistrates now." You escort him back to Vaelthar. The streets are quiet. Word travels faster than you do. By evening, the crisis has a name, a face, and a verdict pending. Chapter I is over.`,
-      sub: `Chapter I complete. Chapter II begins.`,
+      narration: `The document does what a sword could not. Varek reads it once — his own seal, his own order — and something goes out of him. He dismisses his soldiers and surrenders quietly. Before Rhael leads him away, a slow breath moves through the stone beneath the monastery. "I broke a seal I did not understand," Varek says. "The monks heard what woke below us. If you want the whole truth, enter the cellar before the Church closes it forever."`,
+      sub: `Varek's surrender closes the first investigation. Chapter I continues beneath Saint Aldric.`,
       options: [
-        { icon: '📖', label: 'Begin Chapter II', type: 'move',
-          action: () => beginChapterTwo('surrender', `Chapter I ended with Elder Varek surrendering peacefully after the Scribe's document proved his guilt. He awaits trial by the magistrates. The player chose justice over violence. The Covenant's collapse still threatens to unravel Vaelthar, and deeper forces stirred by its breaking remain unaddressed.`) },
+        { icon: '🕳', label: 'Continue Chapter I — enter the sealed cellar', type: 'move',
+          action: () => runScene('monastery_dungeon_entry') },
       ]
     };
   },
 
   chapter1_end_rhael_leads: () => {
-    setFlag('chapter1_complete');
+    setFlag('varek_crisis_resolved');
     grantHolyPoints(10);
-    grantXP(400);
-    grantXP(600);
     addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-    addLog('📖 CHAPTER I COMPLETE — "The Shattered Covenant"', 'holy');
+    addLog('📖 CHAPTER I MILESTONE — The Watch has taken Varek alive.', 'holy');
     return {
       location: 'Vaelthar — Rhael Mobilizes',
       locationIcon: '🏰',
-      narration: `Rhael doesn\'t hesitate. Within an hour the Watch is moving in force toward the monastery. Varek\'s soldiers yield at the gate — they\'re soldiers, not martyrs, and they know what the document means. Varek is taken alive. At the debriefing afterward, Rhael gives you a look across the table. "You could have done this alone," he says. "You chose not to. That\'s either wisdom or doubt. I haven\'t decided which." Either way, it\'s over — for now. Chapter I ends not with thunder, but with paperwork and the sound of chains.`,
-      sub: `Chapter I complete. You chose caution over glory.`,
+      narration: `Rhael doesn\'t hesitate. Within an hour the Watch is moving in force toward the monastery. Varek\'s soldiers yield and Varek is taken alive. During the search, three Watchmen open a sealed cellar door and come back unable to describe what they heard below it. Rhael lays the cellar key beside your report. "Varek was the hand that broke the Covenant," he says. "Whatever is breathing under Saint Aldric is the consequence. This is not over."`,
+      sub: `The Watch resolved the arrest. Chapter I continues in the monastery depths.`,
       options: [
-        { icon: '📖', label: 'Begin Chapter II', type: 'move',
-          action: () => beginChapterTwo('rhael_leads', `Chapter I ended with the player calling in Captain Rhael and the Watch rather than facing Varek alone. The Watch took Varek alive in force. The player chose caution over glory, and Rhael remains uncertain whether that was wisdom or doubt. The crisis is contained for now, but the Covenant's death has set larger things in motion.`) },
+        { icon: '🕳', label: 'Continue Chapter I — take the cellar key', type: 'move',
+          action: () => runScene('monastery_dungeon_entry') },
       ]
     };
   },

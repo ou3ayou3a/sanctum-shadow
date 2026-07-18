@@ -9,6 +9,11 @@
   // Quest introductions are derived from active quest progress. Nothing here is
   // save-only state: reloading can reconstruct which entrance is still waiting.
   const ENTRY = Object.freeze({
+    c1q2:  Object.freeze({ scene:'monastery_dungeon_entry', location:'monastery_cellar', objective:'enter_depths', destination:'the hidden dungeon beneath Saint Aldric' }),
+    c1q3:  Object.freeze({ scene:'cartographer_missing', location:'thornwood_gate', objective:'accept_search', destination:'Thornwood Gate and Edden’s last known route' }),
+    c1q4:  Object.freeze({ scene:'merchant_road_investigation', location:'merchant_road', objective:'inspect_caravans', destination:'the ruined caravans on the Merchant Road' }),
+    c1q5:  Object.freeze({ scene:'mol_village_arrival', location:'mol_village', objective:'find_aldran', destination:'Mol and the heretic preacher Aldran' }),
+    c1q6:  Object.freeze({ scene:'fortress_harren_arrival', location:'fortress_harren', objective:'reach_fortress', destination:'Sir Harren’s sealed fortress' }),
     c1q7:  Object.freeze({ scene:'well_that_screams_arrival', location:'mol_village', objective:'reach_well', destination:'the old well in Mol' }),
     c1q8:  Object.freeze({ scene:'ambassador_summons', location:'vaelthar_city', landmark:'ostrene_legation', objective:'meet', destination:'the Ostrene Legation on Fennow Row' }),
     c1q9:  Object.freeze({ scene:'treasury_rats_arrival', location:'vaelthar_city', landmark:'royal_treasury', objective:'open_case', destination:'the Royal Treasury beneath the Crown Ward' }),
@@ -175,7 +180,7 @@
       return openEntry(questId, { force:true, immediate:true });
     };
 
-    console.log('📜 Location-aware quest entries loaded — c1q7..c1q20.');
+    console.log('📜 Location-aware quest entries loaded — c1q2..c1q20.');
   }
 
   return Object.freeze({ ENTRY, isEntryEligible, entriesForLocation, install });

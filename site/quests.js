@@ -37,8 +37,8 @@
     ] },
     c1q6:{ objectives:[
       { id:'reach_fortress', label:'Reach Sir Harren’s fortress.', events:['scene:fortress_harren_arrival'] },
-      { id:'hear_confession', label:'Learn why Harren abandoned his vows.', events:['scene:harren_confession'] },
-      { id:'resolve_harren', label:'Resolve the standoff with Sir Harren.', events:['scene:harren_joins'], completes:true },
+      { id:'hear_confession', label:'Learn why Harren abandoned his vows.', events:['scene:harren_confession','scene:harren_fallen'] },
+      { id:'resolve_harren', label:'Resolve the standoff with Sir Harren.', events:['scene:harren_joins','scene:harren_fallen'], completes:true },
     ] },
     c1q7:{ objectives:[
       { id:"reach_well", label:"Reach the well at Mol and find out what it does after dark.", events:["scene:well_that_screams_arrival"] },

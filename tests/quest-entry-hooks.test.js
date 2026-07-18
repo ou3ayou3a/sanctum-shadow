@@ -11,8 +11,8 @@ function state(active,progress={},completed=[]){
   };
 }
 
-test('every added Chapter I quest has one physical entry definition',()=>{
-  assert.deepEqual(Object.keys(QuestEntries.ENTRY),Array.from({length:14},(_,index)=>`c1q${index+7}`));
+test('every post-opening Chapter I quest has one physical entry definition',()=>{
+  assert.deepEqual(Object.keys(QuestEntries.ENTRY),Array.from({length:19},(_,index)=>`c1q${index+2}`));
   for(const entry of Object.values(QuestEntries.ENTRY)){
     assert.ok(entry.scene);
     assert.ok(entry.location);

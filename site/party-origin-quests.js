@@ -192,12 +192,21 @@
 
   function completeStage(outcome) {
     const quest=getQuest(state.context?.questId);if(!quest)return false;
+    const completedLocation=quest.stage===2?quest.targetLocation:null;
     globalThis.setFlag?.(`origin_${quest.ownerKey}_${quest.stage}_${slug(outcome)}`,true);
     globalThis.completeQuest?.(quest.id,{activateNext:false});
     const owner=ownerForQuest(quest);const next=owner?.quests?.[quest.stage];
     if(next)globalThis.activateQuest?.(next.id,true);
     else globalThis.addLog?.(`🔖 ${quest.ownerName}’s ${lineForQuest(quest)?.label || 'origin'} story is complete. The whole party carries what happened next.`,'holy');
-    syncLocalCharacter();globalThis.mpBroadcastCampaignState?.(`origin:${quest.id}:${outcome}`);return true;
+    syncLocalCharacter();globalThis.mpBroadcastCampaignState?.(`origin:${quest.id}:${outcome}`);
+    // Multiple party members may share an origin and therefore a destination.
+    // Continue the next waiting stage-two scene without forcing the party to
+    // leave and re-enter the same map once per character.
+    if(completedLocation){
+      const waiting=activeStageAtLocation(completedLocation);
+      if(waiting){state.pending={questId:waiting.id,locationId:completedLocation};globalThis.setTimeout?.(resumePending,25);}
+    }
+    return true;
   }
 
   function setContext(quest){state.context={questId:quest.id,ownerKey:quest.ownerKey,origin:quest.origin};}
