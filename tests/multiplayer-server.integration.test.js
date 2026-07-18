@@ -122,7 +122,7 @@ function character(index){
   };
 }
 
-test('real server supports an eight-player campaign, synchronized dialogue, combat, and reconnects',{timeout:20000},async()=>{
+test('real server supports a four-player campaign, synchronized dialogue, combat, and reconnects',{timeout:20000},async()=>{
   const port=await freePort();
   const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'sanctum-mp-qa-'));
   const sessionFile=path.join(tempDir,'sessions.json');
@@ -137,26 +137,26 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
   const clients=[];
   try{
     await waitForHealth(port,child);
-    for(let index=0;index<8;index++)clients.push(await socketClient(port));
+    for(let index=0;index<4;index++)clients.push(await socketClient(port));
     const host=clients[0];
     const createdP=host.once('session_created');
-    host.emit('create_session',{sessionName:'Eight Player QA',playerName:'Player 1',maxPlayers:8});
+    host.emit('create_session',{sessionName:'Four Player QA',playerName:'Player 1',maxPlayers:4});
     const {code}=await createdP;
-    for(let index=1;index<8;index++){
+    for(let index=1;index<4;index++){
       const joinedP=clients[index].once('session_joined');
       clients[index].emit('join_session',{code,playerName:`Player ${index+1}`});
       await joinedP;
     }
-    const allReadyP=host.once('session_update',session=>Object.values(session.players||{}).length===8&&Object.values(session.players).every(player=>player.ready));
+    const allReadyP=host.once('session_update',session=>Object.values(session.players||{}).length===4&&Object.values(session.players).every(player=>player.ready));
     clients.forEach((client,index)=>client.emit('character_ready',{code,character:character(index+1)}));
     const readySession=await allReadyP;
-    assert.equal(Object.values(readySession.players).length,8);
+    assert.equal(Object.values(readySession.players).length,4);
 
     const gameStarts=clients.map(client=>client.once('game_started'));
     host.emit('start_game',{code});
     await Promise.all(gameStarts);
 
-    const speaker=clients[4],observer=clients[0];
+    const speaker=clients[2],observer=clients[0];
     const observedOpen=observer.once('conversation_state');
     const opened=await speaker.request('conversation_open',{code,payload:{npcId:'captain_rhael',npcName:'Captain Rhael',npcTitle:'Captain of the Watch'}});
     assert.equal(opened.ok,true);
@@ -176,7 +176,7 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
     const resurrection=await resurrectionP;
     assert.equal(resurrection.payload.npcId,'captain_rhael');
     assert.equal(resurrection.payload.reason,'prayer_resurrection');
-    assert.equal(resurrection.fromPlayer,'Player 5');
+    assert.equal(resurrection.fromPlayer,'Player 3');
 
     const combatStarts=clients.map(client=>client.once('combat_started'));
     host.emit('start_combat',{code,enemies:[{id:'qa_cultist',name:'QA Cultist',hp:1,maxHp:1,ac:1,atk:0,xp:80,tacticalRole:'frontline'}],encounter:{id:'standard'}});
@@ -188,7 +188,7 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
 
     const intruder=await socketClient(port);clients.push(intruder);
     const fullP=intruder.once('join_error');
-    intruder.emit('join_session',{code,playerName:'Ninth Player'});
+    intruder.emit('join_session',{code,playerName:'Fifth Player'});
     assert.match((await fullP).msg,/full/i);
 
     const reconnected=await socketClient(port);clients.push(reconnected);
@@ -198,7 +198,7 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
     const rejoin=await rejoinP;
     combatState=await resumedCombatP;
     clients[2]=reconnected;
-    assert.equal(Object.values(rejoin.session.players).length,8);
+    assert.equal(Object.values(rejoin.session.players).length,4);
     assert.equal(rejoin.session.players[oldId],undefined);
     assert.ok(combatState.turnOrder.includes(reconnected.id));
     assert.ok(!combatState.turnOrder.includes(oldId));
@@ -222,7 +222,7 @@ test('real server supports an eight-player campaign, synchronized dialogue, comb
     }
     assert.ok(ended,'combat reached an authoritative result');
     assert.equal(ended.victory,true);
-    assert.equal(ended.xpEach,Math.floor(ended.xp/8));
+    assert.equal(ended.xpEach,Math.floor(ended.xp/4));
     assert.ok(ended.presentation?.impactDelay>0);
   }catch(error){
     error.message+=`\nServer output:\n${serverOutput.slice(-5000)}`;

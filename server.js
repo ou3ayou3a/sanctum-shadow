@@ -286,6 +286,7 @@ function loadSessionsFromDisk() {
       Object.entries(pruned.sessions).forEach(([code, s]) => {
         // Mark all players as disconnected — they'll rejoin.
         Object.values(s.players || {}).forEach(p => { p.connected = false; });
+        s.maxPlayers = PartyRules.normalizeMaxPlayers(s.maxPlayers);
         sessions[code] = s;
       });
       console.log(`Restored ${Object.keys(sessions).length} sessions from disk.`);

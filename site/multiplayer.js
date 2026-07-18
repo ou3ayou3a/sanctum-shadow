@@ -375,6 +375,10 @@ function initMultiplayer() {
     const _prevReceiving = window.mp._receiving;
     window.mp._receiving = true;
     try {
+    if (eventType === 'origin_quest_request' && window.mp.isHost) {
+      window.PartyOriginQuests?.beginNpcQuest?.(String(payload.npcId || '').toLowerCase(), { remote:true });
+      return;
+    }
     if (eventType === 'npc_fate_request' && window.mp.isHost) {
       const allowed = new Set(['sister_mourne', 'captain_rhael', 'sir_harren']);
       const npcId = String(payload.npcId || '').toLowerCase();
@@ -696,7 +700,8 @@ function buildCampaignState(reason = 'sync') {
     threat:current.threat, narration:current.narration, sub:current.sub,
     personal:!!current.personal,
     options:(current.options || []).map(o => ({
-      label:o.label, icon:o.icon, type:o.type, roll:o.roll,
+      label:o.label, icon:o.icon, type:o.type,
+      roll:o.roll ? {stat:o.roll.stat,skill:o.roll.skill,dc:o.roll.dc,advantage:!!o.roll.advantage,disadvantage:!!o.roll.disadvantage} : null,
       cost:o.cost, next:o.next, nextFail:o.nextFail,
     })),
   } : null;
@@ -704,6 +709,7 @@ function buildCampaignState(reason = 'sync') {
     schemaVersion: window.SanctumSchema?.CAMPAIGN_SCHEMA_VERSION || 1,
     version: Date.now(), reason,
     chapter: gameState.chapter || 1,
+    partyOrigins: window.PartyOriginQuests?.serialize?.() || null,
     activeQuests: (gameState.activeQuests || []).filter(isSharedQuest),
     completedQuests: (gameState.completedQuests || []).filter(isSharedQuest),
     questProgress: sharedQuestProgress,
@@ -729,6 +735,7 @@ function applyCampaignState(state) {
   if (window.mp._campaignVersion && (state.version || 0) <= window.mp._campaignVersion) return;
   window.mp._campaignVersion = state.version || Date.now();
   gameState.chapter = state.chapter || 1;
+  if (state.partyOrigins) window.PartyOriginQuests?.hydrate?.(state.partyOrigins);
   const localActive = (gameState.activeQuests || []).filter(q => String(q?.id || '').startsWith('pq_'));
   const localCompleted = (gameState.completedQuests || []).filter(q => String(q?.id || '').startsWith('pq_'));
   const localProgress = Object.fromEntries(Object.entries(gameState.questProgress || {}).filter(([id]) => id.startsWith('pq_')));
@@ -769,6 +776,7 @@ function applyCampaignState(state) {
   window.renderQuestList?.();
   window.updateQuestCounter?.();
   window.updateWorldClockUI?.();
+  window.PartyOriginQuests?.syncLocalCharacter?.();
 }
 
 function mpBroadcastCampaignState(reason = 'sync') {

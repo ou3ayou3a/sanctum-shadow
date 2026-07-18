@@ -160,6 +160,7 @@ function buildSaveSlot(slotName, type) {
       world3dPositions: gameState.world3dPositions || {},
       log: (gameState.log || []).slice(-80),
     },
+    partyOrigins: window.PartyOriginQuests?.serialize?.() || null,
     sceneFlags: window.sceneState?.flags || {},
     sceneHistory: window.sceneState?.history || [],
     knownFacts: window.sceneState?.knownFacts || {},
@@ -333,6 +334,7 @@ function loadSaveSlot(slotId, options = {}) {
   gameState.questProgress = slot.gameState.questProgress || {};
   gameState.world3dPositions = slot.gameState.world3dPositions || {};
   gameState.log = slot.gameState.log || [];
+  if (slot.partyOrigins) window.PartyOriginQuests?.hydrate?.(slot.partyOrigins);
 
   // Restore scene flags — this is what determines story progress
   if (window.sceneState) {

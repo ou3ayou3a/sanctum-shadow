@@ -636,6 +636,7 @@ You might say: "I know that name. I have known it for forty years. I chose the i
 
 // Merge extended registry into NPC_REGISTRY
 Object.assign(NPC_REGISTRY, NPC_REGISTRY_EXTENDED);
+Object.assign(NPC_REGISTRY, window.PartyOriginQuests?.npcRegistry || {});
 
 
 // ─── CONVERSATION STATE ───────────────────────
@@ -660,6 +661,9 @@ function applyDialogueChoiceEffects(effects,reason){
 
 // ─── START CONVERSATION ───────────────────────
 async function startNPCConversation(npcIdOrName, playerOpener) {
+  const originNpcId = String(npcIdOrName || '').toLowerCase();
+  if (window.PartyOriginQuests?.isQuestNpc(originNpcId)
+      && window.PartyOriginQuests.beginNpcQuest(originNpcId)) return;
   const npc = resolveNPCFull(npcIdOrName);
   if (!npc) {
     await runFreeformNPCScene(npcIdOrName, playerOpener);

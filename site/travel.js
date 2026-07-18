@@ -974,6 +974,7 @@ function arriveAtDestination(locId) {
         window._travelEncounterScheduled = false;
       }, 1800);
     }
+    window.PartyOriginQuests?.onLocationEntered?.(loc.id);
     return true;
   };
 

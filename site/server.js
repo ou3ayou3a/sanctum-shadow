@@ -186,7 +186,7 @@ io.on('connection', (socket) => {
     const code = genSessionCode(); // collision-free
     let cap = parseInt(maxPlayers, 10);
     if (!Number.isFinite(cap) || cap < 1) cap = 4;
-    cap = Math.min(cap, 8);
+    cap = Math.min(cap, 4);
 
     // Leave any previous session before creating a new one.
     leavePreviousSession(socket, code);

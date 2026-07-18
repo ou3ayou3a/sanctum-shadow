@@ -7,11 +7,11 @@ function player(id, overrides = {}) {
   return { id, name:id, connected:true, ready:true, character:{ name:id }, ...overrides };
 }
 
-test('multiplayer capacity is constrained to supported 2–8 player parties', () => {
+test('multiplayer capacity is constrained to supported 2–4 player parties', () => {
   assert.equal(PartyRules.normalizeMaxPlayers(undefined), 4);
   assert.equal(PartyRules.normalizeMaxPlayers(1), 2);
-  assert.equal(PartyRules.normalizeMaxPlayers(6), 6);
-  assert.equal(PartyRules.normalizeMaxPlayers(99), 8);
+  assert.equal(PartyRules.normalizeMaxPlayers(3), 3);
+  assert.equal(PartyRules.normalizeMaxPlayers(99), 4);
 });
 
 test('campaign readiness considers connected players and ignores disconnected ghosts', () => {
@@ -25,10 +25,10 @@ test('campaign readiness considers connected players and ignores disconnected gh
   assert.equal(PartyRules.canStartCampaign(session), false);
 });
 
-test('encounters scale predictably for 3–8 players without mutating source enemies', () => {
+test('encounters scale predictably for 3–4 players without mutating source enemies', () => {
   const source = [{ name:'Cultist', hp:30, maxHp:30, ac:12, atk:4, xp:70 }];
   const trio = PartyRules.scaleEncounter(source, 3)[0];
-  const fullParty = PartyRules.scaleEncounter(source, 8)[0];
+  const fullParty = PartyRules.scaleEncounter(source, 4)[0];
   assert.equal(source[0].hp, 30);
   assert.ok(trio.hp > source[0].hp);
   assert.ok(fullParty.hp > trio.hp);

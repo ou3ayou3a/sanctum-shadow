@@ -52,7 +52,7 @@ The associated interiors cover all 24 Chapter I map locations through these pare
 
 ## Multiplayer follow-up
 
-After the solo run is clean, repeat the main route with a 2–8 player party. Validate speaker ownership, voting, synchronized dialogue, host-only effects, combat turns, positional audio, reconnect, late join, checkpoint reload, and speaker disconnect during a conversation.
+After the solo run is clean, repeat the main route with a 2–4 player party. Validate speaker ownership, voting, synchronized dialogue, host-only effects, combat turns, positional audio, reconnect, late join, checkpoint reload, and speaker disconnect during a conversation.
 
 ## Bug record
 

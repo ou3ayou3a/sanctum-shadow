@@ -176,7 +176,11 @@ function showScene(sceneData) {
       sub: sceneData.sub,
       options: (sceneData.options || []).map(o => ({
         label: o.label, icon: o.icon, type: o.type,
-        roll: o.roll, cost: o.cost, next: o.next, nextFail: o.nextFail,
+        roll: o.roll ? {
+          stat:o.roll.stat, skill:o.roll.skill, dc:o.roll.dc,
+          advantage:!!o.roll.advantage, disadvantage:!!o.roll.disadvantage,
+        } : null,
+        cost: o.cost, next: o.next, nextFail: o.nextFail,
       })),
     };
     window.mpBroadcastStoryEvent('show_scene', { sceneData: safeScene, startedAt: sceneStartedAt });
@@ -423,7 +427,9 @@ function executeSceneOption(index, resolutionKey) {
   if (option.roll) {
     const stat = option.roll.stat.toLowerCase();
     const check = window.DNDRules?.rollCheck
-      ? window.DNDRules.rollCheck(option.label, {
+      ? window.DNDRules.rollCheck({
+          text: option.label,
+          character: option.roll.character || char,
           ability: stat,
           skill: option.roll.skill,
           dc: option.roll.dc,
@@ -2981,6 +2987,8 @@ const PERSONAL_QUEST_SCENES = {
 
 // Merge personal-quest scenes into the main SCENES table so runScene() can reach them.
 Object.assign(SCENES, PERSONAL_QUEST_SCENES);
+// Shared origin questlines register authored scenes at runtime.
+window.SCENES = SCENES;
 
 // ─── CHAPTER II HANDOFF ──────────────────────
 // Each Chapter I ending closes the panel, records the ending variant, and hands
@@ -3002,6 +3010,11 @@ function beginChapterTwo(variant, summary) {
 
 // ─── HOOK INTO GAME INIT ─────────────────────
 function startPersonalQuestHook() {
+  if (window.PartyOriginQuests) {
+    window.PartyOriginQuests.registerScenes();
+    window.PartyOriginQuests.initialize();
+    return;
+  }
   const char = gameState.character;
   if (!char?.origin) return;
 

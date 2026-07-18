@@ -1,6 +1,6 @@
 # Sanctum & Shadow
 
-A browser-based D&D-inspired narrative RPG with deterministic offline story resolution and host-authoritative multiplayer for 2–8 players.
+A browser-based D&D-inspired narrative RPG with deterministic offline story resolution and host-authoritative multiplayer for 2–4 players.
 
 ## Run locally
 

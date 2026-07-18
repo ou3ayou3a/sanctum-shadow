@@ -66,5 +66,5 @@ test('the manual playthrough checklist defines clean start and reproducible chec
   const checklist=read('docs/CHAPTER_ONE_PLAYTHROUGH.md');
   for(const checkpoint of['C0 — Fresh Arrival','C1 — Vaelthar Evidence','C2 — Regional Leads','C3 — Before Saint Aldric','C4 — Before Varek','C5 — Chapter I Complete'])assert.match(checklist,new RegExp(checkpoint.replace(/[—]/g,'—')));
   for(const location of['Vaelthar','Thornwood Gate','Mol Village','Monastery of Saint Aldric','Merchant Road','Fortress Harren','Ashen Fields','Ashen Tower','Church Archive'])assert.match(checklist,new RegExp(location));
-  assert.match(checklist,/offline narration/i);assert.match(checklist,/Claude custom choice/i);assert.match(checklist,/2–8 player/i);
+  assert.match(checklist,/offline narration/i);assert.match(checklist,/Claude custom choice/i);assert.match(checklist,/2–4 player/i);
 });

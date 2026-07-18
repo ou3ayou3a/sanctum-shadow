@@ -2,18 +2,18 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const Sync=require('../lib/conversation-sync.js');
 
-function session(size=8){
+function session(size=4){
   const players={};
   for(let index=1;index<=size;index++)players[`p${index}`]={id:`p${index}`,name:`Player ${index}`,connected:true,character:{name:`Hero ${index}`,class:'paladin',race:'human'}};
   return {code:'TEST-1000',state:'playing',players,combatState:null,conversation:null};
 }
 
-test('one designated speaker owns a conversation for parties of up to eight',()=>{
-  const game=session(8);
-  const opened=Sync.begin(game,'p5',{npcId:'captain_rhael',npcName:'Captain Rhael',npcTitle:'Captain of the Watch'},1000);
+test('one designated speaker owns a conversation for parties of up to four',()=>{
+  const game=session(4);
+  const opened=Sync.begin(game,'p3',{npcId:'captain_rhael',npcName:'Captain Rhael',npcTitle:'Captain of the Watch'},1000);
   assert.equal(opened.ok,true);
-  assert.equal(game.conversation.controllerId,'p5');
-  assert.equal(game.conversation.controllerName,'Hero 5');
+  assert.equal(game.conversation.controllerId,'p3');
+  assert.equal(game.conversation.controllerName,'Hero 3');
   assert.equal(Sync.begin(game,'p2',{npcId:'scribe',npcName:'Scribe'},1001).ok,false);
   const stolen=Sync.update(game,'p2','close',{conversationId:opened.state.id},1002);
   assert.equal(stolen.ok,false);

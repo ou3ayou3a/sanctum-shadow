@@ -133,88 +133,72 @@ const BACKSTORY_ORIGINS = {
     label: 'Fallen Noble',
     narrative: (name, race, cls) => `${name} was born into privilege — feasts, politics, servants, and silk. But when the family estate burned under mysterious circumstances and the debts came due, everything collapsed overnight. Nobility offers no protection from ruin; it merely makes the fall more spectacular. Now ${name} wanders with a coat of arms nobody recognizes and a burning need to know who lit that fire.`,
     quests: [
-      { title: 'The Burning Estate', desc: 'Uncover who destroyed your family home and why.', xp: 300 },
-      { title: 'The Missing Signet Ring', desc: 'Find the family heirloom stolen the night of the fire.', xp: 200 },
-      { title: 'A Debt Unpaid', desc: 'The estate\'s creditor wants blood money. Pay it... or end them.', xp: 250 },
-      { title: 'Old Allies, New Wolves', desc: 'Seek former allies of your family — but trust none of them.', xp: 350 },
-      { title: 'Reclaim the Name', desc: 'Restore your family\'s honor by any means necessary.', xp: 500 },
+      { title: 'Ashes of the House', desc: 'Meet Elira Voss, the steward who carried your family seal out of the fire.', xp: 180 },
+      { title: 'The Stolen Estate', desc: 'Recover the altered deed that transferred your ruined estate before the flames were cold.', xp: 260 },
+      { title: 'A Name Reclaimed', desc: 'Decide what your family name will mean now that the truth is known.', xp: 360 },
     ]
   },
   orphan_war: {
     label: 'War Orphan',
     narrative: (name) => `When ${name} was seven, soldiers came. No warning. By morning, the village was ash and everyone in it was either dead or marching in chains. ${name} escaped by hiding in a root cellar for three days, listening to the screaming above. Now grown, trained, and cold — ${name} remembers every face of the men who commanded that raid. The list is short. The graves are not yet dug.`,
     quests: [
-      { title: 'The Commander\'s Name', desc: 'Find the name of the officer who ordered the raid.', xp: 250 },
-      { title: 'The Survivor\'s Map', desc: 'Someone else survived that night. Find them.', xp: 300 },
-      { title: 'The Merchant\'s Ledger', desc: 'Who paid for that army? Follow the gold.', xp: 350 },
-      { title: 'The Deserted Camp', desc: 'Return to where your village once stood. Something was buried.', xp: 200 },
-      { title: 'Judgment', desc: 'Face the commander of the raid. What you do next defines you.', xp: 600 },
+      { title: 'The Commander\'s Name', desc: 'Meet Mara Dain, who survived the raid that destroyed your village.', xp: 180 },
+      { title: 'Orders in Black Wax', desc: 'Find the original muster order and identify who commanded the Greybank raid.', xp: 260 },
+      { title: 'What the Survivors Owe', desc: 'Choose justice, mercy, or vengeance for the officer who made you an orphan.', xp: 360 },
     ]
   },
   cursed_bloodline: {
     label: 'Cursed Bloodline',
     narrative: (name) => `${name}'s grandmother made a deal with something ancient. The details are vague — family lore, hushed voices at dinner, relatives who died too young or too strange. The curse skips a generation, they said. They were wrong. At puberty, ${name} began to hear a voice. Not threatening. Just... patient. Waiting. The blood runs hot on bad nights and the dreams are never innocent.`,
     quests: [
-      { title: 'The Grandmother\'s Bargain', desc: 'Find records of the original deal your ancestor made.', xp: 300 },
-      { title: 'The Voice Has a Name', desc: 'Discover the identity of what speaks in your blood.', xp: 350 },
-      { title: 'The Binding Mark', desc: 'A scar appears on your skin at full moon. Someone out there has the matching mark.', xp: 250 },
-      { title: 'Break the Chain', desc: 'Find a way to sever the bloodline curse permanently.', xp: 500 },
-      { title: 'Feed the Blood or Starve It', desc: 'The curse demands tribute. You decide if you pay.', xp: 400 },
+      { title: 'The Grandmother\'s Bargain', desc: 'Meet Ysra Vey, who recorded the bargain hidden in your family blood.', xp: 180 },
+      { title: 'The Name in the Blood', desc: 'Open the crypt ledger and learn what has been speaking through your bloodline.', xp: 260 },
+      { title: 'Inheritance or Chain', desc: 'Bind, break, or willingly inherit the old family bargain.', xp: 360 },
     ]
   },
   divine_chosen: {
     label: 'Divinely Chosen',
     narrative: (name) => `It happened once. ${name} was alone, half-starved, about to give up. Then — a light that had no source, a voice that had no throat, and a single phrase that still rings every morning upon waking: "You are not finished." No mission was given. No power was transferred. Just the certainty of purpose with no explanation of what that purpose is. God chose ${name}. What for, is the whole question.`,
     quests: [
-      { title: 'The Dream That Repeats', desc: 'The same vision, every night. Decode its meaning.', xp: 200 },
-      { title: 'The Prophet\'s Scroll', desc: 'An ancient text references someone matching your description. Find it.', xp: 300 },
-      { title: 'The Temple of the Unnamed', desc: 'A ruined temple bears your name carved in stone — dated 400 years ago.', xp: 350 },
-      { title: 'The Second Voice', desc: 'A demon claims GOD made the same deal with IT regarding you.', xp: 450 },
-      { title: 'Fulfill the Calling', desc: 'Discover and complete the act you were chosen to perform.', xp: 700 },
+      { title: 'The Dream That Repeats', desc: 'Meet Brother Oren, who has dreamed the same impossible road as you.', xp: 180 },
+      { title: 'The Unnamed Chapel', desc: 'Follow the shared vision to a chapel erased from every Church map.', xp: 260 },
+      { title: 'Chosen For What', desc: 'Accept, reinterpret, or refuse the calling that has followed you since childhood.', xp: 360 },
     ]
   },
   exile: {
     label: 'The Exiled',
     narrative: (name) => `They said ${name} did something unforgivable. Maybe they're right. The exact charge varied depending on who was telling it, but the punishment was constant: stripped of rank, marked with the exile brand, and cast beyond the walls. Not killed — that would have been mercy. Instead, made to wander with the brand visible and the crime whispered behind every back. Whether the crime was real doesn't change the brand. The brand is very real.`,
     quests: [
-      { title: 'The False Witness', desc: 'Find the person who testified against you.', xp: 300 },
-      { title: 'The Sealed Document', desc: 'A document in the city archive holds the truth. It\'s sealed by order of the throne.', xp: 350 },
-      { title: 'The Brand Cure', desc: 'A healer in the east claims they can remove exile brands. For a price.', xp: 200 },
-      { title: 'Allies in the Gutter', desc: 'Other exiles have formed a network. Join them — or expose them.', xp: 250 },
-      { title: 'Pardoned or Avenged', desc: 'Return to the city that cast you out. Do you seek justice or revenge?', xp: 600 },
+      { title: 'The False Witness', desc: 'Meet Cael Orr, the recorder who preserved the testimony used to exile you.', xp: 180 },
+      { title: 'Two Versions of the Truth', desc: 'Recover the original testimony and its politically edited replacement.', xp: 260 },
+      { title: 'Pardoned or Avenged', desc: 'Choose whether the truth restores your place, destroys your accusers, or frees you from both.', xp: 360 },
     ]
   },
   monster_hunter: {
     label: 'Monster Hunter',
     narrative: (name) => `${name} doesn't scare easily anymore. That ended the first time a creature from beyond the veil tore through a garrison of trained soldiers like they were paper. What survived that night wasn't heroism — it was stubbornness. Now ${name} hunts the things that governments don't admit exist, that churches call 'mass hysteria,' that scholars call 'folklore.' The money is bad. The work is worse. But someone has to.`,
     quests: [
-      { title: 'The Contract That Started It All', desc: 'Return to the site of your first hunt. Something was left unfinished.', xp: 300 },
-      { title: 'The Hunter\'s Guild Mark', desc: 'A guild brand on your old kit identifies a brotherhood you never joined.', xp: 250 },
-      { title: 'The Beast That Got Away', desc: 'One target has eluded you for years. Its trail has grown fresh.', xp: 400 },
-      { title: 'The Client\'s Real Agenda', desc: 'Your longtime employer isn\'t paying you to kill monsters. So why are they paying you?', xp: 350 },
-      { title: 'The Hunt of Hunts', desc: 'The creature responsible for the massacre that made you into this. It\'s still out there.', xp: 700 },
+      { title: 'The Contract That Started It', desc: 'Meet Veyra Holt, keeper of the contract from your first disastrous hunt.', xp: 180 },
+      { title: 'The Beast That Learned', desc: 'Return to the killing ground and discover why the creature deliberately spared you.', xp: 260 },
+      { title: 'Hunter or Witness', desc: 'Kill the truth, expose the client, or end the contract that created the monster.', xp: 360 },
     ]
   },
   corrupted_saint: {
     label: 'Corrupted Saint',
     narrative: (name) => `${name} was ordained. Holy. Pure, even — or at least trying. Then came the moment of weakness, the deal with darkness, the sin that seemed small at the time. The Church doesn't know. The congregation doesn't know. The demons absolutely know. Every prayer since has been tainted, every blessing a small lie. And yet — the powers still work. God hasn't struck ${name} down. Whether that's mercy or something worse is the nightly question.`,
     quests: [
-      { title: 'The Night of the Fall', desc: 'The full memory of what you agreed to is fragmented. Recover it.', xp: 300 },
-      { title: 'The Demon\'s Invoice', desc: 'What exactly did you agree to provide in return? Something is coming to collect.', xp: 400 },
-      { title: 'Confessional', desc: 'A fellow cleric suspects the truth. They\'re offering silence... for a favor.', xp: 300 },
-      { title: 'Can the Stain Be Removed', desc: 'Seek a holy site said to purge demonic contracts.', xp: 500 },
-      { title: 'Saint or Sinner', desc: 'At the end, stand before your God and account for everything.', xp: 700 },
+      { title: 'The Night of the Fall', desc: 'Meet Father Ilyan, the only living witness to the bargain that stained your vows.', xp: 180 },
+      { title: 'The Demon\'s Invoice', desc: 'Find the hidden confession and learn what the darkness believes you still owe.', xp: 260 },
+      { title: 'Saint or Sinner', desc: 'Confess, defy the collector, or complete the bargain on your own terms.', xp: 360 },
     ]
   },
   blood_debt: {
     label: 'Blood Debt',
     narrative: (name) => `Someone saved ${name}'s life once. The cost was enormous — not to ${name}, to the person who did it. A limb. A child. A soul. They asked for nothing in return, which is somehow worse than asking for everything. The debt is unspoken but absolute. Every morning is borrowed time paid for by someone else's sacrifice. Finding a way to make it mean something is the closest thing to a reason to keep moving.`,
     quests: [
-      { title: 'Where Are They Now', desc: 'Find the person who saved you. They have disappeared.', xp: 250 },
-      { title: 'The Price They Paid', desc: 'Learn the full cost of what they gave for you.', xp: 300 },
-      { title: 'The Debt\'s Enemy', desc: 'What or who drove them to make such a sacrifice? It still walks.', xp: 400 },
-      { title: 'The Repayment', desc: 'Find a way to return what they lost — or create something worth the trade.', xp: 500 },
-      { title: 'Earned or Forgiven', desc: 'Face your savior or their memory. Has the debt been paid?', xp: 600 },
+      { title: 'Where the Debt Went', desc: 'Meet Senna Vale, who knows what became of the person who saved your life.', xp: 180 },
+      { title: 'The Price They Paid', desc: 'Open the roadside cairn and learn the complete cost of your survival.', xp: 260 },
+      { title: 'Earned or Forgiven', desc: 'Repay the sacrifice, accept forgiveness, or turn the debt into another weapon.', xp: 360 },
     ]
   }
 };

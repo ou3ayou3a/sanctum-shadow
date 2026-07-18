@@ -410,7 +410,7 @@ function updateBackstoryHints() {
   if (!origin) { hint.classList.remove('visible'); return; }
   const data = BACKSTORY_ORIGINS[origin];
   if (!data) return;
-  hint.textContent = `This origin will generate 5 personal quests: ${data.quests.map(q => q.title).join(', ')}.`;
+  hint.textContent = `This origin creates 3 shared party quests: ${data.quests.map(q => q.title).join(', ')}.`;
   hint.classList.add('visible');
 }
 
@@ -692,7 +692,7 @@ function finalizeCharacter() {
     proficiencies: getClassProficiencies(gameState.selectedClass),
     savingThrowProficiencies: DND_RULES.getClassSavingThrows(gameState.selectedClass),
     questRewardsClaimed: [],
-    personalQuests: originData ? originData.quests.map((q, i) => ({ ...q, id: 'pq_' + i, status: 'active', chapter: 1 })) : [],
+    personalQuests: [],
     revealChoice: null,
     skillPoints: 1,
     skillPointsTotal: 1,
@@ -701,6 +701,8 @@ function finalizeCharacter() {
   };
 
   gameState.character = character;
+  character.personalQuests = window.PartyOriginQuests?.questsForCharacter(character)
+    || (originData ? originData.quests.slice(0, 3).map((q, i) => ({ ...q, id: 'pq_' + i, status: i === 0 ? 'active' : 'locked', chapter: 1 })) : []);
 
   // Fresh run: wipe ALL inherited world singletons — clock, reputation, romance, map
   // fog, drunk state, story history, AND scene flags/knownFacts/personal-quest (#5).
@@ -722,7 +724,7 @@ function buildBackstoryScroll(char, originData, race, cls) {
     <div class="backstory-text">${narrative}</div>
     ${char.secret ? `<div class="backstory-text" style="color:var(--hell-glow);font-style:italic;border-left:2px solid var(--hell);padding-left:12px;margin-top:12px;">Dark Secret: "${char.secret}"</div>` : ''}
     <div class="personal-quests">
-      <h4>☩ YOUR FIVE PURPOSES IN THIS WORLD</h4>
+      <h4>☩ YOUR THREE ORIGIN QUESTS</h4>
       ${(originData?.quests || []).map((q, i) => `
         <div class="pq-item">
           <span class="pq-num">${i + 1}.</span>
@@ -916,14 +918,14 @@ function setupQuests() {
   // Don't reset quests when restoring a save — keep the loaded progress (#6)
   if (gameState._restoring) return;
   gameState.activeQuests = [
-    CHAPTER_1_QUESTS[0],
-    ...gameState.character.personalQuests.slice(0, 2)
+    CHAPTER_1_QUESTS[0]
   ];
   gameState.questProgress = gameState.questProgress || {};
 }
 
 function getQuestById(questId) {
   return CHAPTER_1_QUESTS.find(q => q.id === questId)
+    || window.PartyOriginQuests?.getQuest(questId)
     || gameState.character?.personalQuests?.find(q => q.id === questId)
     || gameState.activeQuests?.find(q => q.id === questId);
 }
@@ -2207,7 +2209,9 @@ function showQuestLog() {
   const content = document.getElementById('quest-overlay-content');
   const mainQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'main');
   const sideQuests = CHAPTER_1_QUESTS.filter(q => q.type === 'side');
-  const personalQuests = gameState.character?.personalQuests || [];
+  const originManifest = window.PartyOriginQuests?.serialize?.();
+  const personalQuests = originManifest?.owners?.flatMap(owner => owner.quests || [])
+    || gameState.character?.personalQuests || [];
   const activeIds = new Set((gameState.activeQuests || []).map(quest => quest.id));
   const completedIds = new Set((gameState.completedQuests || []).map(quest => quest.id));
   const escText = window.escapeHtml || (value => String(value));
@@ -2243,12 +2247,12 @@ function showQuestLog() {
       ${sideQuests.map(renderCampaignQuest).join('')}
     </div>
     <div class="quest-section">
-      <h4>🔮 PERSONAL QUESTS <span style="color:var(--hell);font-style:italic;letter-spacing:0">(Secret)</span></h4>
-      ${personalQuests.map(q => `<div class="quest-full-item" style="border-left-color:var(--hell)">
-        <div class="qfi-title">${q.title}</div>
-        <div class="qfi-desc">${q.desc}</div>
-        <div class="qfi-status active" style="color:var(--hell)">⛧ PERSONAL — ${q.xp} XP</div>
-      </div>`).join('')}
+      <h4>🔖 PARTY ORIGIN QUESTS</h4>
+      ${personalQuests.map(q => { const completed=completedIds.has(q.id),active=activeIds.has(q.id); return `<div class="quest-full-item ${completed?'completed':''}" style="border-left-color:var(--gold)">
+        <div class="qfi-title">${escText(q.title)} <span style="color:var(--text-dim);font-size:.68rem">— ${escText(q.ownerName || gameState.character?.name || 'Hero')}</span></div>
+        <div class="qfi-desc">${escText(q.desc)}</div>
+        <div class="qfi-status ${completed?'completed':active?'active':''}" style="color:var(--gold)">${completed?'✓ COMPLETED':active?'● ACTIVE':'🔒 LOCKED'} — PARTY PLAYABLE — ${q.xp} XP</div>
+      </div>`; }).join('')}
     </div>
   `;
   openOverlay('quest-overlay');
