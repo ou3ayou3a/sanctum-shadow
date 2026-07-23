@@ -6,7 +6,7 @@ export class CameraObstruction{
   constructor(engine){
     this.engine=engine;this.raycaster=new THREE.Raycaster();this.raycaster.camera=engine.camera;this.blocked=new Map();this.elapsed=0;this.occluders=[];this.related=new Map();this.target=new THREE.Vector3();this.direction=new THREE.Vector3();this.offset=new THREE.Vector3();this.cameraRight=new THREE.Vector3();
     engine.zone.root.traverse(object=>{
-      if(!object.isMesh||object.isInstancedMesh||object===engine.zone.ground||object.userData?.interactionId)return;
+      if(!object.isMesh||object.isInstancedMesh||object===engine.zone.ground||object.userData?.interactionId||object.userData?.noOccluder)return;
       let current=object,name='';while(current&&current!==engine.zone.root){name+=` ${current.name||''}`;current=current.parent;}
       if(!object.geometry.boundingSphere)object.geometry.computeBoundingSphere();const radius=(object.geometry.boundingSphere?.radius||0)*Math.max(object.scale.x,object.scale.y,object.scale.z);
       if(OCCLUDER_NAMES.test(name.toLowerCase())||radius>1.65)this.occluders.push(object);
