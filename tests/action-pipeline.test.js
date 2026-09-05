@@ -56,7 +56,7 @@ test('spell ownership and costs come from catalog, never supplied spell definiti
   const {state,context}=fixture();state.combatants.p.spells=[{id:'fireball',mp:0,ap:0,damage:'999d99'}];
   assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:'fireball'}),context).reason,'unknown_ability');
   assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield'}),context).reason,'insufficient_mp');
-  state.combatants.p.mp=100;const p=Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield'}),context);
+  state.combatants.p.mp=100;const p=Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield',targetId:'p'}),context);
   assert.equal(p.ok,true);assert.equal(p.cost,2);assert.equal(p.mp,50);
 });
 test('encounter completion and reward claim cannot repeat or finish a live battle',()=>{
@@ -76,4 +76,26 @@ test('actual solo combat adapter uses the shared item and movement reducer and r
   c.combatItem();assert.equal(c.combatState.combatants.player.hp,40);assert.equal(c.combatState.apRemaining,2);
   c.combatMove({x:1,z:0});assert.equal(c.combatState.combatants.player.position.x,1);assert.equal(c.combatState.apRemaining,1);
   c.combatState.currentTurnIndex=1;const before=JSON.stringify(c.combatState);c.combatItem();c.combatAttack();assert.equal(JSON.stringify(c.combatState),before);
+});
+test('Divine Shield protects the selected ally, absorbs damage, and charges resources exactly once',()=>{
+  const {state,context}=fixture();state.combatants.p.mp=100;
+  state.combatants.ally={id:'ally',isPlayer:true,hp:40,maxHp:60,position:{x:1,z:0}};
+  const command=cmd(state,'spell',{spellId:'divine_shield',targetId:'ally'});
+  const result=Pipeline.resolve(state,command,context);assert.equal(result.ok,true);
+  assert.equal(Pipeline.commit(state,result,context),true);assert.equal(Pipeline.commit(state,result,context),false);
+  assert.equal(state.combatants.p.mp,50);assert.equal(state.apRemaining,1);assert.equal(context.character.holyPoints,10);
+  assert.equal(state.statusEffects.ally[0].shieldHp,30);assert.equal(state.statusEffects.p,undefined);
+  const hit=Pipeline.absorbDamage(state,'ally',42);assert.equal(hit.damage,12);assert.equal(hit.absorbed,30);assert.equal(hit.statuses.length,0);
+  assert.equal(state.statusEffects.ally[0].shieldHp,30,'damage projection is pure');
+});
+test('support abilities reject enemies, dead allies, distant allies and self-only Lay on Hands',()=>{
+  for(const id of ['cure_wounds','lay_on_hands','divine_shield']){
+    const {state,context}=fixture();context.character.class=id==='cure_wounds'?'cleric':'paladin';state.combatants.p.characterClass=context.character.class;state.combatants.p.mp=100;
+    assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:id,targetId:'e'}),context).reason,'invalid_ally_target');
+    state.combatants.ally={id:'ally',isPlayer:true,hp:0,position:{x:1,z:0}};
+    assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:id,targetId:'ally'}),context).reason,'invalid_ally_target');
+    state.combatants.ally.hp=10;state.combatants.ally.position.x=20;
+    assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:id,targetId:'ally'}),context).reason,'out_of_range');
+    if(id==='lay_on_hands')assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:id,targetId:'p'}),context).reason,'invalid_ally_target');
+  }
 });

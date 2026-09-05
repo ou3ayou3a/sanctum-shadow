@@ -747,6 +747,11 @@ function selectSpell(spellId) {
   const spell = player?.spells?.find(s => s.id === spellId);
   if (!spell) return;
   combatState.selectedSpell = spell;
+  if(window.ActionPipeline.SUPPORT[spell.id]){
+    const allies=Object.values(combatState.combatants).filter(c=>c.isPlayer&&c.hp>0);
+    combatState.selectedTarget=(spell.id==='lay_on_hands'?allies.find(c=>c.id!==player.id):player)?.id||null;
+    updateCombatUI();return;
+  }
   // Auto-select first enemy if none selected
   if (!combatState.selectedTarget) {
     const firstEnemy = Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
@@ -849,6 +854,16 @@ function combatAttack() {
 function castSelectedSpell() {
   const spell = combatState.selectedSpell;
   if (!spell) return;
+  if(spell.id==='divine_shield'){
+    const result=resolveSoloCommand('spell',{spellId:spell.id,targetId:combatState.selectedTarget});
+    if(!result)return;
+    const target=combatState.combatants[result.events[0].targetId];
+    gameState.character.mp=combatState.combatants.player.mp;
+    addLog(`🔆 Divine Shield protects ${target.name}: absorbs 30 damage.`,'holy');
+    combatState.selectedSpell=null;syncPlayerHP();updateCombatUI();
+    if(combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
+    return;
+  }
   if (combatState.apRemaining < spell.ap) { addLog('Not enough AP!', 'system'); return; }
 
   const player = combatState.combatants['player'];
@@ -876,7 +891,7 @@ function castSelectedSpell() {
   if (spell.id === 'cure_wounds') {
     let amt = rollDice(spell.heal, statMod);
     if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
-    player.hp = Math.min(player.maxHp, player.hp + amt);
+    target.hp = Math.min(target.maxHp, target.hp + amt);
     if (gameState.character) gameState.character.hp = player.hp;
     addLog(`💚 Cure Wounds: healed for ${amt} HP!`, 'holy');
   }
@@ -893,7 +908,7 @@ function castSelectedSpell() {
   else if (spell.id === 'mass_heal') {
     let amt = rollDice(spell.heal, statMod);
     if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
-    player.hp = Math.min(player.maxHp, player.hp + amt);
+    for(const ally of Object.values(combatState.combatants).filter(c=>c.isPlayer&&c.hp>0))ally.hp=Math.min(ally.maxHp,ally.hp+amt);
     if (gameState.character) gameState.character.hp = player.hp;
     addLog(`💫 Mass Heal: all allies restored ${amt} HP!`, 'holy');
   }
@@ -922,7 +937,7 @@ function castSelectedSpell() {
   }
   else if (spell.id === 'lay_on_hands') {
     const amt = rollDice(spell.heal, statMod);
-    player.hp = Math.min(player.maxHp, player.hp + amt);
+    target.hp = Math.min(target.maxHp, target.hp + amt);
     if (gameState.character) gameState.character.hp = player.hp;
     addLog(`🙏 Lay on Hands: restored ${amt} HP!`, 'holy');
   }

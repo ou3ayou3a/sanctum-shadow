@@ -214,11 +214,13 @@ function initMultiplayer() {
   });
 
   // ── Authoritative player-state sync (inventory/gold after item use, #63) ──
-  socket.on('player_state', ({ playerId, inventory, gold, hp }) => {
+  socket.on('player_state', ({ playerId, inventory, gold, hp, mp, holyPoints }) => {
     if (playerId !== window.mp.playerId || !gameState.character) return;
     if (Array.isArray(inventory)) gameState.character.inventory = inventory;
     if (typeof gold === 'number') gameState.character.gold = gold;
     if (typeof hp === 'number') gameState.character.hp = Math.max(0, hp);
+    if (typeof mp === 'number') gameState.character.mp = Math.max(0, mp);
+    if (typeof holyPoints === 'number') gameState.character.holyPoints = Math.max(0, holyPoints);
     if (typeof renderPlayerCard === 'function') renderPlayerCard();
     if (typeof updateCombatUI === 'function') updateCombatUI();
   });

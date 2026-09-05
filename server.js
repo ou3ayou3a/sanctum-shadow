@@ -677,26 +677,40 @@ io.on('connection', (socket) => {
 
     } else if (action === 'spell') {
       const spell = prepared.spell;
-      const target = cs.combatants[targetId];
+      const target = prepared.target;
       if (!spell || !target) return;
+      if(spell.id==='divine_shield'){
+        const result=ActionPipeline.resolve(cs,command,commandContext);
+        if(!ActionPipeline.commit(cs,result,commandContext))return;
+        commandContext.character.mp=actor.mp;
+        stateSync={playerId:actor.playerId,hp:actor.hp,mp:actor.mp,holyPoints:commandContext.character.holyPoints};
+        logEntry={type:'holy',text:`🔆 ${actor.name} shields ${target.name}: absorbs 30 damage.`};
+        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:0});
+      }else{
       const spMp = Number(spell.mp) || 0, spAp = Number(spell.ap) || 1;
       if ((actor.mp||0) < spMp || cs.apRemaining < spAp) return;
       if(!ActionPipeline.accept(cs,prepared))return;
+      commandContext.character.holyPoints=Math.max(0,(commandContext.character.holyPoints||0)-(spell.holy_cost||0));
       actor.mp = (actor.mp||0) - spMp;
+      commandContext.character.mp=actor.mp;
+      stateSync={playerId:actor.playerId,mp:actor.mp,holyPoints:commandContext.character.holyPoints};
       cs.apRemaining -= spAp;
       // Validate dice formulas before rolling (#66).
       const dmg = isValidFormula(spell.damage) ? rollDiceServer(spell.damage, actor.statMods) : 0;
       if (spell.type === 'heal') {
         const healAmt = isValidFormula(spell.heal) ? rollDiceServer(spell.heal, actor.statMods) : 0;
-        actor.hp = Math.min(actor.maxHp, actor.hp + healAmt);
-        if (actor.isPlayer && s.players[actor.playerId]) s.players[actor.playerId].hp = actor.hp;
-        logEntry = { type: 'holy', text: `${spell.icon} ${actor.name} casts ${spell.name} — healed ${healAmt} HP!` };
-        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target:actor,action:'spell',spell,hit:true,healing:healAmt});
+        const recipients=spell.id==='mass_heal'?Object.values(cs.combatants).filter(c=>c.isPlayer&&c.hp>0):[target];
+        for(const recipient of recipients){recipient.hp=Math.min(recipient.maxHp,recipient.hp+healAmt);if(s.players[recipient.playerId])s.players[recipient.playerId].hp=recipient.hp;}
+        logEntry = { type: 'holy', text: `${spell.icon} ${actor.name} casts ${spell.name} — healed ${spell.id==='mass_heal'?'the party':target.name} for ${healAmt} HP!` };
+        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,healing:healAmt});
       } else {
-        target.hp = Math.max(0, target.hp - dmg);
+        const shieldResult=ActionPipeline.absorbDamage(cs,target.id,dmg);
+        cs.statusEffects=cs.statusEffects||{};cs.statusEffects[target.id]=shieldResult.statuses;
+        target.hp = Math.max(0, target.hp - shieldResult.damage);
         if (target.isPlayer && s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
-        logEntry = { type: 'combat', text: `${spell.icon} ${actor.name} casts ${spell.name} on ${target.name} — HIT — ${dmg} damage!` };
-        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:dmg});
+        logEntry = { type: 'combat', text: `${spell.icon} ${actor.name} casts ${spell.name} on ${target.name} — HIT — ${shieldResult.damage} damage!` };
+        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:shieldResult.damage});
+      }
       }
 
     } else if (action === 'move' || action === 'item' || action === 'end_turn') {
@@ -969,6 +983,7 @@ function advanceTurnServer(s) {
   cs.apRemaining = 3;
 
   const next = cs.combatants[cs.turnOrder[cs.currentTurnIndex]];
+  if(next&&cs.statusEffects?.[next.id])cs.statusEffects[next.id]=cs.statusEffects[next.id].map(status=>status.id==='divine_shield'?{...status,turnsLeft:status.turnsLeft-1}:status).filter(status=>status.id!=='divine_shield'||status.turnsLeft>0);
   if (next && !next.isPlayer) {
     // New enemy turn → bump the sequence so each enemy turn is tracked
     // independently (#11: no more timing-based dropped turns).
@@ -1026,7 +1041,10 @@ function processEnemyTurn(s, seq) {
   const { roll, crit } = attack;
   let logEntry,damage=0;
   if (attack.hit) {
-    const dmg = Rules.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:crit }).total;
+    const rawDamage = Rules.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:crit }).total;
+    const shieldResult=ActionPipeline.absorbDamage(cs,target.id,rawDamage);
+    cs.statusEffects=cs.statusEffects||{};cs.statusEffects[target.id]=shieldResult.statuses;
+    const dmg=shieldResult.damage;
     damage=dmg;
     target.hp = Math.max(0, target.hp - dmg);
     if (s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
