@@ -212,7 +212,7 @@ test('real server supports a four-player campaign, synchronized dialogue, combat
         const client=clients.find(candidate=>candidate.id===currentId);
         assert.ok(client,`connected client exists for ${currentId}`);
         const enemy=Object.values(combatState.combatants).find(combatant=>!combatant.isPlayer&&combatant.hp>0);
-        client.emit('combat_action',{code,action:'attack',targetId:enemy.id});
+        client.emit('combat_action',{code,action:'attack',targetId:enemy.id,commandId:`qa-attack-${turn}`,encounterId:combatState.encounterId,revision:combatState.commandRevision});
       }else{
         host.emit('enemy_turn',{code,seq:combatState._enemyTurnSeq});
       }
@@ -224,6 +224,9 @@ test('real server supports a four-player campaign, synchronized dialogue, combat
     assert.equal(ended.victory,true);
     assert.equal(ended.xpEach,Math.floor(ended.xp/4));
     assert.ok(ended.presentation?.impactDelay>0);
+    const rejectedAfterEnd=host.once('error');
+    host.emit('combat_action',{code,action:'attack',targetId:Object.values(ended.combatState.combatants).find(c=>!c.isPlayer).id,commandId:'after-victory',encounterId:ended.combatState.encounterId,revision:ended.combatState.commandRevision});
+    assert.match((await rejectedAfterEnd).msg,/inactive_encounter/);
   }catch(error){
     error.message+=`\nServer output:\n${serverOutput.slice(-5000)}`;
     throw error;

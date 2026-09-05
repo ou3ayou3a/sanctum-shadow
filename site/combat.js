@@ -170,50 +170,7 @@ function applyDamage(targetId, rawDmg) {
 }
 
 // ─── SPELL DATABASE (per class, levels 1-10) ─
-const CLASS_SPELLS = {
-  cleric: [
-    { id:'cure_wounds',    level:1,  name:'Cure Wounds',      icon:'💚', ap:2, mp:20, damage:null,        heal:'2d8+WIS', type:'heal',    desc:'Restore 2d8+WIS HP to one ally.' },
-    { id:'spirit_weapon',  level:3,  name:'Spiritual Weapon', icon:'👻', ap:2, mp:35, damage:'2d8+WIS',   heal:null,      type:'holy',    desc:'Summon a floating spectral blade. Attacks each round.' },
-    { id:'mass_heal',      level:5,  name:'Mass Heal',        icon:'💫', ap:2, mp:60, damage:null,        heal:'2d6+WIS', type:'heal',    holy_cost:8,  desc:'Heal ALL allies for 2d6+WIS. Costs 8 Holy Points.' },
-    { id:'divine_strike',  level:7,  name:'Divine Strike',    icon:'⚡', ap:2, mp:45, damage:'4d8+WIS',   heal:null,      type:'holy',    desc:'Channel divinity into a strike. Deals holy damage.' },
-    { id:'revivify',       level:10, name:'Revivify',         icon:'❤', ap:2, mp:80, damage:null,        heal:'1',       type:'revive',  desc:'Restore a fallen ally to 1 HP. Must use within 3 turns.' },
-  ],
-  paladin: [
-    { id:'holy_smite',    level:1,  name:'Holy Smite',    icon:'✝', ap:2, mp:30, damage:'3d6+WIS', heal:'1d4', type:'holy',  desc:'Radiant damage + heal yourself 1d4. Costs 5 Holy.' },
-    { id:'lay_on_hands',  level:3,  name:'Lay on Hands',  icon:'🙏', ap:2, mp:25, damage:null,      heal:'3d8', type:'heal',  desc:'Touch an ally to heal 3d8+WIS. Not self.' },
-    { id:'divine_shield', level:5,  name:'Divine Shield', icon:'🔆', ap:2, mp:50, damage:null,      heal:null,  type:'buff',  holy_cost:10, desc:'Absorb up to 30 damage for self or ally. 10 Holy.' },
-    { id:'judgment',      level:7,  name:'Judgment',      icon:'⚖', ap:2, mp:60, damage:'5d10+WIS',heal:null,  type:'holy',  holy_cost:15, desc:'Devastating holy strike. Costs 15 Holy Points.' },
-    { id:'wrath_divine',  level:10, name:'Wrath of God',  icon:'☀', ap:3, mp:90, damage:'8d10+WIS',heal:null,  type:'holy',  holy_cost:25, desc:'Annihilate one target with divine fury. 25 Holy.' },
-  ],
-  mage: [
-    { id:'magic_missile', level:1,  name:'Magic Missile', icon:'✨', ap:2, mp:20, damage:'3d4+INT', heal:null, type:'arcane', desc:'Auto-hit magic bolts. Never misses.' },
-    { id:'fireball',      level:3,  name:'Fireball',      icon:'🔥', ap:2, mp:40, damage:'6d6',     heal:null, type:'fire',   desc:'AOE explosion. Hits ALL in range — allies too!', aoe:true },
-    { id:'mirror_image',  level:5,  name:'Mirror Image',  icon:'👁', ap:2, mp:30, damage:null,      heal:null, type:'buff',   desc:'3 illusions absorb hits before you.' },
-    { id:'chain_lightning',level:7, name:'Chain Lightning',icon:'⚡',ap:2, mp:45, damage:'4d10',    heal:null, type:'lightning',desc:'Chains between targets. 50% ally splash.', aoe:true },
-    { id:'disintegrate',  level:10, name:'Disintegrate',  icon:'💀', ap:3, mp:80, damage:'10d6+INT',heal:null, type:'arcane', desc:'CON save or disintegrated. 20% ally splash.' },
-  ],
-  warrior: [
-    { id:'war_cry',       level:1,  name:'War Cry',         icon:'😤', ap:1, mp:20, damage:null,      heal:null, type:'buff',     desc:'+2 ATK for all allies for 3 turns.' },
-    { id:'whirlwind',     level:3,  name:'Whirlwind Strike',icon:'🌀', ap:2, mp:35, damage:'3d8',     heal:null, type:'physical', desc:'Hit ALL nearby — including allies!', aoe:true },
-    { id:'last_stand',    level:5,  name:'Last Stand',      icon:'🛡', ap:1, mp:40, damage:null,      heal:null, type:'buff',     desc:'Below 20 HP: +50% damage, immune to knockback.' },
-    { id:'execute',       level:7,  name:'Execute',         icon:'⚔', ap:2, mp:50, damage:'5d10+STR',heal:null, type:'physical', desc:'Massive strike vs targets below 25% HP.' },
-    { id:'avatar_war',    level:10, name:'Avatar of War',   icon:'🔥', ap:3, mp:80, damage:'6d12+STR',heal:null, type:'physical', desc:'Become unstoppable for 3 turns. +100% damage.' },
-  ],
-  rogue: [
-    { id:'sneak_attack',  level:1,  name:'Sneak Attack',  icon:'🗡', ap:1, mp:15, damage:'3d6+DEX', heal:null, type:'physical', desc:'Bonus damage from stealth or flanking.' },
-    { id:'smoke_bomb',    level:3,  name:'Smoke Bomb',    icon:'💨', ap:1, mp:20, damage:null,      heal:null, type:'debuff',   desc:'All in area get -4 to attacks. Allies too.' },
-    { id:'shadow_step',   level:5,  name:'Shadow Step',   icon:'🌑', ap:1, mp:25, damage:null,      heal:null, type:'movement', desc:'Teleport to any shadow within 60ft.' },
-    { id:'garrote',       level:7,  name:'Garrote',       icon:'🩸', ap:2, mp:30, damage:'4d6+DEX', heal:null, type:'physical', desc:'Silence target (no spells) for 3 turns.' },
-    { id:'phantom_kill',  level:10, name:'Phantom Kill',  icon:'👤', ap:3, mp:60, damage:'8d8+DEX', heal:null, type:'physical', desc:'Assassinate from darkness. Instant kill if target <30% HP.' },
-  ],
-  ranger: [
-    { id:'hunters_mark',  level:1,  name:"Hunter's Mark", icon:'🎯', ap:1, mp:20, damage:'+2d6 bonus',heal:null,type:'buff',     desc:'Mark one target. All attacks vs them deal extra damage.' },
-    { id:'multi_shot',    level:3,  name:'Multi-Shot',    icon:'🏹', ap:2, mp:35, damage:'2d8 x3',  heal:null, type:'physical', desc:'3 arrows at different targets. Can hit allies.' },
-    { id:'vine_trap',     level:5,  name:'Vine Trap',     icon:'🌿', ap:2, mp:30, damage:null,      heal:null, type:'debuff',   desc:'Root target for 2 turns. Cannot move or dash.' },
-    { id:'volley',        level:7,  name:'Volley',        icon:'☄', ap:2, mp:50, damage:'3d10',    heal:null, type:'physical', desc:'Rain arrows on an area. No exceptions.', aoe:true },
-    { id:'apex_predator', level:10, name:'Apex Predator', icon:'🐺', ap:3, mp:70, damage:'6d10+DEX',heal:null,type:'physical', desc:'Summon a spirit beast. Attacks with you each turn.' },
-  ],
-};
+const CLASS_SPELLS = window.GameplayCatalog.CLASS_SPELLS;
 
 // ─── ENEMY TEMPLATES ─────────────────────────
 // Level-scaled enemies per area
@@ -502,6 +459,7 @@ function startCombat(enemies, encounter = {}) {
   window._rogueFirstStrikeDone = false;
 
   combatState.active = true;
+  window.ActionPipeline.begin(combatState,window.ActionPipeline.command({},'player','begin').id);
   combatState.round = 1;
   combatState.combatants = {};
   combatState.turnOrder = [];
@@ -538,7 +496,8 @@ function startCombat(enemies, encounter = {}) {
     type: 'player', ap: MAX_AP, icon: '⚔',
     isPlayer: true, boss: false,
     initiative: COMBAT_RULES.rollInitiative({ bonus:dexMod }).total,
-    spells: char.spells || [],
+    spells: window.GameplayCatalog.spellsFor(char.class,char.level||1),
+    characterClass:char.class,level:char.level||1,
     tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
     position:{x:0,z:0},
     statMods: { str:strMod, dex:dexMod, wis:wisMod, int:Math.floor(((char.stats?.int||10)-10)/2) },
@@ -807,11 +766,12 @@ function combatAttack() {
   if (!target) { addLog('Select a target first!', 'system'); return; }
   const player = combatState.combatants['player'];
   if (!player) return;
+  if(!acceptSoloCommand('attack',{targetId:target.id}))return;
   const atkBonus = (player.attackBonus ?? player.atk ?? 0) + getAtkMod('player');
   // #17: Shadow Step's nextHitAutoHit guarantees this strike lands, then is consumed
   const ss = getStatusData('player', 'shadow_step');
   const autoHit = !!(ss && ss.nextHitAutoHit);
-  const attack = COMBAT_RULES.resolveAttack({
+  const attack = window.ActionPipeline.attackRoll(player,target,{
     attackBonus:atkBonus, targetAC:target.ac, autoHit,
     attackerConditions:(combatState.statusEffects.player || []).map(status => status.id),
     targetConditions:(combatState.statusEffects[target.id] || []).map(status => status.id),
@@ -822,7 +782,7 @@ function combatAttack() {
   if (hit) {
     const isCrit = attack.crit;
     // Critical hits double weapon dice, not the flat ability/gear modifier.
-    let baseDmg = COMBAT_RULES.rollFormula('1d8', { modifier:player.damageMod ?? player.atk ?? 0, critical:isCrit }).total;
+    let baseDmg = attack.damage;
     if (isCrit) {
       addLog(`💥 CRITICAL HIT! Natural 20 — weapon dice doubled!`, 'hell');
     }
@@ -899,6 +859,7 @@ function castSelectedSpell() {
   }
 
   const target = getTarget();
+  if(!acceptSoloCommand('spell',{spellId:spell.id,targetId:target?.id}))return;
   const statKey = ['holy','heal','revive'].includes(spell.type) ? 'wis'
     : spell.type === 'arcane' ? 'int'
     : ['physical','fire','lightning'].includes(spell.type) ? 'str'
@@ -1158,88 +1119,38 @@ function rollDice(formula, statMod) {
   }).total;
 }
 
-function combatMove(position) {
-  if (combatState.apRemaining < 1) return;
-  const player=combatState.combatants.player;
-  if(position&&player?.position&&window.TacticalCombat){const movement=window.TacticalCombat.validateMove(player.position,position,{maxDistance:combatState.tactical?.moveRange||4.5,bounds:combatState.tactical?.bounds||12});if(!movement.ok){addLog('That movement is not valid on this battlefield.','system');return;}player.position=movement.position;}
-  combatState.apRemaining--;
-  if (window.classOnMove) classOnMove();
-  addLog('🏃 You reposition on the battlefield.', 'system');
-  updateCombatUI();
+function acceptSoloCommand(type,data={}){
+  const cmd=window.ActionPipeline.command(combatState,'player',type,data);
+  const prepared=window.ActionPipeline.prepare(combatState,cmd,{principalId:'player',character:gameState.character});
+  if(!prepared.ok){addLog('Action rejected: '+prepared.reason,'system');return false;}
+  return window.ActionPipeline.accept(combatState,prepared);
 }
-
+function resolveSoloCommand(type,data={}){
+  const context={principalId:'player',character:gameState.character};
+  const cmd=window.ActionPipeline.command(combatState,'player',type,data);
+  const result=window.ActionPipeline.resolve(combatState,cmd,context);
+  if(!result.ok){addLog('Action rejected: '+result.reason,'system');return null;}
+  return window.ActionPipeline.commit(combatState,result,context)?result:null;
+}
+function combatMove(position) {
+  if(!position){addLog('Choose a destination on the battlefield.','system');return;}
+  const result=resolveSoloCommand('move',{position});
+  if(!result)return;
+  if(window.classOnMove)classOnMove();
+  addLog('🏃 You reposition on the battlefield.','system');updateCombatUI();
+}
 function combatItem() {
-  if (combatState.apRemaining < 1) return;
-  const char = gameState.character;
-  const player = combatState.combatants['player'];
-  if (!player) return;
-
-  // #25: recognise any healing consumable — by SHOP_ITEMS metadata (effect heal_N)
-  // or by name keywords — instead of only matching "potion".
-  const nameKeywords = ['potion','mending','bandage','draught','vial','salve','tonic','elixir','rations','bread'];
-  const items = window.SHOP_ITEMS || {};
-  const findCatalog = (name) => Object.values(items).find(i => i.name === name);
-  const isHealItem = (name) => {
-    const ci = findCatalog(name);
-    if (ci && typeof ci.effect === 'string' && ci.effect.startsWith('heal_')) return true;
-    const lower = name.toLowerCase();
-    return nameKeywords.some(k => lower.includes(k));
-  };
-  // #31: MP-restore consumables (Essence of Focus / "MP Tonic" etc.) were unusable in
-  // combat. Recognise effect mp_N items too and restore MP (bounded by maxMp).
-  const isMpItem = (name) => {
-    const ci = findCatalog(name);
-    return !!(ci && typeof ci.effect === 'string' && ci.effect.startsWith('mp_'));
-  };
-
-  const healName = (char?.inventory || []).find(isHealItem);
-
-  // If no heal item but an MP item exists, use that instead.
-  if (!healName) {
-    const mpName = (char?.inventory || []).find(isMpItem);
-    if (!mpName) { addLog('No healing or restorative items to use!', 'system'); return; }
-    const mci = findCatalog(mpName);
-    let mpAmt = 40; // fallback
-    if (mci && typeof mci.effect === 'string' && mci.effect.startsWith('mp_')) {
-      mpAmt = parseInt(mci.effect.split('_')[1]) || 40;
-    }
-    const beforeMp = player.mp;
-    player.mp = Math.min(player.maxMp, player.mp + mpAmt);
-    char.mp = player.mp;
-    const mridx = char.inventory.indexOf(mpName);
-    if (mridx !== -1) char.inventory.splice(mridx, 1);
-    combatState.apRemaining--;
-    addLog(`💧 Used ${mpName}! Restored ${player.mp - beforeMp} MP. (${player.mp}/${player.maxMp})`, 'holy');
-    syncPlayerHP();
-    updateCombatUI();
-    if (combatState.apRemaining <= 0) {
-      addLog(`⏸ All AP spent — ending your turn.`, 'system');
-      combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
-    }
-    return;
-  }
-
-  // Determine the item's real heal amount where the catalogue knows it.
-  const ci = findCatalog(healName);
-  let healAmt = 30; // fallback for loot with no metadata
-  if (ci && typeof ci.effect === 'string' && ci.effect.startsWith('heal_')) {
-    healAmt = parseInt(ci.effect.split('_')[1]) || 30;
-  }
-
-  const before = player.hp;
-  player.hp = Math.min(player.maxHp, player.hp + healAmt);
-  char.hp = player.hp;
-  const ridx = char.inventory.indexOf(healName);
-  if (ridx !== -1) char.inventory.splice(ridx, 1);
-  combatState.apRemaining--;
-  addLog(`🎒 Used ${healName}! Restored ${player.hp - before} HP. (${player.hp}/${player.maxHp})`, 'holy');
+  const inventory=gameState.character?.inventory||[];
+  const itemName=inventory.find(name=>window.GameplayCatalog.consumable(name));
+  if(!itemName){addLog('No healing or restorative items to use!','system');return;}
+  const result=resolveSoloCommand('item',{targetId:itemName});
+  if(!result)return;
+  const event=result.events[0];
+  gameState.character.mp=combatState.combatants.player.mp;
   syncPlayerHP();
+  addLog(`🎒 Used ${event.name}! Restored ${event.amount} ${event.field.toUpperCase()}.`,'holy');
   updateCombatUI();
-
-  if (combatState.apRemaining <= 0) {
-    addLog(`⏸ All AP spent — ending your turn.`, 'system');
-    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
-  }
+  if(combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
 }
 
 function endPlayerTurn() {
@@ -1247,6 +1158,7 @@ function endPlayerTurn() {
   if (!combatState.active) return;
   if (combatState.whoseTurn !== 'player') return;
   if (combatState.endedThisTurn) return;
+  if(!acceptSoloCommand('end_turn'))return;
   combatState.endedThisTurn = true;
   // Clear any pending auto-end timer so it can't fire a second time
   if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
@@ -1280,6 +1192,7 @@ function getTarget() {
 // ─── ADVANCE TURN ─────────────────────────────
 function advanceTurn() {
   if (!combatState.active) return; // combat ended — stop the turn loop
+  combatState.commandRevision=(combatState.commandRevision||0)+1;
   do {
     combatState.currentTurnIndex = (combatState.currentTurnIndex + 1) % combatState.turnOrder.length;
     if (combatState.currentTurnIndex === 0) { combatState.round++; if(window.classOnRoundEnd) classOnRoundEnd(); }

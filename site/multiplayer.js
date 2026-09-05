@@ -567,6 +567,10 @@ function initMultiplayer() {
   });
 
   socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState, presentation, log }) => {
+    const claimId=endedCombatState?.encounterId;
+    window.mp.encounterClaims=window.mp.encounterClaims||new Set();
+    if(claimId&&window.mp.encounterClaims.has(claimId))return;
+    if(claimId)window.mp.encounterClaims.add(claimId);
     const finish=()=>{
     window.mp.combatState = null;
     window.mp.combatSpectator = false;
@@ -678,7 +682,8 @@ function mpStartCombat(enemies, encounter = {}) {
 
 function mpCombatAction(action, targetId, spellId, position) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
-  window.mp.socket.emit('combat_action', { code: window.mp.sessionCode, action, targetId, spellId, position });
+  const command=window.ActionPipeline.command(window.combatState,window.mp.playerId,action,{targetId,spellId,position});
+  window.mp.socket.emit('combat_action', { code: window.mp.sessionCode, action, targetId, spellId, position, commandId:command.id, encounterId:command.encounterId, revision:command.revision });
 }
 
 function mpChat(text) {
@@ -998,7 +1003,7 @@ window.combatItem = function() {
     if (!isMyTurnMP()) { addLog('Not your turn!', 'system'); return; }
     // Pick the item locally so we can pass its name to the server (targetId slot).
     const inv = gameState.character?.inventory || [];
-    const itemName = inv.find(i => typeof i === 'string' && i.toLowerCase().includes('potion'));
+    const itemName = inv.find(i => window.GameplayCatalog.consumable(i));
     if (!itemName) { addLog('No items to use!', 'system'); return; }
     mpCombatAction('item', itemName, null);
   } else {

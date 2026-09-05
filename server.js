@@ -9,6 +9,8 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const Rules = require('./site/rules.js');
+const ActionPipeline = require('./site/action-pipeline.js');
+const GameplayCatalog = require('./site/gameplay-catalog.js');
 const TacticalCombat = require('./site/tactical-combat.js');
 const CombatPresentation = require('./site/combat-presentation.js');
 const PartyRules = require('./lib/party-rules.js');
@@ -216,6 +218,7 @@ function loadSessionsFromDisk() {
         // Mark all players as disconnected — they'll rejoin.
         Object.values(s.players || {}).forEach(p => { p.connected = false; });
         s.maxPlayers = PartyRules.normalizeMaxPlayers(s.maxPlayers);
+        if(s.combatState?.active&&!s.combatState.encounterId)ActionPipeline.begin(s.combatState,require('crypto').randomUUID());
         sessions[code] = s;
       });
       console.log(`Restored ${Object.keys(sessions).length} sessions from disk.`);
@@ -587,7 +590,7 @@ io.on('connection', (socket) => {
         damageMod:attackMod + weaponAtk + prayerAtk,
         characterClass:String(char.class||'warrior').toLowerCase().replace(/[^a-z_-]/g,'').slice(0,24)||'warrior',
         type: 'player', isPlayer: true, boss: false,
-        spells: char.spells || [], level: char.level || 1,
+        spells: GameplayCatalog.spellsFor(char.class, char.level || 1), level: char.level || 1,
         icon: '⚔', initiative,
         tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
         position:{x:(playerPlacement-(combatParty.length-1)/2)*1.55,z:0},
@@ -631,17 +634,26 @@ io.on('connection', (socket) => {
       _presentationSeq: 0,
     };
     s.state = 'combat';
+    ActionPipeline.begin(s.combatState, require('crypto').randomUUID());
 
     io.to(code).emit('combat_started', s.combatState);
     broadcastSession(code);
   }));
 
   // ── Combat action ──
-  socket.on('combat_action', safeHandler('combat_action', ({ code, action, targetId, spellId, position }) => {
+  socket.on('combat_action', safeHandler('combat_action', ({ code, action, targetId, spellId, position, commandId, encounterId, revision }) => {
     const s = authorizedSession(socket, code);
     if (!s || !s.combatState || !allowSocketEvent(socket, 'combat_action', 20, 5000)) return;
 
     const cs = s.combatState;
+    const command={id:commandId,encounterId,revision,actorId:socket.id,type:action,targetId,spellId,position};
+    const commandContext={principalId:socket.id,character:s.players[socket.id]?.character};
+    const prepared=ActionPipeline.prepare(cs,command,commandContext);
+    if(!prepared.ok){
+      socket.emit('error',{msg:`Action rejected: ${prepared.reason}. Refresh or reconnect if your game is out of date.`});
+      if(cs.active&&['stale_revision','wrong_encounter'].includes(prepared.reason))socket.emit('combat_update',{combatState:cs});
+      return;
+    }
     const currentId = cs.turnOrder[cs.currentTurnIndex];
 
     // Must be this player's turn
@@ -656,34 +668,20 @@ io.on('connection', (socket) => {
     let stateSync = null; // {playerId, inventory, gold} broadcast for item use
 
     if (action === 'attack') {
-      const target = cs.combatants[targetId];
-      if (!target || typeof target.hp !== 'number' || target.hp <= 0) return;
-      const tactical=TacticalCombat.validateAttack(actor,target,{cover:cs.tactical?.cover||[]});
-      if(!tactical.ok){socket.emit('error',{msg:tactical.reason==='out_of_range'?`Target is out of range (${tactical.distance?.toFixed(1)}m / ${tactical.range}m).`:'That target cannot be attacked.'});return;}
-      const attack = Rules.resolveAttack({ attackBonus:actor.attackBonus ?? actor.atk ?? 0, targetAC:(target.ac || 10)+tactical.coverBonus });
-      const { roll, crit } = attack;
-      let damage=0;
-      if (attack.hit) {
-        const dmg = Rules.rollFormula('1d8', { modifier:actor.damageMod ?? actor.atk ?? 0, critical:crit }).total;
-        damage=dmg;
-        target.hp = Math.max(0, target.hp - dmg);
-        logEntry = { type: 'combat', text: `⚔ ${crit ? 'CRITICAL HIT' : 'HIT'} — ${actor.name} attacks ${target.name}${tactical.coverBonus?' through cover':''}! [${roll}] — ${dmg} damage!` };
-        // Sync HP back if target is a player
-        if (target.isPlayer && s.players[target.playerId]) {
-          s.players[target.playerId].hp = target.hp;
-        }
-      } else {
-        logEntry = { type: 'system', text: `⚔ MISS — ${actor.name} misses ${target.name}! [${roll}]` };
-      }
-      presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'attack',hit:attack.hit,crit,damage});
-      cs.apRemaining--;
+      const result=ActionPipeline.resolve(cs,command,commandContext);
+      if(!ActionPipeline.commit(cs,result,commandContext))return;
+      const event=result.events[0],target=cs.combatants[targetId];
+      if(target.isPlayer&&s.players[target.playerId])s.players[target.playerId].hp=target.hp;
+      logEntry={type:event.hit?'combat':'system',text:`⚔ ${event.crit?'CRITICAL HIT':event.hit?'HIT':'MISS'} — ${actor.name} attacks ${target.name}! [${event.roll}] — ${event.damage} damage!`};
+      presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'attack',hit:event.hit,crit:event.crit,damage:event.damage});
 
     } else if (action === 'spell') {
-      const spell = actor.spells?.find(sp => sp && sp.id === spellId);
+      const spell = prepared.spell;
       const target = cs.combatants[targetId];
       if (!spell || !target) return;
       const spMp = Number(spell.mp) || 0, spAp = Number(spell.ap) || 1;
       if ((actor.mp||0) < spMp || cs.apRemaining < spAp) return;
+      if(!ActionPipeline.accept(cs,prepared))return;
       actor.mp = (actor.mp||0) - spMp;
       cs.apRemaining -= spAp;
       // Validate dice formulas before rolling (#66).
@@ -701,35 +699,16 @@ io.on('connection', (socket) => {
         presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:dmg});
       }
 
-    } else if (action === 'move') {
-      if (cs.apRemaining < 1) return;
-      const movement=TacticalCombat.validateMove(actor.position,position,{maxDistance:cs.tactical?.moveRange||TacticalCombat.DEFAULT_MOVE_RANGE,bounds:cs.tactical?.bounds||12});
-      if(!movement.ok){socket.emit('error',{msg:movement.reason==='out_of_range'?'That move is too far.':'That position is outside the battlefield.'});return;}
-      actor.position=movement.position;
-      cs.apRemaining--;
-      logEntry = { type: 'system', text: `🏃 ${actor.name} moves ${movement.distance.toFixed(1)}m.` };
-
-    } else if (action === 'item') {
-      // Use a consumable — server applies AP cost + effect authoritatively (#63).
-      if (cs.apRemaining < 1) return;
-      const p = s.players[actor.playerId];
-      const char = p && p.character;
-      const inv = (char && Array.isArray(char.inventory)) ? char.inventory : [];
-      // Pick the named item or the first potion-like item.
-      let itemName = (typeof targetId === 'string' && inv.includes(targetId)) ? targetId
-        : inv.find(i => typeof i === 'string' && i.toLowerCase().includes('potion'));
-      if (!itemName) { socket.emit('error', { msg: 'No usable item!' }); return; }
-      const healAmt = 30;
-      actor.hp = Math.min(actor.maxHp, actor.hp + healAmt);
-      char.hp = actor.hp;
-      char.inventory = inv.filter(i => i !== itemName);
-      if (p) p.hp = actor.hp;
-      cs.apRemaining--;
-      logEntry = { type: 'holy', text: `🎒 ${actor.name} uses ${itemName} — restored ${healAmt} HP!` };
-      stateSync = { playerId: actor.playerId, inventory: char.inventory, gold: char.gold, hp: char.hp };
-
-    } else if (action === 'end_turn') {
-      cs.apRemaining = 0;
+    } else if (action === 'move' || action === 'item' || action === 'end_turn') {
+      const result=ActionPipeline.resolve(cs,command,commandContext);
+      if(!ActionPipeline.commit(cs,result,commandContext))return;
+      if(action==='move')logEntry={type:'system',text:`🏃 ${actor.name} moves ${result.events[0].distance.toFixed(1)}m.`};
+      if(action==='item'){
+        const event=result.events[0],p=s.players[actor.playerId],char=p.character;
+        char.hp=actor.hp;char.mp=actor.mp;p.hp=actor.hp;
+        logEntry={type:'holy',text:`🎒 ${actor.name} uses ${event.name} — restored ${event.amount} ${event.field.toUpperCase()}!`};
+        stateSync={playerId:actor.playerId,inventory:char.inventory,gold:char.gold,hp:char.hp,mp:char.mp};
+      }
     }
 
     if (logEntry) { s.log.push(logEntry); capLog(s.log); }
@@ -740,13 +719,15 @@ io.on('connection', (socket) => {
     const enemies = Object.values(cs.combatants).filter(c => !c.isPlayer && c.hp > 0);
 
     if (players.length === 0) {
-      cs.active = false; s.state = 'playing';
+      if(!ActionPipeline.finish(cs,false).ok)return;
+      s.state = 'playing';
       tickPrayerBlessings(s); io.to(code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
       broadcastSession(code);
       return;
     }
     if (enemies.length === 0) {
-      cs.active = false; s.state = 'playing';
+      if(!ActionPipeline.finish(cs,true).ok)return;
+      s.state = 'playing';
       // Calculate XP — split only among connected players who have a character (#68).
       const xp = Object.values(cs.combatants).filter(c=>!c.isPlayer).reduce((a,c)=>a+(c.xp||50),0);
       const sharers = Object.values(s.players).filter(p => p && p.connected && p.character).length || 1;
@@ -978,6 +959,7 @@ const ENEMY_TURN_FALLBACK_MS = 4000;
 function advanceTurnServer(s) {
   const cs = s.combatState;
   if (!cs || !Array.isArray(cs.turnOrder) || cs.turnOrder.length === 0) return;
+  cs.commandRevision=(cs.commandRevision||0)+1;
   let attempts = 0;
   do {
     cs.currentTurnIndex = (cs.currentTurnIndex + 1) % cs.turnOrder.length;
@@ -1058,7 +1040,8 @@ function processEnemyTurn(s, seq) {
 
   const players = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
   if (players.length === 0) {
-    cs.active = false; s.state = 'playing';
+    if(!ActionPipeline.finish(cs,false).ok)return;
+    s.state = 'playing';
     tickPrayerBlessings(s); io.to(s.code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
     broadcastSession(s.code); return;
   }

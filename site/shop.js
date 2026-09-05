@@ -4,46 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 // ─── ITEM CATALOGUE ──────────────────────────────────────
-const SHOP_ITEMS = {
-
-  // CONSUMABLES
-  health_potion_sm:  { id:'health_potion_sm',  name:'Vial of Mending',       icon:'🧪', type:'consumable', effect:'heal_30',  price:18,  desc:'Restores 30 HP. Bitter taste of iron.' },
-  health_potion_lg:  { id:'health_potion_lg',  name:'Draught of Mending',     icon:'⚗️', type:'consumable', effect:'heal_60',  price:40,  desc:'Restores 60 HP. Warm in the throat.' },
-  mp_potion:         { id:'mp_potion',          name:'Essence of Focus',       icon:'💧', type:'consumable', effect:'mp_40',    price:30,  desc:'Restores 40 MP. Smells of ozone.' },
-  antidote:          { id:'antidote',           name:'Antidote Tincture',      icon:'🌿', type:'consumable', effect:'cure_poison', price:22, desc:'Cures poison. Tastes of ash.' },
-  holy_water:        { id:'holy_water',          name:'Holy Water',            icon:'✝',  type:'consumable', effect:'holy_dmg_undead', price:25, desc:'Burns undead and demons. +20 DMG vs unholy.' },
-  bandage:           { id:'bandage',             name:'Field Bandage',         icon:'🩹', type:'consumable', effect:'heal_15',  price:8,   desc:'Restores 15 HP. Crude but effective.' },
-  smoke_bomb:        { id:'smoke_bomb',          name:'Smoke Bomb',            icon:'💨', type:'consumable', effect:'escape',   price:35,  desc:'Creates cover. Allows retreat from combat.' },
-  strength_draft:    { id:'strength_draft',      name:'Draft of Might',        icon:'🍺', type:'consumable', effect:'str_buff', price:45,  desc:'+4 STR for 3 turns. Smells like a forge.' },
-  shadow_oil:        { id:'shadow_oil',          name:'Shadow Oil',            icon:'🌑', type:'consumable', effect:'sneak_buff', price:55, desc:'+4 DEX for 3 turns. Reeks of void.' },
-  rations:           { id:'rations',             name:'Iron Rations',          icon:'🥩', type:'consumable', effect:'heal_10',  price:5,   desc:'Trail food. Restores 10 HP during rest.' },
-
-  // WEAPONS
-  iron_dagger:       { id:'iron_dagger',         name:'Iron Dagger',           icon:'🗡', type:'weapon', atk:2,  price:30,  desc:'+2 ATK. Fast and concealable.' },
-  shortsword:        { id:'shortsword',           name:'Shortsword',            icon:'⚔', type:'weapon', atk:3,  price:55,  desc:'+3 ATK. Standard city guard issue.' },
-  longsword:         { id:'longsword',            name:'Longsword',             icon:'⚔', type:'weapon', atk:5,  price:110, desc:'+5 ATK. A knight\'s blade.' },
-  war_axe:           { id:'war_axe',              name:'War Axe',               icon:'🪓', type:'weapon', atk:6,  price:130, desc:'+6 ATK. Brutal and unsubtle.' },
-  holy_blade:        { id:'holy_blade',           name:'Blessed Blade',         icon:'✝', type:'weapon', atk:4,  price:180, desc:'+4 ATK, +10 DMG vs undead. Church-forged.' },
-  shadow_knife:      { id:'shadow_knife',         name:'Shadow Knife',          icon:'🌑', type:'weapon', atk:4,  price:160, desc:'+4 ATK, ignores 2 AC. Void-touched steel.' },
-  staff_of_ruin:     { id:'staff_of_ruin',        name:'Staff of Ruin',         icon:'🔮', type:'weapon', atk:3,  price:150, desc:'+3 ATK, +4 spell damage. Humming with energy.' },
-  crossbow:          { id:'crossbow',             name:'Crossbow',              icon:'🏹', type:'weapon', atk:4,  price:95,  desc:'+4 ATK ranged. Requires bolts.' },
-
-  // ARMOR
-  leather_armor:     { id:'leather_armor',        name:'Leather Armor',         icon:'🥋', type:'armor', ac:1,   price:40,  desc:'+1 AC. Light and flexible.' },
-  chain_shirt:       { id:'chain_shirt',          name:'Chain Shirt',           icon:'🪖', type:'armor', ac:2,   price:90,  desc:'+2 AC. Rings of tested steel.' },
-  half_plate:        { id:'half_plate',           name:'Half-Plate',            icon:'🛡', type:'armor', ac:3,   price:200, desc:'+3 AC. Heavy but reliable.' },
-  shield:            { id:'shield',               name:'Iron Shield',           icon:'🛡', type:'armor', ac:2,   price:65,  desc:'+2 AC. Block and push.' },
-  void_cloak:        { id:'void_cloak',           name:'Void Cloak',            icon:'🌑', type:'armor', ac:1,   price:140, desc:'+1 AC, +2 DEX. Woven from shadow.' },
-  church_vestments:  { id:'church_vestments',     name:'Church Vestments',      icon:'✝', type:'armor', ac:1,   price:80,  desc:'+1 AC, +2 WIS. Holy protection.' },
-
-  // KEY ITEMS / LORE
-  city_pass:         { id:'city_pass',            name:'City Watch Pass',       icon:'📜', type:'key_item', price:120, desc:'Grants access to restricted districts. Forged.' },
-  false_identity:    { id:'false_identity',       name:'False Papers',          icon:'🪪', type:'key_item', price:200, desc:'A complete false identity. Dangerous to carry.' },
-  thieves_tools:     { id:'thieves_tools',        name:'Thieves\' Tools',       icon:'🔧', type:'key_item', price:50,  desc:'+4 DEX on lock-picking and trap disarming.' },
-  torch:             { id:'torch',                name:'Alchemical Torch',      icon:'🔦', type:'key_item', price:12,  desc:'Burns for 6 hours. Reveals hidden doors.' },
-  rope:              { id:'rope',                 name:'Silk Rope (50ft)',      icon:'🪢', type:'key_item', price:15,  desc:'Strong and silent. Endless uses.' },
-  poison_vial:       { id:'poison_vial',          name:'Vial of Nightshade',    icon:'☠', type:'consumable', effect:'poison_weapon', price:75, desc:'Coats weapon for 3 strikes. -5 HP/turn for 3 turns.' },
-};
+const SHOP_ITEMS = window.GameplayCatalog.SHOP_ITEMS;
 
 // ─── MERCHANT INVENTORIES BY LOCATION ────────────────────
 const MERCHANTS = {
