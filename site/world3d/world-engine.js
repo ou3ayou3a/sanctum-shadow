@@ -9,7 +9,8 @@ import { Party3DManager } from './party-manager.js?v=179';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=179';
 import { WorldPolish } from './world-polish.js?v=220';
 import { CinematicDirector } from './cinematic-director.js?v=145';
-import { CityAtmosphere } from './city-atmosphere.mjs?v=169';
+import { CityAtmosphere } from './city-atmosphere.mjs?v=221';
+import { RuntimeHealth } from './runtime-health.mjs?v=221';
 import { CameraObstruction } from './camera-obstruction.mjs?v=200';
 import { WorldPerformanceManager } from './world-performance.mjs?v=181';
 import { environmentAssetLoadStats } from './environment-asset-loader.js?v=144';
@@ -26,6 +27,7 @@ export class WorldEngine extends EventTarget {
     this.clock=new THREE.Clock(); this.running=false; this.raycaster=new THREE.Raycaster(); this.pointer=new THREE.Vector2();this.cameraTargetBefore=new THREE.Vector3();this.cameraFollowDelta=new THREE.Vector3();this.cameraFocus=new THREE.Vector3();this.environmentElapsed=0;this.labelElapsed=0;
     this.cameraKeys=new Set();this.cameraPanOffset=new THREE.Vector3();this.cameraForward=new THREE.Vector3();
     this.interactionObjects=[]; this.pendingInteraction=null;
+    this.health=new RuntimeHealth((entry,error)=>this.reportRuntimeFailure(entry,error));
   }
 
   async initialize() {
@@ -55,6 +57,7 @@ export class WorldEngine extends EventTarget {
   }
 
   openUtility(action){
+    if(this.health.fatal)return;
     if(this.combatController?.active)return;
     const actions={
       character:()=>window.openCharSheet?.(),
@@ -108,6 +111,7 @@ export class WorldEngine extends EventTarget {
 
   ndc(e){const r=this.canvas.getBoundingClientRect();return new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);}
   handleTap(e){
+    if(this.health.fatal)return;
     if(window.npcConvState?.active||document.getElementById('scene-panel'))return;
     if(this.combatController?.handleTap(e,this.raycaster))return;
     this.raycaster.setFromCamera(this.ndc(e),this.camera);
@@ -141,8 +145,58 @@ export class WorldEngine extends EventTarget {
   makeMarker(){const group=new THREE.Group();const ring=new THREE.Mesh(new THREE.RingGeometry(.38,.5,32),new THREE.MeshBasicMaterial({color:0xe2c779,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.04;group.add(ring);group.visible=false;this.scene.add(group);this.marker=group;this.markerRing=ring;}
   updateWorldLabels(){for(const label of this.worldLabels||[]){label.getWorldPosition(this.worldLabelPosition);const distance=this.camera.position.distanceTo(this.worldLabelPosition),base=label.userData.worldLabelBase;label.visible=distance>2.5;const factor=THREE.MathUtils.clamp(distance/18,.16,1);label.scale.set(base[0]*factor,base[1]*factor,base[2]);}}
   resize(){const w=this.canvas.clientWidth||innerWidth,h=this.canvas.clientHeight||innerHeight;this.renderer?.setSize(w,h,false);if(this.camera){this.camera.aspect=w/h;this.camera.updateProjectionMatrix();}this.postProcessing?.setSize(w,h);}
-  start(){if(this.running)return;this.running=true;if(!this.marker)this.makeMarker();this.clock.start();this.frame();}
-  frame(){if(!this.running)return;const dt=Math.min(this.clock.getDelta(),.12),time=this.clock.elapsedTime;if(document.hidden){this.raf=requestAnimationFrame(()=>this.frame());return;}this.actor?.update(dt);if(!this.combatController?.active)this.npcManager?.update(dt,time);this.combatController?.update(dt);this.partyManager?.update(dt);this.chronicleAdapter?.update(dt);this.worldPolish?.update(dt);try{this.torchLightPool?.update(dt,time);}catch(e){}try{this.shadowFollow?.update();}catch(e){}this.abilityEffects?.update(dt);this.environmentElapsed+=dt;const quality=this.worldPolish?.quality||'medium',environmentInterval=quality==='low'?1/20:quality==='high'?0:1/30;if(!environmentInterval||this.environmentElapsed>=environmentInterval){const environmentDt=this.environmentElapsed;this.environmentElapsed=0;this.cityAtmosphere?.update(environmentDt,time);this.zone?.update?.(time,environmentDt);}this.updateVitals();if(this.classActionText)this.classActionText.textContent=this.combatController?.active?'Attack Target':this.actor.classProfile.action;if(this.cinematicDirector?.active)this.cinematicDirector.update(dt);else{this.updateCameraPan(dt);if(this.actor){const focusActor=this.cinematicFocus||this.actor;this.cameraFocus.copy(focusActor.position).y+=1.25;this.cameraFocus.add(this.cameraPanOffset);this.cameraTargetBefore.copy(this.controls.target);const followSpeed=this.cameraKeys.size?12:6.5;this.controls.target.lerp(this.cameraFocus,1-Math.exp(-dt*followSpeed));this.cameraFollowDelta.copy(this.controls.target).sub(this.cameraTargetBefore);this.camera.position.add(this.cameraFollowDelta);}this.controls.update();}this.cameraObstruction?.update(dt);this.performanceManager?.update(dt);if(this.marker?.visible)this.markerRing.rotation.z+=dt*1.8;this.labelElapsed+=dt;if(this.labelElapsed>=.05){this.labelElapsed=0;this.updateWorldLabels();}if(!this.postProcessing?.render())this.renderer.render(this.scene,this.camera);this.raf=requestAnimationFrame(()=>this.frame());}
+  start(){if(this.running||this.health.fatal)return;this.running=true;if(!this.marker)this.makeMarker();this.clock.start();this.frame();}
+  frame(){
+    if(!this.running||this.health.fatal)return;
+    try{
+      const dt=Math.min(this.clock.getDelta(),.12),time=this.clock.elapsedTime;
+      if(document.hidden)return;
+      this.actor?.update(dt);
+      if(!this.combatController?.active)this.npcManager?.update(dt,time);
+      this.combatController?.update(dt);this.partyManager?.update(dt);this.chronicleAdapter?.update(dt);
+      this.health.optional('world-polish',()=>this.worldPolish?.update(dt));
+      this.health.optional('torch-lights',()=>this.torchLightPool?.update(dt,time));
+      this.health.optional('shadow-follow',()=>this.shadowFollow?.update());
+      // Ability effects can deliver impact callbacks: they are not optional.
+      this.abilityEffects?.update(dt);
+      this.environmentElapsed+=dt;
+      const quality=this.worldPolish?.quality||'medium',environmentInterval=quality==='low'?1/20:quality==='high'?0:1/30;
+      if(!environmentInterval||this.environmentElapsed>=environmentInterval){
+        const environmentDt=this.environmentElapsed;this.environmentElapsed=0;
+        this.health.optional('atmosphere',()=>this.cityAtmosphere?.update(environmentDt,time));
+        this.health.optional('environment-animation',()=>this.zone?.update?.(time,environmentDt));
+      }
+      this.updateVitals();
+      if(this.classActionText)this.classActionText.textContent=this.combatController?.active?'Attack Target':this.actor.classProfile.action;
+      if(this.cinematicDirector?.active)this.cinematicDirector.update(dt);
+      else{
+        this.updateCameraPan(dt);
+        if(this.actor){const focusActor=this.cinematicFocus||this.actor;this.cameraFocus.copy(focusActor.position).y+=1.25;this.cameraFocus.add(this.cameraPanOffset);this.cameraTargetBefore.copy(this.controls.target);const followSpeed=this.cameraKeys.size?12:6.5;this.controls.target.lerp(this.cameraFocus,1-Math.exp(-dt*followSpeed));this.cameraFollowDelta.copy(this.controls.target).sub(this.cameraTargetBefore);this.camera.position.add(this.cameraFollowDelta);}
+        this.controls.update();
+      }
+      this.health.optional('camera-obstruction',()=>this.cameraObstruction?.update(dt));
+      this.health.optional('performance-monitor',()=>this.performanceManager?.update(dt));
+      if(this.marker?.visible)this.markerRing.rotation.z+=dt*1.8;
+      this.labelElapsed+=dt;if(this.labelElapsed>=.05){this.labelElapsed=0;this.health.optional('world-labels',()=>this.updateWorldLabels());}
+      if(!this.health.optional('post-processing',()=>this.postProcessing?.render(),false))this.renderer.render(this.scene,this.camera);
+    }catch(error){this.health.record('gameplay-update',error,true);}
+    finally{if(this.running&&!this.health.fatal)this.raf=requestAnimationFrame(()=>this.frame());}
+  }
+  reportRuntimeFailure(entry,error){
+    console.error(`[Sanctum runtime: ${entry.subsystem}]`,error);
+    this.canvas.dataset.runtimeHealth=entry.fatal?'failed':'degraded';
+    if(!entry.fatal){this.toast(`A nonessential world effect was disabled (${entry.subsystem}). Gameplay can continue.`,6500);return;}
+    this.stop();this.cameraKeys.clear();this.pendingInteraction=null;
+    window.__worldRuntimeFailure={...entry,locationId:this.zone?.id||'unknown'};
+    const panel=document.createElement('section');panel.setAttribute('role','alertdialog');panel.setAttribute('aria-label','World recovery');
+    panel.style.cssText='position:fixed;inset:0;z-index:2147483000;background:#101719ed;color:#eee;padding:10vh max(24px,15vw);pointer-events:auto;font:16px/1.6 system-ui;overflow:auto';
+    const title=document.createElement('h2');title.textContent='The world stopped unexpectedly';
+    const description=document.createElement('p');description.textContent='Your existing saves have been preserved. Automatic saving is disabled to avoid replacing a good checkpoint with an incomplete state. In multiplayer, the server and other players may still be active.';
+    const details=document.createElement('p');details.textContent=`Diagnostic: ${entry.subsystem} · ${this.zone?.id||'unknown location'}. Details are in the browser console.`;
+    const load=document.createElement('button');load.type='button';load.textContent='Open saved checkpoints';load.style.cssText='padding:12px 18px;margin-right:12px';load.onclick=()=>{if(typeof window.openLoadScreen==='function'){panel.remove();window.openLoadScreen();}};
+    const reload=document.createElement('button');reload.type='button';reload.textContent=window.mp?.sessionCode?'Reload and reconnect':'Reload game';reload.style.cssText='padding:12px 18px';reload.onclick=()=>location.reload();
+    panel.append(title,description,details,load,reload);document.body.appendChild(panel);this.recoveryPanel=panel;load.focus();
+  }
   stop(){this.running=false;cancelAnimationFrame(this.raf);}
   dispose(){this.persistPosition();this.stop();clearTimeout(this.toastTimer);clearInterval(this.loadingProgressTimer);this.cameraKeys.clear();this.canvas.removeEventListener('pointerdown',this.onPointerDown);this.canvas.removeEventListener('pointerup',this.onPointerUp);this.canvas.removeEventListener('contextmenu',this.onContextMenu);removeEventListener('keydown',this.onKey);removeEventListener('keyup',this.onKeyUp);removeEventListener('blur',this.onWindowBlur);removeEventListener('resize',this.onResize);this.cinematicDirector?.dispose();this.cameraObstruction?.dispose();this.performanceManager?.dispose();this.cityAtmosphere?.dispose();this.controls?.dispose();this.worldPolish?.dispose();this.chronicleAdapter?.dispose();this.combatController?.dispose();this.partyManager?.dispose();window.AudioEngine?.clearWorldEmitters?.();this.abilityEffects?.dispose();this.npcManager?.dispose();this.actor?.dispose();this.zone?.dispose?.();this.renderer?.dispose();this.overlay.replaceChildren();}
 }

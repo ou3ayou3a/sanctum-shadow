@@ -188,6 +188,10 @@ function buildSaveSlot(slotName, type) {
 }
 
 function saveGame(slotName, type, silent = false) {
+  if (window.__worldRuntimeFailure) {
+    if (!silent) toast('Saving is paused after a runtime failure. Load an existing checkpoint or reload first.', 'error');
+    return null;
+  }
   // HARDCORE: never autosave/session-resume a dead run (would revive a corpse on resume).
   if ((type === 'autosave' || type === 'session_resume') && (gameState.dead || localStorage.getItem('ss_run_dead') === '1')) {
     return null;
@@ -279,6 +283,9 @@ function loadSaveSlot(slotId, options = {}) {
   }
 
   // A living save was chosen — the player has left the dead run behind.
+  // Rebuild the failed world from this explicit checkpoint, never resume its
+  // partially updated runtime. Saving stays blocked until the new world boots.
+  if (window.__worldRuntimeFailure) window.unloadWorld3D?.();
   // Clear the dead flags so the resumed run plays normally (#6).
   try { localStorage.removeItem('ss_run_dead'); } catch (e) {}
   gameState.dead = false;
