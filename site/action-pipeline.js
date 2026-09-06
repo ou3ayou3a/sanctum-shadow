@@ -1,11 +1,11 @@
 // Plain-data command boundary. No DOM, sockets, timers, or client-supplied effects.
 (function(root,factory){
   const node=typeof module==='object'&&module.exports;
-  const api=factory(node?require('./rules.js'):root.SanctumRules,node?require('./tactical-combat.js'):root.TacticalCombat,node?require('./gameplay-catalog.js'):root.GameplayCatalog);
+  const api=factory(node?require('./rules.js'):root.SanctumRules,node?require('./tactical-combat.js'):root.TacticalCombat,node?require('./gameplay-catalog.js'):root.GameplayCatalog,node?require('./combat-mechanics.js'):root.CombatMechanics);
   if(node)module.exports=api;if(root)root.ActionPipeline=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Rules,Tactical,Catalog){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Rules,Tactical,Catalog,Mechanics){
   'use strict';
-  const TYPES=new Set(['attack','spell','move','item','end_turn']);
+  const TYPES=new Set(['attack','spell','move','item','end_turn','retreat','surrender']);
   const SUPPORT=Object.freeze({cure_wounds:{range:12},lay_on_hands:{range:2.75,other:true},mass_heal:{range:12,party:true},divine_shield:{range:12}});
   function begin(state,id){state.encounterId=id;state.commandRevision=0;state.commandReceipts=[];state.rewardClaimed=false;}
   function command(state,actorId,type,data={}){
@@ -23,7 +23,12 @@
     const actor=state.combatants?.[cmd.actorId];
     if(!actor||!actor.isPlayer||!(actor.hp>0))return reject('invalid_actor');
     if(state.turnOrder?.[state.currentTurnIndex]!==cmd.actorId)return reject('not_your_turn');
-    let cost=cmd.type==='end_turn'?0:1,mp=0,target=state.combatants[cmd.targetId],spell=null,item=null,tactical=null;
+    if(state.turnBlocked&&cmd.type!=='end_turn')return reject('stunned');
+    let cost=['end_turn','retreat','surrender'].includes(cmd.type)?0:1,mp=0,target=state.combatants[cmd.targetId],spell=null,item=null,tactical=null;
+    if(['retreat','surrender'].includes(cmd.type)){
+      if(!context.canEndEncounter)return reject('party_leader_required');
+      if(cmd.type==='surrender'&&!state.surrenderScene)return reject('surrender_unavailable');
+    }
     if(cmd.type==='attack'){
       if(!target||target.isPlayer===actor.isPlayer||!(target.hp>0))return reject('invalid_target');
       tactical=Tactical.validateAttack(actor,target,{cover:state.tactical?.cover||[]});
@@ -32,6 +37,8 @@
     if(cmd.type==='spell'){
       spell=Catalog.spellsFor(actor.characterClass||context.character?.class,actor.level||context.character?.level||1).find(s=>s.id===cmd.spellId);
       if(!spell)return reject('unknown_ability');
+      const invalid=Mechanics.validate(state,actor,spell,cmd.targetId);if(invalid)return reject(invalid);
+      target=Mechanics.targetFor(state,actor,spell.id,cmd.targetId);
       cost=spell.ap;mp=spell.mp;
       if(!(actor.mp>=mp))return reject('insufficient_mp');
       if((spell.holy_cost||0)>(context.character?.holyPoints||0))return reject('insufficient_holy_points');
@@ -46,6 +53,7 @@
       if(spell.damage&&spell.type!=='buff'&&spell.type!=='heal'&&(!target||!(target.hp>0)))return reject('invalid_target');
     }
     if(cmd.type==='move'){
+      if(Mechanics.has(state,actor.id,'vine_trap'))return reject('rooted');
       tactical=Tactical.validateMove(actor.position,cmd.position,{maxDistance:state.tactical?.moveRange||Tactical.DEFAULT_MOVE_RANGE,bounds:state.tactical?.bounds||12});
       if(!tactical.ok)return reject(tactical.reason);
     }
@@ -72,21 +80,19 @@
   // Pure reducer for migrated primitives. Callers commit once, then present events.
   function resolve(state,cmd,context={}){
     const prepared=prepare(state,cmd,context);if(!prepared.ok)return prepared;
-    if(cmd.type==='spell'&&prepared.spell.id!=='divine_shield')return reject('ability_requires_authored_handler');
     const effects=[],events=[];const actor=prepared.actor;
     if(cmd.type==='spell'){
-      const target=prepared.target,statuses=(state.statusEffects?.[target.id]||[]).filter(s=>s.id!=='divine_shield');
-      statuses.push({id:'divine_shield',name:'Divine Shield',icon:'🔆',turnsLeft:4,shieldHp:30});
-      effects.push({type:'statuses',actorId:target.id,value:statuses},{type:'mp',actorId:actor.id,value:actor.mp-prepared.mp},{type:'holyPoints',value:(context.character.holyPoints||0)-(prepared.spell.holy_cost||0)});
-      events.push({type:'shield',actorId:actor.id,targetId:target.id,amount:30});
+      const resolution=Mechanics.resolve(state,actor.id,prepared.spell,{targetId:prepared.target.id,seed:context.seed});
+      resolution.combatants[actor.id].mp=actor.mp-prepared.mp;
+      effects.push({type:'combat',value:resolution},{type:'holyPoints',value:(context.character.holyPoints||0)-(prepared.spell.holy_cost||0)});
+      events.push(...resolution.events);
     }else if(cmd.type==='attack'){
-      const roll=attackRoll(actor,prepared.target,{seed:context.seed,targetAC:(prepared.target.ac||10)+prepared.tactical.coverBonus});
-      const damage=absorbDamage(state,cmd.targetId,roll.damage);
-      effects.push({type:'hp',actorId:cmd.targetId,value:Math.max(0,prepared.target.hp-damage.damage)},{type:'statuses',actorId:cmd.targetId,value:damage.statuses});
-      roll.damage=damage.damage;roll.absorbed=damage.absorbed;
-      events.push({type:'attack',actorId:cmd.actorId,targetId:cmd.targetId,...roll});
+      const resolution=Mechanics.attack(state,actor.id,prepared.target.id,{seed:context.seed,coverBonus:prepared.tactical.coverBonus});
+      effects.push({type:'combat',value:resolution});events.push(...resolution.events);
+      if(actor.characterClass==='paladin'&&resolution.events[0].hit)effects.push({type:'holyPoints',value:Math.min(100,(context.character?.holyPoints||0)+5)});
     }else if(cmd.type==='move'){
       effects.push({type:'position',actorId:cmd.actorId,value:prepared.tactical.position});
+      if(actor.characterClass==='ranger')effects.push({type:'resource',actorId:actor.id,value:Math.min(3,(actor.resource||0)+1)});
       events.push({type:'move',actorId:cmd.actorId,distance:prepared.tactical.distance});
     }else if(cmd.type==='item'){
       const [kind,amount]=prepared.item.effect.split('_'),field=kind==='heal'?'hp':'mp',max=field==='hp'?actor.maxHp:actor.maxMp;
@@ -94,6 +100,7 @@
       effects.push({type:field,actorId:cmd.actorId,value},{type:'consume',name:prepared.item.name});
       events.push({type:'item',actorId:cmd.actorId,name:prepared.item.name,field,amount:value-(actor[field]||0)});
     }
+    if(['retreat','surrender'].includes(cmd.type)){effects.push({type:'outcome',value:cmd.type});events.push({type:cmd.type,actorId:actor.id});}
     effects.push({type:'ap',value:cmd.type==='end_turn'?0:state.apRemaining-prepared.cost});
     return {ok:true,prepared,effects,events};
   }
@@ -101,6 +108,8 @@
     if(!result.ok||!accept(state,result.prepared))return false;
     for(const effect of result.effects){
       if(effect.type==='ap')state.apRemaining=effect.value;
+      else if(effect.type==='combat'){state.combatants=effect.value.combatants;state.statusEffects=effect.value.statusEffects;}
+      else if(effect.type==='outcome'){state.active=false;state.outcome=effect.value;state.rewardClaimed=true;}
       else if(effect.type==='holyPoints')context.character.holyPoints=effect.value;
       else if(effect.type==='statuses'){state.statusEffects=state.statusEffects||{};state.statusEffects[effect.actorId]=effect.value;}
       else if(effect.type==='consume'){const inv=context.character.inventory;inv.splice(inv.indexOf(effect.name),1);}
@@ -112,7 +121,7 @@
     if(!state.active||state.rewardClaimed)return reject('encounter_already_finished');
     const alive=Object.values(state.combatants).filter(c=>c.hp>0);
     if(alive.some(c=>victory?!c.isPlayer:c.isPlayer))return reject('encounter_not_finished');
-    state.active=false;state.rewardClaimed=true;state.commandRevision++;
+    state.active=false;state.rewardClaimed=true;state.commandRevision++;state.outcome=victory?'victory':'defeat';
     return {ok:true,claimId:`encounter:${state.encounterId}`,victory};
   }
   function absorbDamage(state,targetId,raw){

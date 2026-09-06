@@ -568,7 +568,7 @@ function initMultiplayer() {
     if(!controller?.presentAuthoritativeUpdate(combatState,presentation,apply))apply();
   });
 
-  socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState, presentation, log }) => {
+  socket.on('combat_ended', ({ victory, xp, xpEach, combatState:endedCombatState, presentation, log, outcome }) => {
     const claimId=endedCombatState?.encounterId;
     window.mp.encounterClaims=window.mp.encounterClaims||new Set();
     if(claimId&&window.mp.encounterClaims.has(claimId))return;
@@ -623,13 +623,19 @@ function initMultiplayer() {
           window.recordQuestEvent?.('combat:victory:cupside_checkpoint', { defeatedIds:enemies.map(enemy => enemy.id) });
           window.mpBroadcastCampaignState?.('cupside_checkpoint_victory');
         }
-        if (enemies.some(enemy => /voice below/i.test(enemy.name || ''))) {
+        if(endedCombatState?.victoryScene){
+          setTimeout(()=>window.runScene?.(endedCombatState.victoryScene),800);
+        } else if(enemies.some(enemy=>String(enemy.sourceId||enemy.id||'').startsWith('elder_varek'))){
+          setTimeout(()=>window.runScene?.('chapter1_end_arrest'),800);
+        } else if (enemies.some(enemy => /voice below/i.test(enemy.name || ''))) {
           setTimeout(() => window.runScene?.('monastery_dungeon_cleared'), 800);
         }
         window.mpBroadcastCampaignState?.('combat_npc_fates');
       }
     } else {
-      (window.addLog._orig || window.addLog)('💀 The party falls...', 'combat');
+      (window.addLog._orig || window.addLog)(outcome==='retreat'?'💨 The party retreats. No victory rewards.':outcome==='surrender'?'🏳 The party surrenders. No victory rewards.':'💀 The party falls...', 'combat');
+      if(outcome==='surrender'&&window.mp.isHost&&endedCombatState?.surrenderScene)setTimeout(()=>window.runScene?.(endedCombatState.surrenderScene),800);
+      window._postCombatContinue=null;window._pendingScene=null;
     }
     setTimeout(() => document.getElementById('combat-panel')?.remove(), 2000);
     };
@@ -679,7 +685,7 @@ function mpStartCombat(enemies, encounter = {}) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
   const initiatorName = gameState.character?.name || 'Unknown';
   addLog(`⚔ ${initiatorName} initiates combat!`, 'combat');
-  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, encounter:{id:encounter?.id||'standard'}, initiatorId: window.mp.playerId });
+  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, encounter:{id:encounter?.id||'standard',victoryScene:encounter?.victoryScene,surrenderScene:encounter?.surrenderScene}, initiatorId: window.mp.playerId });
 }
 
 function mpCombatAction(action, targetId, spellId, position) {
@@ -687,6 +693,7 @@ function mpCombatAction(action, targetId, spellId, position) {
   const command=window.ActionPipeline.command(window.combatState,window.mp.playerId,action,{targetId,spellId,position});
   window.mp.socket.emit('combat_action', { code: window.mp.sessionCode, action, targetId, spellId, position, commandId:command.id, encounterId:command.encounterId, revision:command.revision });
 }
+window.mpCombatAction=mpCombatAction;
 
 function mpChat(text) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
@@ -1039,7 +1046,7 @@ function getTarget() {
   // Use selectedTarget (set by selectTarget() in combat.js)
   if (combatState.selectedTarget) {
     const t = combatants[combatState.selectedTarget];
-    if (t && t.hp > 0) return t;
+    if (t && (t.hp>0||(combatState.selectedSpell?.id==='revivify'&&t.isPlayer))) return t;
   }
   // Fall back to first living enemy
   return Object.values(combatants).find(c => !c.isPlayer && c.hp > 0) || null;
@@ -1050,6 +1057,8 @@ function syncMyHP(cs) {
   if (!me || !gameState.character) return;
   gameState.character.hp = Math.max(0, me.hp);
   gameState.character.mp = Math.max(0, me.mp);
+  gameState.character.maxHp=me.maxHp;
+  if(window.classResource){window.classResource.current=me.characterClass==='paladin'?(gameState.character.holyPoints||0):(me.resource||0);window.updateResourceBar?.();}
   if (typeof renderPlayerCard === 'function') renderPlayerCard();
 }
 

@@ -227,6 +227,31 @@ test('real server supports a four-player campaign, synchronized dialogue, combat
     const rejectedAfterEnd=host.once('error');
     host.emit('combat_action',{code,action:'attack',targetId:Object.values(ended.combatState.combatants).find(c=>!c.isPlayer).id,commandId:'after-victory',encounterId:ended.combatState.encounterId,revision:ended.combatState.commandRevision});
     assert.match((await rejectedAfterEnd).msg,/inactive_encounter/);
+    // Exercise authored spell effects through the actual transport, not only the reducer.
+    for(const [classId,spellId] of [['cleric','cure_wounds'],['paladin','divine_shield']]){
+      const ready=host.once('session_update',s=>s.players[host.id]?.character?.class===classId);
+      host.emit('character_ready',{code,character:{...character(1),class:classId,level:10,hp:50,mp:300,maxMp:300,holyPoints:100}});await ready;
+      const started=host.once('combat_started',cs=>cs.encounterId!==ended.combatState.encounterId&&cs.victoryScene==='qa_continuation');
+      host.emit('start_combat',{code,enemies:[{id:'qa_dummy',name:'Training Enemy',hp:300,maxHp:300,ac:30,atk:0,mp:0,xp:0}],encounter:{id:'standard',victoryScene:'qa_continuation'}});
+      let cs=await started;assert.equal(cs.victoryScene,'qa_continuation');
+      for(let turn=0;cs.turnOrder[cs.currentTurnIndex]!==host.id&&turn<30;turn++){
+        const actorId=cs.turnOrder[cs.currentTurnIndex],actor=cs.combatants[actorId],update=host.once('combat_update',m=>m.combatState.encounterId===cs.encounterId&&m.combatState.commandRevision>cs.commandRevision);
+        if(actor.isPlayer)clients.find(c=>c.id===actorId).emit('combat_action',{code,action:'end_turn',commandId:`support-turn-${classId}-${turn}`,encounterId:cs.encounterId,revision:cs.commandRevision});
+        else host.emit('enemy_turn',{code,seq:cs._enemyTurnSeq});
+        cs=(await update).combatState;
+      }
+      assert.equal(cs.turnOrder[cs.currentTurnIndex],host.id);
+      const beforeHp=cs.combatants[host.id].hp,beforeMp=cs.combatants[host.id].mp;
+      const cast=host.once('combat_update',m=>m.combatState.encounterId===cs.encounterId&&m.combatState.commandRevision>cs.commandRevision);
+      host.emit('combat_action',{code,action:'spell',spellId,targetId:host.id,commandId:`support-${classId}`,encounterId:cs.encounterId,revision:cs.commandRevision});
+      cs=(await cast).combatState;
+      assert.equal(cs.combatants[host.id].mp,beforeMp-(classId==='cleric'?20:50));
+      if(classId==='cleric')assert.ok(cs.combatants[host.id].hp>beforeHp);else assert.equal(cs.statusEffects[host.id].find(s=>s.id==='divine_shield').shieldHp,30);
+      const left=host.once('combat_ended',m=>m.combatState.encounterId===cs.encounterId);
+      host.emit('combat_action',{code,action:'retreat',commandId:`leave-${classId}`,encounterId:cs.encounterId,revision:cs.commandRevision});
+      const outcome=await left;assert.equal(outcome.outcome,'retreat');assert.equal(outcome.xp,0);assert.equal(outcome.victory,false);
+      ended=outcome;
+    }
   }catch(error){
     error.message+=`\nServer output:\n${serverOutput.slice(-5000)}`;
     throw error;

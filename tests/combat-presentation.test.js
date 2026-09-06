@@ -45,5 +45,5 @@ test('3D and multiplayer combat consume authoritative timed presentations',()=>{
   assert.doesNotMatch(controller,/combatAttack\?\.\(\),420/);
   assert.match(multiplayer,/presentation,apply/);
   assert.match(server,/CombatPresentation\.event/);
-  assert.match(server,/presentation, log/);
+  assert.match(server,/presentation,\s*log/);
 });

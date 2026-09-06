@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CharacterActor } from './character-actor.js?v=179';
 import { NavigationGrid } from './navigation-grid.mjs';
 import { NPCManager } from './npc-manager.js?v=185';
-import { Combat3DController } from './combat-controller.js?v=179';
+import { Combat3DController } from './combat-controller.js?v=224';
 import { AbilityEffects } from './ability-effects.js?v=170';
 import { Party3DManager } from './party-manager.js?v=179';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=179';

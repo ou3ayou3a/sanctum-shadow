@@ -31,7 +31,8 @@ test('travel, interiors, combat and save restoration use named transition profil
   for(const profile of ['district','interior','exploration','combat_enter','combat_exit','restore'])assert.match(audio,new RegExp(`${profile}: \\d+`));
   assert.match(audio,/function contextForLocation/);
   assert.match(read('site/combat.js'),/transitionForContext\('combat', 'combat_enter'\)/);
-  assert.equal((read('site/combat.js').match(/'combat_exit'/g)||[]).length,4);
+  // Enemy turns no longer contain their own independent escape/cleanup branch.
+  assert.equal((read('site/combat.js').match(/'combat_exit'/g)||[]).length,3);
   assert.match(read('site/map.js'),/contextForLocation\?\.\(loc\)/);
   assert.match(read('site/additions.js'),/contextForLocation\?\.\(loc\)/);
   assert.match(read('site/additions.js'),/!options\.suppressAudio/);

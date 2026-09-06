@@ -10,6 +10,7 @@ const https = require('https');
 const http = require('http');
 const Rules = require('./site/rules.js');
 const ActionPipeline = require('./site/action-pipeline.js');
+const CombatMechanics = require('./site/combat-mechanics.js');
 const GameplayCatalog = require('./site/gameplay-catalog.js');
 const TacticalCombat = require('./site/tactical-combat.js');
 const CombatPresentation = require('./site/combat-presentation.js');
@@ -582,15 +583,15 @@ io.on('connection', (socket) => {
       combatants[pid] = {
         id: pid, name: char.name, playerId: pid,
         hp: p.hp || char.hp, maxHp: char.maxHp,
-        mp: char.mp || 100, maxMp: char.maxMp || 100,
-        ac:10 + dexMod + armorAc + prayerAc,
+        mp: char.mp ?? 100, maxMp: char.maxMp ?? 100,
+        ac:10 + dexMod + armorAc + prayerAc + (char.class==='paladin'?2:char.class==='ranger'?dexMod:char.class==='rogue'?Math.floor(dexMod*1.5):char.class==='cleric'?Rules.abilityModifier(char.stats?.wis||10):0),
         atk:attackMod + weaponAtk + proficiency + prayerAtk,
         attackAbility,
         attackBonus:attackMod + weaponAtk + proficiency + prayerAtk,
         damageMod:attackMod + weaponAtk + prayerAtk,
         characterClass:String(char.class||'warrior').toLowerCase().replace(/[^a-z_-]/g,'').slice(0,24)||'warrior',
         type: 'player', isPlayer: true, boss: false,
-        spells: GameplayCatalog.spellsFor(char.class, char.level || 1), level: char.level || 1,
+        spells: GameplayCatalog.spellsFor(char.class, char.level || 1), level: char.level || 1,resource:char.class==='cleric'?3:0,
         icon: '⚔', initiative,
         tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
         position:{x:(playerPlacement-(combatParty.length-1)/2)*1.55,z:0},
@@ -612,6 +613,7 @@ io.on('connection', (socket) => {
       const initiative = Rules.rollInitiative({ bonus:e.dex || 0 }).total;
       combatants[eid] = {
         ...e, id:eid, sourceId:String(e.id||'').replace(/[^a-z0-9_-]/gi,'').slice(0,64), type:'enemy', isPlayer:false, ap:3, initiative,
+        mp:Math.max(0,Math.min(500,Number(e.mp??50)||0)),maxMp:Math.max(0,Math.min(500,Number(e.maxMp??e.mp??50)||0)),
         tacticalRole:['frontline','skirmisher','ranged','caster'].includes(e.tacticalRole)?e.tacticalRole:TacticalCombat.inferRole(e),
         position:{x:(i-(enemies.length-1)/2)*2.05,z:5.5+(i%2)*.7},
         attackBonus:e.attackBonus ?? e.atk ?? 3,
@@ -624,6 +626,8 @@ io.on('connection', (socket) => {
 
     s.combatState = {
       active: true, round: 1,
+      victoryScene:typeof encounter?.victoryScene==='string'?encounter.victoryScene.replace(/[^a-z0-9_]/gi,'').slice(0,80):null,
+      surrenderScene:typeof encounter?.surrenderScene==='string'?encounter.surrenderScene.replace(/[^a-z0-9_]/gi,'').slice(0,80):null,
       combatants,
       tactical:{encounterId,cover:tacticalCover,bounds:12,moveRange:TacticalCombat.DEFAULT_MOVE_RANGE},
       turnOrder: turnOrder.map(t => t.id),
@@ -647,7 +651,7 @@ io.on('connection', (socket) => {
 
     const cs = s.combatState;
     const command={id:commandId,encounterId,revision,actorId:socket.id,type:action,targetId,spellId,position};
-    const commandContext={principalId:socket.id,character:s.players[socket.id]?.character};
+    const commandContext={principalId:socket.id,character:s.players[socket.id]?.character,canEndEncounter:s.host===socket.id};
     const prepared=ActionPipeline.prepare(cs,command,commandContext);
     if(!prepared.ok){
       socket.emit('error',{msg:`Action rejected: ${prepared.reason}. Refresh or reconnect if your game is out of date.`});
@@ -661,57 +665,36 @@ io.on('connection', (socket) => {
       socket.emit('error', { msg: 'Not your turn!' }); return;
     }
 
-    const actor = cs.combatants[currentId];
+    let actor = cs.combatants[currentId];
     if (!actor) return;
     let logEntry = null;
     let presentation = null;
     let stateSync = null; // {playerId, inventory, gold} broadcast for item use
 
-    if (action === 'attack') {
+    if(['retreat','surrender'].includes(action)){
+      const result=ActionPipeline.resolve(cs,command,commandContext);if(!ActionPipeline.commit(cs,result,commandContext))return;
+      s.state='playing';tickPrayerBlessings(s);
+      io.to(code).emit('combat_ended',{victory:false,xp:0,xpEach:0,outcome:action,combatState:cs});broadcastSession(code);return;
+    } else if (action === 'attack') {
       const result=ActionPipeline.resolve(cs,command,commandContext);
       if(!ActionPipeline.commit(cs,result,commandContext))return;
       const event=result.events[0],target=cs.combatants[targetId];
+      actor=cs.combatants[currentId];
       if(target.isPlayer&&s.players[target.playerId])s.players[target.playerId].hp=target.hp;
+      stateSync={playerId:actor.playerId,holyPoints:commandContext.character.holyPoints};
       logEntry={type:event.hit?'combat':'system',text:`⚔ ${event.crit?'CRITICAL HIT':event.hit?'HIT':'MISS'} — ${actor.name} attacks ${target.name}! [${event.roll}] — ${event.damage} damage!`};
       presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'attack',hit:event.hit,crit:event.crit,damage:event.damage});
 
     } else if (action === 'spell') {
-      const spell = prepared.spell;
-      const target = prepared.target;
-      if (!spell || !target) return;
-      if(spell.id==='divine_shield'){
-        const result=ActionPipeline.resolve(cs,command,commandContext);
-        if(!ActionPipeline.commit(cs,result,commandContext))return;
-        commandContext.character.mp=actor.mp;
-        stateSync={playerId:actor.playerId,hp:actor.hp,mp:actor.mp,holyPoints:commandContext.character.holyPoints};
-        logEntry={type:'holy',text:`🔆 ${actor.name} shields ${target.name}: absorbs 30 damage.`};
-        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:0});
-      }else{
-      const spMp = Number(spell.mp) || 0, spAp = Number(spell.ap) || 1;
-      if ((actor.mp||0) < spMp || cs.apRemaining < spAp) return;
-      if(!ActionPipeline.accept(cs,prepared))return;
-      commandContext.character.holyPoints=Math.max(0,(commandContext.character.holyPoints||0)-(spell.holy_cost||0));
-      actor.mp = (actor.mp||0) - spMp;
-      commandContext.character.mp=actor.mp;
-      stateSync={playerId:actor.playerId,mp:actor.mp,holyPoints:commandContext.character.holyPoints};
-      cs.apRemaining -= spAp;
-      // Validate dice formulas before rolling (#66).
-      const dmg = isValidFormula(spell.damage) ? rollDiceServer(spell.damage, actor.statMods) : 0;
-      if (spell.type === 'heal') {
-        const healAmt = isValidFormula(spell.heal) ? rollDiceServer(spell.heal, actor.statMods) : 0;
-        const recipients=spell.id==='mass_heal'?Object.values(cs.combatants).filter(c=>c.isPlayer&&c.hp>0):[target];
-        for(const recipient of recipients){recipient.hp=Math.min(recipient.maxHp,recipient.hp+healAmt);if(s.players[recipient.playerId])s.players[recipient.playerId].hp=recipient.hp;}
-        logEntry = { type: 'holy', text: `${spell.icon} ${actor.name} casts ${spell.name} — healed ${spell.id==='mass_heal'?'the party':target.name} for ${healAmt} HP!` };
-        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,healing:healAmt});
-      } else {
-        const shieldResult=ActionPipeline.absorbDamage(cs,target.id,dmg);
-        cs.statusEffects=cs.statusEffects||{};cs.statusEffects[target.id]=shieldResult.statuses;
-        target.hp = Math.max(0, target.hp - shieldResult.damage);
-        if (target.isPlayer && s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
-        logEntry = { type: 'combat', text: `${spell.icon} ${actor.name} casts ${spell.name} on ${target.name} — HIT — ${shieldResult.damage} damage!` };
-        presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage:shieldResult.damage});
-      }
-      }
+      const spell=prepared.spell,result=ActionPipeline.resolve(cs,command,commandContext);
+      if(!ActionPipeline.commit(cs,result,commandContext))return;
+      actor=cs.combatants[currentId];
+      for(const c of Object.values(cs.combatants)){const p=s.players[c.playerId];if(p){p.hp=c.hp;p.character.hp=c.hp;p.character.mp=c.mp;p.character.maxHp=c.maxHp;}}
+      stateSync={playerId:actor.playerId,hp:actor.hp,mp:actor.mp,holyPoints:commandContext.character.holyPoints};
+      const target=cs.combatants[prepared.target.id];
+      const damage=result.events.filter(e=>e.targetId===target.id).reduce((n,e)=>n+(e.damage||0),0),healing=result.events.filter(e=>e.targetId===target.id).reduce((n,e)=>n+(e.healing||0),0);
+      logEntry={type:'combat',text:`${spell.icon} ${actor.name} casts ${spell.name} on ${target.name}. ${damage?damage+' damage.':''} ${healing?healing+' healing.':''}`};
+      presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor,target,action:'spell',spell,hit:true,damage,healing});
 
     } else if (action === 'move' || action === 'item' || action === 'end_turn') {
       const result=ActionPipeline.resolve(cs,command,commandContext);
@@ -728,35 +711,14 @@ io.on('connection', (socket) => {
     if (logEntry) { s.log.push(logEntry); capLog(s.log); }
     if (stateSync) io.to(code).emit('player_state', stateSync);
 
-    // Check combat end
-    const players = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
-    const enemies = Object.values(cs.combatants).filter(c => !c.isPlayer && c.hp > 0);
-
-    if (players.length === 0) {
-      if(!ActionPipeline.finish(cs,false).ok)return;
-      s.state = 'playing';
-      tickPrayerBlessings(s); io.to(code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
-      broadcastSession(code);
-      return;
-    }
-    if (enemies.length === 0) {
-      if(!ActionPipeline.finish(cs,true).ok)return;
-      s.state = 'playing';
-      // Calculate XP — split only among connected players who have a character (#68).
-      const xp = Object.values(cs.combatants).filter(c=>!c.isPlayer).reduce((a,c)=>a+(c.xp||50),0);
-      const sharers = Object.values(s.players).filter(p => p && p.connected && p.character).length || 1;
-      const xpEach = Math.floor(xp / sharers);
-      tickPrayerBlessings(s); io.to(code).emit('combat_ended', { victory: true, xp, xpEach, combatState: cs, presentation, log:logEntry });
-      broadcastSession(code);
-      return;
-    }
+    if(settleCombat(s,presentation,logEntry))return;
 
     // Advance turn if AP is 0 or end_turn
     if (cs.apRemaining <= 0 || action === 'end_turn') {
       advanceTurnServer(s);
     }
 
-    io.to(code).emit('combat_update', { combatState: cs, log: logEntry, presentation });
+    if(cs.active)io.to(code).emit('combat_update', { combatState: cs, log: logEntry, presentation });
   }));
 
   // ── Enemy AI turn (any connected player may signal; server resolves once) ──
@@ -983,7 +945,12 @@ function advanceTurnServer(s) {
   cs.apRemaining = 3;
 
   const next = cs.combatants[cs.turnOrder[cs.currentTurnIndex]];
-  if(next&&cs.statusEffects?.[next.id])cs.statusEffects[next.id]=cs.statusEffects[next.id].map(status=>status.id==='divine_shield'?{...status,turnsLeft:status.turnsLeft-1}:status).filter(status=>status.id!=='divine_shield'||status.turnsLeft>0);
+  if(next){
+    CombatMechanics.startTurn(cs,next.id);
+    for(const c of Object.values(cs.combatants)){const p=s.players[c.playerId];if(p){p.hp=c.hp;p.character.hp=c.hp;p.character.mp=c.mp;}}
+    if(settleCombat(s))return;
+    if(next.hp<=0||cs.turnBlocked){advanceTurnServer(s);return;}
+  }
   if (next && !next.isPlayer) {
     // New enemy turn → bump the sequence so each enemy turn is tracked
     // independently (#11: no more timing-based dropped turns).
@@ -1006,66 +973,41 @@ function advanceTurnServer(s) {
 }
 
 // Resolve a single enemy turn exactly once, keyed by sequence number.
-function processEnemyTurn(s, seq) {
-  const cs = s.combatState;
-  if (!cs || !cs.active) return;
-  // Dedupe by sequence: skip if this enemy turn was already processed, or if
-  // the request is for a stale/future seq.
-  if (typeof seq === 'number' && seq !== cs._enemyTurnSeq) return;
-  if (cs._enemyTurnProcessed >= cs._enemyTurnSeq) return;
-  cs._enemyTurnProcessed = cs._enemyTurnSeq;
-
-  const currentId = cs.turnOrder[cs.currentTurnIndex];
-  const enemy = cs.combatants[currentId];
-  if (!enemy || enemy.isPlayer) return;
-
-  const playerTargets = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
-  if (playerTargets.length === 0) return;
-  const target = playerTargets.reduce((closest,candidate)=>{
-    if(!closest)return candidate;
-    return (TacticalCombat.distance(enemy.position,candidate.position)??Infinity)<(TacticalCombat.distance(enemy.position,closest.position)??Infinity)?candidate:closest;
-  },null);
-
-  let tactical=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
-  if(!tactical.ok&&tactical.reason==='out_of_range'&&enemy.position&&target.position){
-    const desired=Math.max(0,(tactical.distance||0)-tactical.range+.15);
-    enemy.position=TacticalCombat.moveToward(enemy.position,target.position,Math.min(cs.tactical?.moveRange||TacticalCombat.DEFAULT_MOVE_RANGE,desired));
-    tactical=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
+function settleCombat(s,presentation=null,log=null){
+  const cs=s.combatState;if(!cs?.active)return true;
+  const alive=Object.values(cs.combatants).filter(c=>c.hp>0);
+  if(alive.some(c=>c.isPlayer)&&alive.some(c=>!c.isPlayer))return false;
+  const victory=alive.some(c=>c.isPlayer);
+  if(!ActionPipeline.finish(cs,victory).ok)return false;
+  s.state='playing';
+  const xp=victory?Object.values(cs.combatants).filter(c=>!c.isPlayer).reduce((n,c)=>n+(c.xp||50),0):0;
+  const sharers=Object.values(s.players).filter(p=>p.connected&&p.character).length||1;
+  tickPrayerBlessings(s);io.to(s.code).emit('combat_ended',{victory,xp,xpEach:Math.floor(xp/sharers),combatState:cs,presentation,log,outcome:victory?'victory':'defeat',continuation:cs.victoryScene});broadcastSession(s.code);return true;
+}
+function processEnemyTurn(s,seq){
+  const cs=s.combatState;if(!cs?.active||seq!==cs._enemyTurnSeq||cs._enemyTurnProcessed>=seq)return;
+  const id=cs.turnOrder[cs.currentTurnIndex],enemy=cs.combatants[id];if(!enemy||enemy.isPlayer)return;
+  cs._enemyTurnProcessed=seq;
+  if(enemy.hp<=0||cs.turnBlocked){advanceTurnServer(s);return;}
+  const target=Object.values(cs.combatants).filter(c=>c.isPlayer&&c.hp>0).sort((a,b)=>(TacticalCombat.distance(enemy.position,a.position)||0)-(TacticalCombat.distance(enemy.position,b.position)||0))[0];
+  if(!target){settleCombat(s);return;}
+  const spellId=(enemy.spells||[]).map(sp=>typeof sp==='string'?sp:sp.id).filter(id=>CombatMechanics.enemyIds.includes(id));
+  let result,spell=null;
+  if(spellId.length&&(enemy.mp||0)>=20&&!CombatMechanics.has(cs,id,'garrote_silence')&&Math.random()<.3){
+    spell={id:spellId[Math.floor(Math.random()*spellId.length)],name:'Enemy ability'};
+    result=CombatMechanics.resolve(cs,id,spell,{enemy:true,targetId:target.id});result.combatants[id].mp-=20;
+  }else{
+    let legal=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
+    if(!legal.ok&&!CombatMechanics.has(cs,id,'vine_trap')){enemy.position=TacticalCombat.moveToward(enemy.position,target.position,cs.tactical?.moveRange||4.5);legal=TacticalCombat.validateAttack(enemy,target);}
+    if(legal.ok)result=CombatMechanics.attack(cs,id,target.id,{coverBonus:legal.coverBonus});
   }
-  if(!tactical.ok){
-    const logEntry={type:'system',text:`${enemy.icon} ${enemy.name} advances but cannot reach ${target.name}.`};
-    s.log.push(logEntry);capLog(s.log);advanceTurnServer(s);io.to(s.code).emit('combat_update',{combatState:cs,log:logEntry});return;
-  }
-
-  const attack = Rules.resolveAttack({ attackBonus:enemy.attackBonus ?? enemy.atk ?? 0, targetAC:(target.ac || 12)+tactical.coverBonus });
-  const { roll, crit } = attack;
-  let logEntry,damage=0;
-  if (attack.hit) {
-    const rawDamage = Rules.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:crit }).total;
-    const shieldResult=ActionPipeline.absorbDamage(cs,target.id,rawDamage);
-    cs.statusEffects=cs.statusEffects||{};cs.statusEffects[target.id]=shieldResult.statuses;
-    const dmg=shieldResult.damage;
-    damage=dmg;
-    target.hp = Math.max(0, target.hp - dmg);
-    if (s.players[target.playerId]) s.players[target.playerId].hp = target.hp;
-    logEntry = { type: 'combat', text: `${enemy.icon} ${crit ? 'CRITICAL HIT' : 'HIT'} — ${enemy.name} attacks ${target.name}! [${roll}] — ${dmg} damage!` };
-  } else {
-    logEntry = { type: 'system', text: `${enemy.icon} MISS — ${enemy.name} misses ${target.name}! [${roll}]` };
-  }
-  const presentation=CombatPresentation.event({seq:++cs._presentationSeq,actor:enemy,target,action:'attack',hit:attack.hit,crit,damage});
-  s.log.push(logEntry);
-  capLog(s.log);
-
-  const players = Object.values(cs.combatants).filter(c => c.isPlayer && c.hp > 0);
-  if (players.length === 0) {
-    if(!ActionPipeline.finish(cs,false).ok)return;
-    s.state = 'playing';
-    tickPrayerBlessings(s); io.to(s.code).emit('combat_ended', { victory: false, combatState: cs, presentation, log:logEntry });
-    broadcastSession(s.code); return;
-  }
-
-  advanceTurnServer(s);
-  io.to(s.code).emit('combat_update', { combatState: cs, log: logEntry, presentation });
+  if(result){cs.combatants=result.combatants;cs.statusEffects=result.statusEffects;}
+  for(const actor of Object.values(cs.combatants)){const p=s.players[actor.playerId];if(p){p.hp=actor.hp;p.character.hp=actor.hp;p.character.mp=actor.mp;p.character.maxHp=actor.maxHp;}}
+  const event=result?.events.find(e=>e.damage!==undefined)||{};
+  const log={type:'combat',text:`${enemy.name} ${spell?'uses '+spell.id:'acts'}: ${event.damage||0} damage.`};
+  const presentation=result?CombatPresentation.event({seq:++cs._presentationSeq,actor:cs.combatants[id],target:cs.combatants[target.id],action:spell?'spell':'attack',spell,hit:event.hit!==false,damage:event.damage||0}):null;
+  s.log.push(log);capLog(s.log);if(settleCombat(s,presentation,log))return;
+  advanceTurnServer(s);if(cs.active)io.to(s.code).emit('combat_update',{combatState:cs,log,presentation});
 }
 
 // Validate a dice formula before evaluating it server-side (#66).

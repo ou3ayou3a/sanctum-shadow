@@ -11,7 +11,7 @@ function fixture(){
 function cmd(state,type='attack',data={}){return{id:'command-1',actorId:'p',type,encounterId:state.encounterId,revision:state.commandRevision,targetId:'e',...data};}
 test('browser and server reducers yield identical seeded effects without mutating input',()=>{
   const browser={};vm.createContext(browser);
-  for(const file of ['rules.js','tactical-combat.js','gameplay-catalog.js','action-pipeline.js'])vm.runInContext(fs.readFileSync(require.resolve('../site/'+file),'utf8'),browser);
+  for(const file of ['rules.js','tactical-combat.js','gameplay-catalog.js','combat-mechanics.js','action-pipeline.js'])vm.runInContext(fs.readFileSync(require.resolve('../site/'+file),'utf8'),browser);
   for(const type of ['attack','move','item','end_turn']){
     const {state,context}=fixture(),command=cmd(state,type,{position:{x:1,z:1},targetId:type==='item'?'Health Potion':'e'}),before=JSON.stringify(state);
     const server=Pipeline.resolve(state,command,context),solo=browser.ActionPipeline.resolve(state,command,context);
@@ -55,7 +55,7 @@ test('restoratives restore MP rather than healing HP',()=>{
 test('spell ownership and costs come from catalog, never supplied spell definitions',()=>{
   const {state,context}=fixture();state.combatants.p.spells=[{id:'fireball',mp:0,ap:0,damage:'999d99'}];
   assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:'fireball'}),context).reason,'unknown_ability');
-  assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield'}),context).reason,'insufficient_mp');
+  assert.equal(Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield',targetId:'p'}),context).reason,'insufficient_mp');
   state.combatants.p.mp=100;const p=Pipeline.prepare(state,cmd(state,'spell',{spellId:'divine_shield',targetId:'p'}),context);
   assert.equal(p.ok,true);assert.equal(p.cost,2);assert.equal(p.mp,50);
 });
@@ -69,7 +69,7 @@ test('encounter completion and reward claim cannot repeat or finish a live battl
 test('actual solo combat adapter uses the shared item and movement reducer and rejects out-of-turn actions',()=>{
   const c={console:{log(){}},document:{createElement:()=>({}),head:{appendChild(){}}},setTimeout(){},clearTimeout(){},addLog(){}};
   c.window=c;vm.createContext(c);
-  for(const file of ['rules.js','tactical-combat.js','gameplay-catalog.js','action-pipeline.js','combat.js'])vm.runInContext(fs.readFileSync(require.resolve('../site/'+file),'utf8'),c);
+  for(const file of ['rules.js','tactical-combat.js','gameplay-catalog.js','combat-mechanics.js','action-pipeline.js','combat.js'])vm.runInContext(fs.readFileSync(require.resolve('../site/'+file),'utf8'),c);
   const f=fixture();f.state.combatants.player={...f.state.combatants.p,id:'player'};delete f.state.combatants.p;f.state.turnOrder=['player','e'];
   Object.assign(c.combatState,f.state);c.gameState={character:f.context.character};
   vm.runInContext('updateCombatUI=()=>{};syncPlayerHP=()=>{};',c);

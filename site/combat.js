@@ -213,6 +213,8 @@ function syncPlayerHP() {
   // Write back to character
   gameState.character.hp = Math.max(0, player.hp);
   gameState.character.mp = Math.max(0, player.mp);
+  gameState.character.maxHp=player.maxHp;
+  if(window.classResource){window.classResource.current=player.characterClass==='paladin'?(gameState.character.holyPoints||0):(player.resource||0);window.updateResourceBar?.();}
   // Re-render the left panel stat bars
   if (typeof renderPlayerCard === 'function') renderPlayerCard();
   if (typeof renderStatsMini === 'function') renderStatsMini();
@@ -487,7 +489,7 @@ function startCombat(enemies, encounter = {}) {
   combatState.combatants['player'] = {
     id: 'player', name: char.name,
     hp: char.hp, maxHp: char.maxHp,
-    mp: char.mp || 100, maxMp: char.maxMp || 100,
+    mp: char.mp ?? 100, maxMp: char.maxMp ?? 100,
     ac: 10 + dexMod + armorAc + classAcBonus,
     atk: attackMod + weaponAtk + proficiency,
     attackAbility,
@@ -497,10 +499,10 @@ function startCombat(enemies, encounter = {}) {
     isPlayer: true, boss: false,
     initiative: COMBAT_RULES.rollInitiative({ bonus:dexMod }).total,
     spells: window.GameplayCatalog.spellsFor(char.class,char.level||1),
-    characterClass:char.class,level:char.level||1,
+    characterClass:char.class,level:char.level||1,resource:char.class==='cleric'?3:0,
     tacticalRole:/ranger/i.test(char.class||'')?'ranged':/mage|cleric/i.test(char.class||'')?'caster':/rogue/i.test(char.class||'')?'skirmisher':'frontline',
     position:{x:0,z:0},
-    statMods: { str:strMod, dex:dexMod, wis:wisMod, int:Math.floor(((char.stats?.int||10)-10)/2) },
+    statMods: Object.fromEntries(['str','dex','con','int','wis','cha'].map(key=>[key,COMBAT_RULES.abilityModifier(char.stats?.[key]||10)])),
   };
 
   enemies.forEach((e, i) => {
@@ -511,7 +513,8 @@ function startCombat(enemies, encounter = {}) {
       ac: e.ac || 12, atk: e.atk || 3,
       attackBonus:e.attackBonus ?? e.atk ?? 3,
       damageMod:e.damageMod ?? e.atk ?? 3,
-      mp: e.mp || 50, maxMp: e.mp || 50,
+      mp: e.mp ?? 50, maxMp: e.mp ?? 50,
+      statMods:e.statMods||{},resistances:e.resistances||[],immunities:e.immunities||[],vulnerabilities:e.vulnerabilities||[],
       type: 'enemy', ap: MAX_AP,
       icon: e.icon || '👹',
       isPlayer: false,
@@ -747,6 +750,11 @@ function selectSpell(spellId) {
   const spell = player?.spells?.find(s => s.id === spellId);
   if (!spell) return;
   combatState.selectedSpell = spell;
+  const policy=window.CombatMechanics.policies[spell.id]?.[0];
+  if(policy==='self'||policy==='downed'){
+    combatState.selectedTarget=policy==='self'?player.id:Object.values(combatState.combatants).find(c=>c.isPlayer&&c.hp<=0&&c.downedRound!=null&&combatState.round-c.downedRound<=3)?.id;
+    updateCombatUI();return;
+  }
   if(window.ActionPipeline.SUPPORT[spell.id]){
     const allies=Object.values(combatState.combatants).filter(c=>c.isPlayer&&c.hp>0);
     combatState.selectedTarget=(spell.id==='lay_on_hands'?allies.find(c=>c.id!==player.id):player)?.id||null;
@@ -766,365 +774,21 @@ function cancelSpell() {
 }
 
 function combatAttack() {
-  if (combatState.apRemaining < 1) { addLog(`No AP remaining. Click "End Turn" or wait.`, 'system'); return; }
-  const target = getTarget();
-  if (!target) { addLog('Select a target first!', 'system'); return; }
-  const player = combatState.combatants['player'];
-  if (!player) return;
-  if(!acceptSoloCommand('attack',{targetId:target.id}))return;
-  const atkBonus = (player.attackBonus ?? player.atk ?? 0) + getAtkMod('player');
-  // #17: Shadow Step's nextHitAutoHit guarantees this strike lands, then is consumed
-  const ss = getStatusData('player', 'shadow_step');
-  const autoHit = !!(ss && ss.nextHitAutoHit);
-  const attack = window.ActionPipeline.attackRoll(player,target,{
-    attackBonus:atkBonus, targetAC:target.ac, autoHit,
-    attackerConditions:(combatState.statusEffects.player || []).map(status => status.id),
-    targetConditions:(combatState.statusEffects[target.id] || []).map(status => status.id),
-  });
-  const { roll, hit } = attack;
-  if (autoHit && ss) ss.nextHitAutoHit = false;
-
-  if (hit) {
-    const isCrit = attack.crit;
-    // Critical hits double weapon dice, not the flat ability/gear modifier.
-    let baseDmg = attack.damage;
-    if (isCrit) {
-      addLog(`💥 CRITICAL HIT! Natural 20 — weapon dice doubled!`, 'hell');
-    }
-    // #22: Ranger focus powers up the shot (spends focus first so it isn't double-counted below)
-    if (window.getRangerFocusBonus && gameState.character?.class === 'ranger') {
-      const rf = getRangerFocusBonus(baseDmg);
-      baseDmg = rf.dmg;
-    }
-    // Class damage multipliers
-    const classMult = window.getClassDmgMult ? getClassDmgMult() : 1;
-    const firstStrikeMult = window.getRogueFirstStrikeBonus ? getRogueFirstStrikeBonus() : 1;
-    const effectiveMult = Math.max(classMult, firstStrikeMult);
-    if (effectiveMult > 1) baseDmg = Math.floor(baseDmg * effectiveMult);
-
-    // Hunter's Mark bonus
-    const mark = getStatusData('player', 'hunters_mark');
-    if (mark && mark.targetId === target.id) {
-      const bonus = rollDice('2d6', 0);
-      baseDmg += bonus;
-      addLog(`🎯 Hunter's Mark triggers! +${bonus} bonus damage!`, 'holy');
-    }
-
-    // #20: status damage multipliers (Avatar of War dmgMult:2, etc.)
-    const statusMult = getDmgMult('player');
-    if (statusMult > 1) baseDmg = Math.floor(baseDmg * statusMult);
-
-    // Last Stand: +50% damage when below 20 HP
-    if (hasStatus('player', 'last_stand') && player.hp < 20) baseDmg = Math.floor(baseDmg * 1.5);
-
-    const finalDmg = applyDamage(target.id, baseDmg);
-    // applyDamage returns net damage after shields — apply it to target HP here (only once)
-    if (finalDmg > 0) target.hp = Math.max(0, target.hp - finalDmg);
-    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] HIT — ${finalDmg} damage! (${target.hp}/${target.maxHp} HP)`, 'combat');
-
-    // #20: poisoned weapon — extra poison damage on hit, decrement the counter
-    if (combatState.poisonedWeapon > 0 && target.hp > 0) {
-      const poisonDmg = applyDamage(target.id, 5);
-      target.hp = Math.max(0, target.hp - poisonDmg);
-      combatState.poisonedWeapon--;
-      addStatus(target.id, { id:'poison', name:'Poisoned', icon:'☠', turnsLeft:3, dmgPerTurn:5 });
-      addLog(`☠ Nightshade bites deep! +${poisonDmg} poison damage. (${combatState.poisonedWeapon} coatings left)`, 'hell');
-    }
-
-    if (window.classOnHitDealt) classOnHitDealt(finalDmg, isCrit);
-    if (gameState.character) { gameState.character.hp = player.hp; }
-  } else {
-    addLog(`⚔ ${player.name} attacks ${target.name}! [${roll}+${atkBonus}] MISS (AC ${target.ac})`, 'system');
-  }
-
-  combatState.apRemaining--;
-  checkCombatEnd();
-  if (!combatState.active) return; // combat ended (enemy died)
-
-  syncPlayerHP();
-  updateCombatUI();
-
-  // Auto-end turn when all AP spent — clear and unambiguous
-  if (combatState.apRemaining <= 0) {
-    addLog(`⏸ All AP spent — ending your turn.`, 'system');
-    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
-  }
+  const target=getTarget();if(!target)return;
+  const result=resolveSoloCommand('attack',{targetId:target.id});if(!result)return;
+  const event=result.events[0];
+  addLog(`⚔ ${event.hit?'HIT':'MISS'} — ${target.name}: ${event.damage} damage [${event.roll}].`,'combat');
+  syncPlayerHP();checkCombatEnd();updateCombatUI();
+  if(combatState.active&&combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
 }
 
 function castSelectedSpell() {
-  const spell = combatState.selectedSpell;
-  if (!spell) return;
-  if(spell.id==='divine_shield'){
-    const result=resolveSoloCommand('spell',{spellId:spell.id,targetId:combatState.selectedTarget});
-    if(!result)return;
-    const target=combatState.combatants[result.events[0].targetId];
-    gameState.character.mp=combatState.combatants.player.mp;
-    addLog(`🔆 Divine Shield protects ${target.name}: absorbs 30 damage.`,'holy');
-    combatState.selectedSpell=null;syncPlayerHP();updateCombatUI();
-    if(combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
-    return;
-  }
-  if (combatState.apRemaining < spell.ap) { addLog('Not enough AP!', 'system'); return; }
-
-  const player = combatState.combatants['player'];
-  if (player.mp < spell.mp) { addLog(`Not enough MP! (need ${spell.mp})`, 'system'); return; }
-
-  if (spell.holy_cost && (gameState.character?.holyPoints || 0) < spell.holy_cost) {
-    addLog(`Need ${spell.holy_cost} Holy Points for ${spell.name}!`, 'system'); return;
-  }
-
-  const target = getTarget();
-  if(!acceptSoloCommand('spell',{spellId:spell.id,targetId:target?.id}))return;
-  const statKey = ['holy','heal','revive'].includes(spell.type) ? 'wis'
-    : spell.type === 'arcane' ? 'int'
-    : ['physical','fire','lightning'].includes(spell.type) ? 'str'
-    : 'wis';
-  const statMod = player.statMods?.[statKey] || 0;
-
-  player.mp -= spell.mp;
-  combatState.apRemaining -= spell.ap;
-  if (gameState.character) gameState.character.mp = player.mp;
-  const _spellEmpowered = window.classOnSpellCast ? classOnSpellCast(spell.id) : false;
-  if (spell.holy_cost) grantHolyPoints(-spell.holy_cost);
-
-  // ── CLERIC ──────────────────────────────────
-  if (spell.id === 'cure_wounds') {
-    let amt = rollDice(spell.heal, statMod);
-    if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
-    target.hp = Math.min(target.maxHp, target.hp + amt);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`💚 Cure Wounds: healed for ${amt} HP!`, 'holy');
-  }
-  else if (spell.id === 'spirit_weapon') {
-    addStatus('player', { id:'spirit_weapon', name:'Spirit Weapon', icon:'👻', turnsLeft:3, bonusAtk: rollDice('2d8', statMod) });
-    addLog(`👻 Spiritual Weapon summoned! It will strike with you for 3 turns.`, 'holy');
-    // Spirit weapon attacks immediately
-    if (target) {
-      const dmg = applyDamage(target.id, rollDice('2d8', statMod));
-      target.hp = Math.max(0, target.hp - dmg);
-      addLog(`👻 Spiritual Weapon strikes ${target.name} for ${dmg}!`, 'holy');
-    }
-  }
-  else if (spell.id === 'mass_heal') {
-    let amt = rollDice(spell.heal, statMod);
-    if (window.getClericHealBonus) amt = getClericHealBonus(amt); // #22
-    for(const ally of Object.values(combatState.combatants).filter(c=>c.isPlayer&&c.hp>0))ally.hp=Math.min(ally.maxHp,ally.hp+amt);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`💫 Mass Heal: all allies restored ${amt} HP!`, 'holy');
-  }
-  else if (spell.id === 'divine_strike') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`⚡ Divine Strike → ${target.name}: ${dmg} holy damage!`, 'holy');
-  }
-  else if (spell.id === 'revivify') {
-    // Solo: heal self; MP already paid
-    player.hp = Math.min(player.maxHp, player.hp + 1);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`❤ Revivify: fighting through! Restored to 1 HP above current.`, 'holy');
-  }
-
-  // ── PALADIN ─────────────────────────────────
-  else if (spell.id === 'holy_smite') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    const healAmt = rollDice('1d4', 0);
-    player.hp = Math.min(player.maxHp, player.hp + healAmt);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`✝ Holy Smite → ${target.name}: ${dmg} radiant damage! Self-healed ${healAmt}.`, 'holy');
-  }
-  else if (spell.id === 'lay_on_hands') {
-    const amt = rollDice(spell.heal, statMod);
-    target.hp = Math.min(target.maxHp, target.hp + amt);
-    if (gameState.character) gameState.character.hp = player.hp;
-    addLog(`🙏 Lay on Hands: restored ${amt} HP!`, 'holy');
-  }
-  else if (spell.id === 'divine_shield') {
-    addStatus('player', { id:'divine_shield', name:'Divine Shield', icon:'🔆', turnsLeft:4, shieldHp:30 });
-    addLog(`🔆 Divine Shield active! Absorbs up to 30 damage.`, 'holy');
-  }
-  else if (spell.id === 'judgment') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`⚖ Judgment → ${target.name}: ${dmg} devastating holy damage!`, 'holy');
-  }
-  else if (spell.id === 'wrath_divine') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`☀ Wrath of God → ${target.name}: ${dmg} divine annihilation!`, 'holy');
-  }
-
-  // ── MAGE ────────────────────────────────────
-  else if (spell.id === 'magic_missile') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    // Auto-hit — no AC check
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`✨ Magic Missile → ${target.name}: ${dmg} auto-hit arcane damage!`, 'combat');
-  }
-  else if (spell.id === 'fireball') {
-    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
-    const dmg = rollDice(spell.damage, 0);
-    enemies.forEach(c => {
-      const d = applyDamage(c.id, dmg);
-      c.hp = Math.max(0, c.hp - d);
-      addLog(`🔥 Fireball → ${c.name}: ${d} fire damage!`, 'combat');
-    });
-  }
-  else if (spell.id === 'mirror_image') {
-    addStatus('player', { id:'mirror_image', name:'Mirror Image', icon:'👁', turnsLeft:5, charges:3 });
-    addLog(`👁 Mirror Image: 3 illusory duplicates surround you! Next 3 hits absorbed.`, 'holy');
-  }
-  else if (spell.id === 'chain_lightning') {
-    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
-    enemies.forEach((c, i) => {
-      const dmg = applyDamage(c.id, rollDice(spell.damage, 0));
-      c.hp = Math.max(0, c.hp - dmg);
-      addLog(`⚡ Chain Lightning → ${c.name}: ${dmg} lightning damage!`, 'combat');
-    });
-  }
-  else if (spell.id === 'disintegrate') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    // CON save DC 15 — fail = disintegrated (set to 1 HP threshold to simulate)
-    const conSave = COMBAT_RULES.resolveSavingThrow({
-      ability:'con', dc:15, abilityMod:Math.floor((target.level || 1) * 0.5),
-      conditions:(combatState.statusEffects[target.id] || []).map(status => status.id),
-    });
-    if (!conSave.success) {
-      const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-      target.hp = Math.max(0, target.hp - dmg);
-      if (target.hp <= 0) addLog(`💀 Disintegrate → ${target.name}: DISINTEGRATED! [CON ${conSave.total} vs DC ${conSave.dc}]`, 'combat');
-      else addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage! [CON ${conSave.total} vs DC ${conSave.dc}]`, 'combat');
-    } else {
-      const dmg = applyDamage(target.id, Math.floor(rollDice(spell.damage, statMod) / 2));
-      target.hp = Math.max(0, target.hp - dmg);
-      addLog(`💀 Disintegrate → ${target.name}: ${dmg} damage (CON save ${conSave.total} vs DC ${conSave.dc})`, 'combat');
-    }
-  }
-
-  // ── WARRIOR ─────────────────────────────────
-  else if (spell.id === 'war_cry') {
-    addStatus('player', { id:'war_cry', name:'War Cry', icon:'😤', turnsLeft:3, atkMod:2 });
-    addLog(`😤 War Cry! +2 ATK bonus for 3 turns!`, 'holy');
-  }
-  else if (spell.id === 'whirlwind') {
-    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
-    enemies.forEach(c => {
-      const dmg = applyDamage(c.id, rollDice(spell.damage, statMod));
-      c.hp = Math.max(0, c.hp - dmg);
-      addLog(`🌀 Whirlwind → ${c.name}: ${dmg} damage!`, 'combat');
-    });
-  }
-  else if (spell.id === 'last_stand') {
-    addStatus('player', { id:'last_stand', name:'Last Stand', icon:'🛡', turnsLeft:4 });
-    addLog(`🛡 Last Stand active! Below 20 HP: +50% damage for 4 turns.`, 'holy');
-  }
-  else if (spell.id === 'execute') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    if (target.hp > target.maxHp * 0.25) {
-      addLog(`⚔ Execute: ${target.name} must be below 25% HP! (${target.hp}/${target.maxHp})`, 'system');
-      player.mp += spell.mp; combatState.apRemaining += spell.ap; return;
-    }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`⚔ EXECUTE → ${target.name}: ${dmg} massive damage! [target was at ${Math.floor(target.hp/target.maxHp*100)}% HP]`, 'combat');
-  }
-  else if (spell.id === 'avatar_war') {
-    addStatus('player', { id:'avatar_war', name:'Avatar of War', icon:'🔥', turnsLeft:3, dmgMult:2 });
-    addLog(`🔥 Avatar of War! +100% damage for 3 turns. Nothing can stop you.`, 'holy');
-  }
-
-  // ── ROGUE ────────────────────────────────────
-  else if (spell.id === 'sneak_attack') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addLog(`🗡 Sneak Attack → ${target.name}: ${dmg} damage from the shadows!`, 'combat');
-  }
-  else if (spell.id === 'smoke_bomb') {
-    // Apply -4 ATK debuff to all enemies
-    Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0).forEach(c => {
-      addStatus(c.id, { id:'smoke_bomb_debuff', name:'Blinded (Smoke)', icon:'💨', turnsLeft:2, atkMod:-4 });
-    });
-    addLog(`💨 Smoke Bomb! All enemies suffer -4 ATK for 2 turns!`, 'holy');
-  }
-  else if (spell.id === 'shadow_step') {
-    // Grant +4 AC (reverted on expiry via acDelta) and make the next attack auto-hit
-    const acDelta = 4;
-    addStatus('player', { id:'shadow_step', name:'Shadow Step', icon:'🌑', turnsLeft:1, acDelta, nextHitAutoHit:true });
-    player.ac = (player.ac || 12) + acDelta;
-    addLog(`🌑 Shadow Step! Vanished into shadows. +4 AC, next attack auto-hits!`, 'holy');
-  }
-  else if (spell.id === 'garrote') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-    target.hp = Math.max(0, target.hp - dmg);
-    addStatus(target.id, { id:'garrote_silence', name:'Silenced', icon:'🔇', turnsLeft:3 });
-    addLog(`🩸 Garrote → ${target.name}: ${dmg} damage + SILENCED for 3 turns (no spells)!`, 'combat');
-  }
-  else if (spell.id === 'phantom_kill') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    if (target.hp <= target.maxHp * 0.3) {
-      // Instant kill
-      const oldHp = target.hp;
-      target.hp = 0;
-      addLog(`👤 PHANTOM KILL → ${target.name}: INSTANT KILL from darkness! [was at ${Math.floor(oldHp/target.maxHp*100)}% HP]`, 'combat');
-    } else {
-      const dmg = applyDamage(target.id, rollDice(spell.damage, statMod));
-      target.hp = Math.max(0, target.hp - dmg);
-      addLog(`👤 Phantom Kill → ${target.name}: ${dmg} damage. (Instant kill requires <30% HP)`, 'combat');
-    }
-  }
-
-  // ── RANGER ───────────────────────────────────
-  else if (spell.id === 'hunters_mark') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    addStatus('player', { id:'hunters_mark', name:"Hunter's Mark", icon:'🎯', turnsLeft:6, targetId: target.id });
-    addLog(`🎯 Hunter's Mark on ${target.name}! All attacks vs them deal +2d6 bonus damage.`, 'holy');
-  }
-  else if (spell.id === 'multi_shot') {
-    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0).slice(0, 3);
-    if (enemies.length === 0) { addLog('No targets!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    enemies.forEach(c => {
-      const dmg = applyDamage(c.id, rollDice('2d8', statMod));
-      c.hp = Math.max(0, c.hp - dmg);
-      addLog(`🏹 Multi-Shot → ${c.name}: ${dmg} damage!`, 'combat');
-    });
-  }
-  else if (spell.id === 'vine_trap') {
-    if (!target) { addLog('Select a target!', 'system'); player.mp += spell.mp; combatState.apRemaining += spell.ap; return; }
-    addStatus(target.id, { id:'vine_trap', name:'Rooted', icon:'🌿', turnsLeft:2 });
-    addLog(`🌿 Vine Trap → ${target.name}: ROOTED for 2 turns! Cannot act.`, 'holy');
-  }
-  else if (spell.id === 'volley') {
-    const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
-    const dmg = rollDice(spell.damage, 0);
-    enemies.forEach(c => {
-      const d = applyDamage(c.id, dmg);
-      c.hp = Math.max(0, c.hp - d);
-      addLog(`☄ Volley → ${c.name}: ${d} arrow damage!`, 'combat');
-    });
-  }
-  else if (spell.id === 'apex_predator') {
-    addStatus('player', { id:'apex_predator', name:'Spirit Beast', icon:'🐺', turnsLeft:5 });
-    addLog(`🐺 Apex Predator! A spirit beast answers your call — it attacks alongside you for 5 turns!`, 'holy');
-  }
-
-  combatState.selectedSpell = null;
-  checkCombatEnd();
-  if (!combatState.active) return;
-  syncPlayerHP();
-  updateCombatUI();
-
-  // Auto-end turn when AP spent
-  if (combatState.apRemaining <= 0) {
-    addLog(`⏸ All AP spent — ending your turn.`, 'system');
-    combatState.pendingEndTurnTimer = setTimeout(endPlayerTurn, 600);
-  }
+  const spell=combatState.selectedSpell;if(!spell)return;
+  const result=resolveSoloCommand('spell',{spellId:spell.id,targetId:combatState.selectedTarget});
+  if(!result)return;
+  for(const event of result.events)addLog(`${spell.icon} ${spell.name}: ${combatState.combatants[event.targetId]?.name||''} ${event.damage!==undefined?event.damage+' damage':event.healing!==undefined?event.healing+' healing':event.text||event.type}`,'combat');
+  combatState.selectedSpell=null;syncPlayerHP();checkCombatEnd();updateCombatUI();
+  if(combatState.active&&combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
 }
 
 function rollDice(formula, statMod) {
@@ -1141,7 +805,7 @@ function acceptSoloCommand(type,data={}){
   return window.ActionPipeline.accept(combatState,prepared);
 }
 function resolveSoloCommand(type,data={}){
-  const context={principalId:'player',character:gameState.character};
+  const context={principalId:'player',character:gameState.character,canEndEncounter:true};
   const cmd=window.ActionPipeline.command(combatState,'player',type,data);
   const result=window.ActionPipeline.resolve(combatState,cmd,context);
   if(!result.ok){addLog('Action rejected: '+result.reason,'system');return null;}
@@ -1151,7 +815,7 @@ function combatMove(position) {
   if(!position){addLog('Choose a destination on the battlefield.','system');return;}
   const result=resolveSoloCommand('move',{position});
   if(!result)return;
-  if(window.classOnMove)classOnMove();
+  syncPlayerHP();
   addLog('🏃 You reposition on the battlefield.','system');updateCombatUI();
 }
 function combatItem() {
@@ -1169,37 +833,17 @@ function combatItem() {
 }
 
 function endPlayerTurn() {
-  // #14: guard — only valid during the player's turn, and only once per turn
-  if (!combatState.active) return;
-  if (combatState.whoseTurn !== 'player') return;
-  if (combatState.endedThisTurn) return;
+  if(!combatState.active||combatState.whoseTurn!=='player'||combatState.endedThisTurn)return;
   if(!acceptSoloCommand('end_turn'))return;
-  combatState.endedThisTurn = true;
-  // Clear any pending auto-end timer so it can't fire a second time
-  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
-
-  // Apply DOT effects at end of player turn
-  const player = combatState.combatants['player'];
-  if (player) {
-    (combatState.statusEffects['player'] || []).forEach(s => {
-      if (s.dmgPerTurn) {
-        const dmg = applyDamage('player', s.dmgPerTurn);
-        player.hp = Math.max(0, player.hp - dmg);
-        if (gameState.character) gameState.character.hp = player.hp;
-        addLog(`${s.icon} ${s.name} deals ${dmg} damage!`, 'combat');
-      }
-    });
-    checkCombatEnd();
-    syncPlayerHP();
-  }
-  combatState.apRemaining = 0;
-  advanceTurn();
+  combatState.endedThisTurn=true;
+  if(combatState.pendingEndTurnTimer){clearTimeout(combatState.pendingEndTurnTimer);combatState.pendingEndTurnTimer=null;}
+  combatState.apRemaining=0;advanceTurn();
 }
 
 function getTarget() {
   if (combatState.selectedTarget) {
     const t = combatState.combatants[combatState.selectedTarget];
-    if (t && t.hp > 0) return t;
+    if (t && (t.hp>0||(combatState.selectedSpell?.id==='revivify'&&t.isPlayer))) return t;
   }
   return Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
 }
@@ -1210,7 +854,7 @@ function advanceTurn() {
   combatState.commandRevision=(combatState.commandRevision||0)+1;
   do {
     combatState.currentTurnIndex = (combatState.currentTurnIndex + 1) % combatState.turnOrder.length;
-    if (combatState.currentTurnIndex === 0) { combatState.round++; if(window.classOnRoundEnd) classOnRoundEnd(); }
+    if (combatState.currentTurnIndex === 0) combatState.round++;
   } while (combatState.combatants[combatState.turnOrder[combatState.currentTurnIndex]]?.hp <= 0);
 
   combatState.apRemaining = MAX_AP;
@@ -1218,304 +862,33 @@ function advanceTurn() {
 }
 
 function processTurn() {
-  if (!combatState.active) return; // combat ended — stop
-  const currentId = combatState.turnOrder[combatState.currentTurnIndex];
-  const current = combatState.combatants[currentId];
-  if (!current || current.hp <= 0) { advanceTurn(); return; }
-
-  // #14: mark whose turn it is and reset the per-turn end guard
-  combatState.whoseTurn = currentId;
-  combatState.endedThisTurn = false;
-  if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
-
-  // #18: stunned combatants skip their action entirely. Check BEFORE ticking so a
-  // 1-turn stun ("stunned next turn") is honored, then tick it away.
-  if (hasStatus(currentId, 'stunned')) {
-    addLog(`💫 ${current.name} is STUNNED and loses their turn!`, 'system');
-    tickStatuses(currentId);
-    // #11: for the player, zero out AP and mark the turn ended BEFORE rendering the UI,
-    // so updateCombatUI() draws a spent, non-actionable turn (no live action buttons).
-    if (current.isPlayer) {
-      combatState.apRemaining = 0;
-      combatState.endedThisTurn = true;
-    }
-    updateCombatUI();
-    setTimeout(advanceTurn, 900);
-    return;
-  }
-
-  // Tick status effects at start of this combatant's turn
-  tickStatuses(currentId);
-
-  // Apex Predator spirit beast attacks with player
-  if (currentId === 'player' && hasStatus('player', 'apex_predator')) {
-    const enemy = Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
-    if (enemy) {
-      const beastDmg = rollDice('2d8', 0);
-      const finalDmg = applyDamage(enemy.id, beastDmg);
-      enemy.hp = Math.max(0, enemy.hp - finalDmg);
-      addLog(`🐺 Spirit Beast attacks ${enemy.name} for ${finalDmg}!`, 'combat');
-      checkCombatEnd();
-    }
-  }
-
-  // #20: Spirit Weapon strikes each of the player's rounds for its stored bonusAtk
-  if (currentId === 'player' && hasStatus('player', 'spirit_weapon')) {
-    const sw = getStatusData('player', 'spirit_weapon');
-    const enemy = getTarget() || Object.values(combatState.combatants).find(c => !c.isPlayer && c.hp > 0);
-    if (enemy && sw) {
-      const swDmg = applyDamage(enemy.id, sw.bonusAtk || rollDice('2d8', 0));
-      enemy.hp = Math.max(0, enemy.hp - swDmg);
-      addLog(`👻 Spiritual Weapon strikes ${enemy.name} for ${swDmg}!`, 'holy');
-      checkCombatEnd();
-    }
-  }
-
-  // If an auto-attack (spirit beast / spirit weapon) just ended combat, stop here.
-  if (!combatState.active) return;
-
-  // Hunter's Mark: track marked target for bonus damage
-  if (currentId === 'player' && hasStatus('player', 'hunters_mark')) {
-    // bonus applied in combatAttack
-  }
-
-  if (current.isPlayer && window.classOnTurnStart) classOnTurnStart();
-  updateCombatUI();
-
-  if (!current.isPlayer) {
-    setTimeout(() => enemyAI(currentId), 1000);
-  }
+  if(!combatState.active)return;
+  const id=combatState.turnOrder[combatState.currentTurnIndex],current=combatState.combatants[id];
+  if(!current||current.hp<=0){checkCombatEnd();if(combatState.active)advanceTurn();return;}
+  combatState.whoseTurn=id;combatState.endedThisTurn=false;
+  if(combatState.pendingEndTurnTimer){clearTimeout(combatState.pendingEndTurnTimer);combatState.pendingEndTurnTimer=null;}
+  for(const event of window.CombatMechanics.startTurn(combatState,id))addLog(`Status effect: ${combatState.combatants[event.targetId]?.name} takes ${event.damage} damage.`,'combat');
+  checkCombatEnd();if(!combatState.active)return;syncPlayerHP();updateCombatUI();
+  if(combatState.turnBlocked||current.hp<=0){combatState.apRemaining=0;setTimeout(advanceTurn,600);return;}
+  if(!current.isPlayer)setTimeout(()=>enemyAI(id),800);
 }
-
-// ─── ENEMY AI ─────────────────────────────────
-function enemyAI(enemyId) {
-  if (!combatState.active) return; // combat ended — stop
-  const enemy = combatState.combatants[enemyId];
-  if (!enemy || enemy.hp <= 0) { advanceTurn(); return; }
-
-  const player = combatState.combatants['player'];
-  if (!player) return;
-  let ap = MAX_AP;
-
-  // #12: tick damage-over-time statuses (poison / bleed / Nightshade) on the enemy at
-  // the start of its turn, mirroring the player DOT loop in endPlayerTurn. The status
-  // duration was already decremented by tickStatuses() in processTurn, so applying the
-  // damage here can't double-tick. A DOT that kills the enemy ends its turn cleanly.
-  const enemyDots = (combatState.statusEffects[enemyId] || []).filter(s => s.dmgPerTurn);
-  if (enemyDots.length) {
-    enemyDots.forEach(s => {
-      if (enemy.hp <= 0) return;
-      const dmg = applyDamage(enemyId, s.dmgPerTurn);
-      enemy.hp = Math.max(0, enemy.hp - dmg);
-      addLog(`${s.icon} ${enemy.name} suffers ${dmg} ${s.name} damage! (${enemy.hp}/${enemy.maxHp} HP)`, 'combat');
-    });
-    updateCombatUI();
-    checkCombatEnd();
-    if (!combatState.active) return; // a DOT ended combat
-    if (enemy.hp <= 0) { advanceTurn(); return; } // DOT killed this enemy — end its turn
+function enemyAI(id) {
+  if(!combatState.active||combatState.turnOrder[combatState.currentTurnIndex]!==id)return;
+  const enemy=combatState.combatants[id];if(!enemy||enemy.hp<=0){advanceTurn();return;}
+  const target=Object.values(combatState.combatants).filter(c=>c.isPlayer&&c.hp>0).sort((a,b)=>(window.TacticalCombat.distance(enemy.position,a.position)||0)-(window.TacticalCombat.distance(enemy.position,b.position)||0))[0];
+  if(!target){checkCombatEnd();return;}
+  const spellId=(enemy.spells||[]).map(s=>typeof s==='string'?s:s.id).find(s=>window.CombatMechanics.enemyIds.includes(s));
+  let resolution;
+  if(spellId&&(enemy.mp||0)>=20&&!window.CombatMechanics.has(combatState,id,'garrote_silence')&&Math.random()<.3){
+    resolution=window.CombatMechanics.resolve(combatState,id,{id:spellId},{enemy:true,targetId:target.id});
+    resolution.combatants[id].mp-=20;
+  }else{
+    let legal=window.TacticalCombat.validateAttack(enemy,target,{cover:combatState.tactical?.cover||[]});
+    if(!legal.ok&&!window.CombatMechanics.has(combatState,id,'vine_trap')){enemy.position=window.TacticalCombat.moveToward(enemy.position,target.position,combatState.tactical?.moveRange||4.5);legal=window.TacticalCombat.validateAttack(enemy,target);}
+    if(legal.ok)resolution=window.CombatMechanics.attack(combatState,id,target.id,{coverBonus:legal.coverBonus});
   }
-
-  // Rooted: skip turn
-  if (isRooted(enemyId)) {
-    addLog(`🌿 ${enemy.name} is ROOTED — cannot act!`, 'system');
-    updateCombatUI(); checkCombatEnd();
-    setTimeout(advanceTurn, 800); return;
-  }
-
-  // Flee check
-  if (enemy.flee && enemy.hp < enemy.maxHp * 0.4) {
-    const escape = COMBAT_RULES.rollInitiative({ bonus:enemy.dex || 0 });
-    const pursuit = COMBAT_RULES.rollInitiative({ bonus:player.statMods?.dex || 0 });
-    if (escape.total > pursuit.total) {
-      addLog(`${enemy.icon} ${enemy.name} flees in terror!`, 'system');
-
-      // #21: was this the last living enemy? Capture BEFORE pruning so a last-enemy
-      // flee ends combat as a clean retreat — NOT a hollow "VICTORY!" with 0 XP.
-      const otherLiving = Object.values(combatState.combatants)
-        .filter(c => !c.isPlayer && c.hp > 0 && c.id !== enemyId);
-
-      // #21: adjust currentTurnIndex when removing an entry at/below the cursor
-      const removedIndex = combatState.turnOrder.indexOf(enemyId);
-      delete combatState.combatants[enemyId];
-      combatState.turnOrder = combatState.turnOrder.filter(id => id !== enemyId);
-      if (removedIndex !== -1 && removedIndex < combatState.currentTurnIndex) {
-        combatState.currentTurnIndex--;
-      }
-
-      if (otherLiving.length === 0) {
-        // No enemies remain — end combat as a genuine end (fleeing enemy grants nothing)
-        combatState.active = false;
-        addLog('━━━━━━━━━━━━━━━━━━━━━━━━', 'system');
-        addLog('🏳 The last enemy fled. The fight is over.', 'system');
-        if (gameState.character && combatState.combatants['player']) {
-          gameState.character.hp = Math.max(1, combatState.combatants['player'].hp);
-        }
-        const track = window.WORLD_LOCATIONS?.[window.mapState?.currentLocation]?.music;
-        if (window.AudioEngine && track) AudioEngine.transitionForContext ? AudioEngine.transitionForContext(track, 'combat_exit') : AudioEngine.transition(track, 1500);
-        updateCombatUI();
-        setTimeout(() => {
-          document.getElementById('combat-panel')?.remove();
-          if (window.updateCharacterPanel) updateCharacterPanel();
-          if (window.renderPlayerCard) renderPlayerCard();
-        }, 1500);
-        return;
-      }
-
-      updateCombatUI();
-      setTimeout(advanceTurn, 800); return;
-    }
-  }
-
-  // Try to cast a spell (30% chance if has spells, enough mp, and not silenced)
-  if (enemy.spells?.length > 0 && enemy.mp > 15 && Math.random() < 0.3 && ap >= 2 && !isSilenced(enemyId)) {
-    const spellId = enemy.spells[Math.floor(Math.random()*enemy.spells.length)];
-    enemy.mp -= 20;
-    ap -= 2;
-    castEnemySpell(enemy, spellId, player);
-  } else {
-    // Basic attack — check smoke_bomb debuff
-    const atkMod = getAtkMod(enemyId);
-    const playerAC = player.ac || 12;
-    const attack = COMBAT_RULES.resolveAttack({
-      attackBonus:(enemy.attackBonus ?? enemy.atk ?? 0) + atkMod, targetAC:playerAC,
-      attackerConditions:(combatState.statusEffects[enemyId] || []).map(status => status.id),
-      targetConditions:(combatState.statusEffects.player || []).map(status => status.id),
-    });
-    const { roll } = attack;
-    if (attack.hit) {
-      const dmg = COMBAT_RULES.rollFormula('1d8', { modifier:enemy.damageMod ?? enemy.atk ?? 0, critical:attack.crit }).total;
-      const finalDmg = applyDamage('player', dmg);
-      player.hp = Math.max(0, player.hp - finalDmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`${enemy.icon} ${enemy.name} attacks! [${roll}${atkMod?`${atkMod>=0?'+':''}${atkMod}`:''}] — ${finalDmg} damage to ${player.name}!`, 'combat');
-      if (window.classOnHitTaken) classOnHitTaken(finalDmg);
-      // Paladin aura damage reduction
-      const paladinRed = window.getPaladinAuraReduction ? getPaladinAuraReduction() : 0;
-      if (paladinRed > 0 && finalDmg > 0) { player.hp = Math.min(player.maxHp, player.hp + paladinRed); if(gameState.character) gameState.character.hp = player.hp; }
-    } else {
-      addLog(`${enemy.icon} ${enemy.name} attacks but misses! [${roll}]`, 'system');
-    }
-    ap--;
-  }
-
-  updateCombatUI(); checkCombatEnd(); syncPlayerHP();
-  setTimeout(advanceTurn, 1200);
-}
-
-// ─── ENEMY SPELL EFFECTS ─────────────────────
-function castEnemySpell(enemy, spellId, player) {
-  const lvl = enemy.level || 1;
-  const icon = enemy.icon;
-
-  switch(spellId) {
-    case 'hellfire_bolt': {
-      const dmg = rollDice(`${lvl}d6`, Math.floor(lvl/2));
-      const finalDmg = applyDamage('player', dmg);
-      player.hp = Math.max(0, player.hp - finalDmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`😈 ${enemy.name} hurls Hellfire Bolt! ${finalDmg} fire damage!`, 'combat'); break;
-    }
-    case 'shadow_step': {
-      // Enemy teleports — gains evasion for 1 turn (acDelta reverted on expiry)
-      const acDelta = 3;
-      addStatus(enemy.id, { id:'shadow_step_enemy', name:'Evasive', icon:'🌑', turnsLeft:1, acDelta });
-      enemy.ac += acDelta;
-      addLog(`🌑 ${enemy.name} vanishes into shadow! +3 AC for 1 turn.`, 'system'); break;
-    }
-    case 'savage_bite': {
-      const dmg = rollDice(`${lvl}d8`, Math.floor(lvl/2));
-      const finalDmg = applyDamage('player', dmg);
-      player.hp = Math.max(0, player.hp - finalDmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      // 50% bleed chance
-      if (Math.random() < 0.5) addStatus('player', { id:'bleed', name:'Bleeding', icon:'🩸', turnsLeft:2, dmgPerTurn:3 });
-      addLog(`🐺 ${enemy.name} savagely bites! ${finalDmg} damage${hasStatus('player','bleed')?' + BLEEDING!':''}`, 'combat'); break;
-    }
-    case 'shadow_drain': {
-      const dmg = rollDice(`${lvl}d6`, 0);
-      const finalDmg = applyDamage('player', dmg);
-      player.hp = Math.max(0, player.hp - finalDmg);
-      enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.floor(finalDmg/2));
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`🌑 ${enemy.name} drains your life! ${finalDmg} damage — healed ${Math.floor(finalDmg/2)}!`, 'combat'); break;
-    }
-    case 'war_cry': {
-      addStatus(enemy.id, { id:'war_cry', name:'War Cry', icon:'😤', turnsLeft:3, atkMod:2 });
-      addLog(`😤 ${enemy.name} roars a War Cry! +2 ATK for 3 turns.`, 'system'); break;
-    }
-    case 'execute': {
-      if (player.hp <= player.maxHp * 0.25) {
-        player.hp = Math.max(0, player.hp - rollDice(`${lvl+2}d10`, 0));
-        if (gameState.character) gameState.character.hp = player.hp;
-        addLog(`⚔ ${enemy.name} EXECUTES you while you're weakened!`, 'combat');
-      } else {
-        const dmg = applyDamage('player', rollDice(`${lvl}d8`, 0));
-        player.hp = Math.max(0, player.hp - dmg);
-        if (gameState.character) gameState.character.hp = player.hp;
-        addLog(`⚔ ${enemy.name} uses Execute but you're too strong! ${dmg} damage.`, 'combat');
-      } break;
-    }
-    case 'shadow_curse': {
-      addStatus('player', { id:'shadow_curse', name:'Shadow Cursed', icon:'🕯', turnsLeft:3, atkMod:-2 });
-      addLog(`🕯 ${enemy.name} places a Shadow Curse! Your attacks weakened for 3 turns.`, 'combat'); break;
-    }
-    case 'soul_drain': {
-      const mpDrain = Math.min(player.mp, 20 + lvl * 5);
-      player.mp = Math.max(0, player.mp - mpDrain);
-      enemy.mp = Math.min(enemy.maxMp, enemy.mp + mpDrain);
-      if (gameState.character) gameState.character.mp = player.mp;
-      addLog(`🕯 ${enemy.name} drains ${mpDrain} MP from you!`, 'combat'); break;
-    }
-    case 'hellfire': {
-      const dmg = applyDamage('player', rollDice(`${lvl+1}d8`, Math.floor(lvl/2)));
-      player.hp = Math.max(0, player.hp - dmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`🔥 ${enemy.name} unleashes HELLFIRE! ${dmg} damage!`, 'combat'); break;
-    }
-    case 'divine_wrath': {
-      const dmg = applyDamage('player', rollDice(`${lvl}d10`, Math.floor(lvl/3)));
-      player.hp = Math.max(0, player.hp - dmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`⚡ ${enemy.name} calls down Divine Wrath! ${dmg} holy damage!`, 'combat'); break;
-    }
-    case 'summon_flame': {
-      // Persists as a burn status
-      addStatus('player', { id:'burning', name:'Burning', icon:'🔥', turnsLeft:3, dmgPerTurn:8 });
-      addLog(`🔥 ${enemy.name} summons a Flame Elemental! You are BURNING for 3 turns!`, 'combat'); break;
-    }
-    case 'void_scream': {
-      const dmg = applyDamage('player', rollDice(`${lvl}d8`, 0));
-      player.hp = Math.max(0, player.hp - dmg);
-      addStatus('player', { id:'stunned', name:'Stunned', icon:'💫', turnsLeft:1 });
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`🕳 ${enemy.name} VOID SCREAMS! ${dmg} psychic damage — STUNNED next turn!`, 'combat'); break;
-    }
-    case 'soul_rend': {
-      const dmg = applyDamage('player', rollDice(`${lvl+1}d10`, Math.floor(lvl/2)));
-      player.hp = Math.max(0, player.hp - dmg);
-      player.maxHp = Math.max(1, player.maxHp - 5); // permanent max HP reduction
-      if (gameState.character) { gameState.character.hp = player.hp; gameState.character.maxHp = player.maxHp; }
-      addLog(`🕳 ${enemy.name} RENDS your soul! ${dmg} damage — Max HP reduced by 5 permanently!`, 'combat'); break;
-    }
-    case 'dark_surge': {
-      const dmg = applyDamage('player', rollDice(`${lvl+2}d8`, Math.floor(lvl/2)));
-      player.hp = Math.max(0, player.hp - dmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`🌑 ${enemy.name} Dark Surges! ${dmg} void damage!`, 'combat'); break;
-    }
-    case 'holy_smite_corrupted': {
-      const dmg = applyDamage('player', rollDice(`${lvl}d8`, Math.floor(lvl/2)));
-      player.hp = Math.max(0, player.hp - dmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`🩸 ${enemy.name} uses Corrupted Holy Smite! ${dmg} tainted holy damage!`, 'combat'); break;
-    }
-    default: {
-      const dmg = applyDamage('player', Math.floor(Math.random()*10)+5 + Math.floor(lvl/2));
-      player.hp = Math.max(0, player.hp - dmg);
-      if (gameState.character) gameState.character.hp = player.hp;
-      addLog(`${icon} ${enemy.name} uses ${spellId}! ${dmg} damage!`, 'combat');
-    }
-  }
+  if(resolution){combatState.combatants=resolution.combatants;combatState.statusEffects=resolution.statusEffects;for(const e of resolution.events)addLog(`${enemy.name}: ${e.damage??e.healing??''} ${e.type} ${e.text||''}`,'combat');}
+  syncPlayerHP();checkCombatEnd();updateCombatUI();if(combatState.active)setTimeout(advanceTurn,800);
 }
 
 // ─── CHECK WIN/LOSE ───────────────────────────
@@ -1524,7 +897,7 @@ function checkCombatEnd() {
   if (!player) return;
   const enemies = Object.values(combatState.combatants).filter(c => !c.isPlayer && c.hp > 0);
 
-  if (player.hp <= 0) {
+  if (!Object.values(combatState.combatants).some(c=>c.isPlayer&&c.hp>0)) {
     endCombat(false);
     return;
   }
@@ -1574,7 +947,7 @@ function endCombat(victory) {
   // Guard against re-entry — the infinite loop happens when advanceTurn fires
   // via setTimeout after endCombat already ran
   if (!combatState.active) return;
-  combatState.active = false;
+  if(!window.ActionPipeline.finish(combatState,victory).ok)return;
 
   // Clear any pending auto-end timer so it can't fire after combat ends
   if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
@@ -1625,14 +998,16 @@ function endCombat(victory) {
       setTimeout(() => showLootPanel(loot, defeatedEnemies), 800);
     }
 
+    // Capture the authored continuation before another encounter can replace it.
+    const victoryScene=combatState.victoryScene;
     // Story triggers after boss defeats
     setTimeout(() => {
-      if (defeatedIds.some(id => id === 'elder_varek' || id?.startsWith('elder_varek'))) {
+      if(victoryScene){
+        window.runScene?.(victoryScene);
+      } else if (defeatedIds.some(id => id === 'elder_varek' || id?.startsWith('elder_varek'))) {
         if (window.runScene) window.runScene('chapter1_end_arrest');
       } else if (defeatedEnemies.some(enemy => /voice below/i.test(enemy.name || '') || String(enemy.id || '').startsWith('the_voice_below'))) {
         if (window.runScene) window.runScene('monastery_dungeon_cleared');
-      } else if (combatState.victoryScene) {
-        if (window.runScene) window.runScene(combatState.victoryScene);
       }
       setTimeout(() => window.resumePendingArrivalScene?.(), 0);
     }, 2500);
@@ -1778,7 +1153,8 @@ window.showDeathScreen = function (name, locationName) {
 // A real, clean retreat: no defeat, no Hell Points, no HP change, no XP/loot.
 window.fleeCombat = function() {
   if (!combatState.active) return;
-  combatState.active = false;
+  if(window.mp?.sessionCode){window.mpCombatAction?.('retreat');return;}
+  if(!resolveSoloCommand('retreat'))return;
 
   // Clear any pending auto-end timer
   if (combatState.pendingEndTurnTimer) { clearTimeout(combatState.pendingEndTurnTimer); combatState.pendingEndTurnTimer = null; }
