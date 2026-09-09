@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 479 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 481 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — combat-victory verification and visible rejection feedback (local, not deployed):
+
+- Supporting NPC staging is deployed in `2e982d2`.
+- Added a local Brask-stage fixture with the existing high-stat level-ten QA rogue and unmodified authored enemies (Brask 38 HP, two agents 32 HP each). Browser run approached and confirmed Brask, selected the authored fight, moved in combat, killed one agent with Garrote, Brask with Phantom Kill, then the remaining agent with Garrote and Attack. No enemy HP was reduced through a final-blow fixture.
+- Verified actual victory continuation: combat ended, the kept-exemplar scene appeared, 150 outcome XP and the original exemplar were awarded, c1q8 completed with its separate 250 XP reward, and c1q9 unlocked. This proves the solo fixture's combat-to-quest handoff, not fresh-campaign balance or rendered multiplayer.
+- Found an apparent unresponsive-spell issue: attempts were correctly rejected as `out_of_range`, but the reason appeared only in the hidden Chronicle log. Added shared solo command rejection reporting to the 3D toast while retaining the log. Rejected actions still do not accept/commit or spend costs. The new feedback is regression-tested, not separately browser-reloaded in this run.
+- Two new tests cover prepare/resolve rejection visibility, unchanged AP, non-3D fallback and readable unmapped reasons. All 481 tests pass.
+- Remaining: rendered multiplayer/reconnect quest QA, absent-Rane dialogue alternatives, dying Halven presentation, and broader Step 5 quests. The automated reward-claim tests cover replay; this browser run earned the outcome once.
 
 Ambassador quest — supporting NPC staging (local, not deployed):
 

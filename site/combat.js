@@ -800,17 +800,23 @@ function rollDice(formula, statMod) {
   }).total;
 }
 
+function reportCombatRejection(reason){
+  const messages={out_of_range:'Out of range. Move closer before using this action.',blocked:'The path or line of sight is blocked.',not_your_turn:'Wait for your turn.',insufficient_ap:'Not enough action points.',insufficient_mp:'Not enough mana.'};
+  const message=Object.hasOwn(messages,reason)?messages[reason]:'Action unavailable: '+String(reason||'invalid action').replace(/_/g,' ')+'.';
+  addLog('Action rejected: '+reason,'system');
+  window.__world3d?.toast?.(message,4200);
+}
 function acceptSoloCommand(type,data={}){
   const cmd=window.ActionPipeline.command(combatState,'player',type,data);
   const prepared=window.ActionPipeline.prepare(combatState,cmd,{principalId:'player',character:gameState.character});
-  if(!prepared.ok){addLog('Action rejected: '+prepared.reason,'system');return false;}
+  if(!prepared.ok){reportCombatRejection(prepared.reason);return false;}
   return window.ActionPipeline.accept(combatState,prepared);
 }
 function resolveSoloCommand(type,data={}){
   const context={principalId:'player',character:gameState.character,canEndEncounter:true};
   const cmd=window.ActionPipeline.command(combatState,'player',type,data);
   const result=window.ActionPipeline.resolve(combatState,cmd,context);
-  if(!result.ok){addLog('Action rejected: '+result.reason,'system');return null;}
+  if(!result.ok){reportCombatRejection(result.reason);return null;}
   return window.ActionPipeline.commit(combatState,result,context)?result:null;
 }
 function combatMove(position) {
