@@ -11,6 +11,7 @@ window.addEventListener('load',()=>{
  const archiveOption=document.createElement('option');archiveOption.value='church_archive';archiveOption.textContent='Archive reception interactions';panel.querySelector('select').append(archiveOption);
  const fourOption=document.createElement('option');fourOption.value='archive_level_four';fourOption.textContent='Archive Level Four (admitted fixture)';panel.querySelector('select').append(fourOption);
  const caelOption=document.createElement('option');caelOption.value='monastery_cael';caelOption.textContent='Brother Cael (completed archive fixture)';panel.querySelector('select').append(caelOption);
+ const voiceOption=document.createElement('option');voiceOption.value='archive_voice_hatch';voiceOption.textContent='Archive Voice (hatch fixture)';panel.querySelector('select').append(voiceOption);
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
  let targetZone=null;const refreshTargets=()=>{const zone=window.__world3d?.zone;if(!zone||zone===targetZone)return;targetZone=zone;targetSelect.replaceChildren();for(const record of zone.interactables){const option=document.createElement('option');option.value=record.id;option.textContent=record.label||record.id;targetSelect.append(option);}};
  approach.onclick=()=>{const engine=window.__world3d,record=engine?.zone?.interactables.find(item=>item.id===targetSelect.value);if(record)engine.goToInteraction(record);};
@@ -19,14 +20,14 @@ window.addEventListener('load',()=>{
  load.onclick=async()=>{try{
   if(window.combatState)window.combatState.active=false;window.unloadWorld3D?.();
   Object.assign(window.gameState,{character:{name:'Tactical QA',race:'human',class:'rogue',level:10,hp:300,maxHp:300,mp:300,maxMp:300,holyPoints:100,hellPoints:0,gold:100,xp:0,inventory:['Health Potion'],stats:{str:16,dex:30,con:16,int:16,wis:16,cha:16},skillTrees:['shadowblade'],origin:'war_orphan',revealChoice:'truth'},world3dPositions:{},activeQuests:[],completedQuests:[],questProgress:{}});
-  const selection=panel.querySelector('select').value,sermon=selection==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':selection==='monastery_cael'?'monastery_aldric':selection;
+  const selection=panel.querySelector('select').value,sermon=selection==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':selection==='monastery_cael'?'monastery_aldric':selection==='archive_voice_hatch'?'archive_level_four':selection;
   initGameScreen();
   if(selection==='monastery_cael'){window.resetSceneState();window.sceneState.flags.clue_aldric_exception=true;window.sceneState.flags.archive_breakin_done=true;window.gameState.completedQuests=[{id:'c1q17'}];}
   if(window.mapState.currentLocation==='thornwood_gate'){window.resetSceneState();window.activateQuest('c1q3',true);}
   if(window.mapState.currentLocation==='merchant_road'){window.resetSceneState();window.activateQuest('c1q4',true);}
   if(window.mapState.currentLocation==='fortress_harren'){window.resetSceneState();window.activateQuest('c1q6',true);}
   if(window.mapState.currentLocation==='church_archive'){window.resetSceneState();window.activateQuest('c1q17',true);}
-  if(window.mapState.currentLocation==='archive_level_four'){window.resetSceneState();window.activateQuest('c1q17',true);window.sceneState.flags.met_theones=true;window.sceneState.flags.archive_breakin_started=true;}
+  if(window.mapState.currentLocation==='archive_level_four'){window.resetSceneState();window.activateQuest(selection==='archive_voice_hatch'?'c1q18':'c1q17',true);window.sceneState.flags.met_theones=true;window.sceneState.flags.archive_breakin_started=true;}
   if(window.mapState.currentLocation==='monastery_cellar'){window.resetSceneState();window.activateQuest('c1q2',true);}
   if(window.mapState.currentLocation==='monastery_depths'){window.resetSceneState();window.activateQuest('c1q2',true);window.sceneState.flags.monastery_first_chamber_cleared=true;window.sceneState.flags.entered_monastery_dungeon=true;}
   if(window.mapState.currentLocation==='mol_village'){

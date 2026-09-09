@@ -1,11 +1,11 @@
 export const CHAPTER_ONE_ZONE_IDS=Object.freeze([
-  'vaelthar_city','tarnished_cup','temple_quarter','thornwood_gate','mol_village','mol_well_shaft','monastery_aldric','merchant_road','fortress_harren','ashen_fields','tower_ash','thornwood_passage','lost_cartographer','church_archive','temple_wine_house','gatehouse_ale','mol_hearthfire','monastery_cellar','monastery_depths','roadside_inn','harren_hall','ashen_camp','tower_antechamber','thornwood_hut','cartographer_flask','archive_scriptorium','archive_level_four',
+  'vaelthar_city','tarnished_cup','temple_quarter','thornwood_gate','mol_village','mol_well_shaft','monastery_aldric','merchant_road','fortress_harren','ashen_fields','tower_ash','thornwood_passage','lost_cartographer','church_archive','temple_wine_house','gatehouse_ale','mol_hearthfire','monastery_cellar','monastery_depths','roadside_inn','harren_hall','ashen_camp','tower_antechamber','thornwood_hut','cartographer_flask','archive_scriptorium','archive_level_four','archive_foundation',
 ]);
 
 const ID_KITS=Object.freeze({
   mol_well_shaft:'dungeon',
   tarnished_cup:'tavern',temple_wine_house:'tavern',gatehouse_ale:'tavern',mol_hearthfire:'tavern',monastery_cellar:'cellar',monastery_depths:'dungeon',roadside_inn:'tavern',harren_hall:'tavern',cartographer_flask:'tavern',
-  thornwood_passage:'forest',thornwood_hut:'forest',lost_cartographer:'cartographer',mol_village:'village',thornwood_gate:'outpost',merchant_road:'road',fortress_harren:'fortress',monastery_aldric:'monastery',church_archive:'archive',archive_scriptorium:'archive',archive_level_four:'archive',ashen_fields:'ashen',ashen_camp:'ashen',tower_ash:'tower',tower_antechamber:'tower',temple_quarter:'temple',
+  thornwood_passage:'forest',thornwood_hut:'forest',lost_cartographer:'cartographer',mol_village:'village',thornwood_gate:'outpost',merchant_road:'road',fortress_harren:'fortress',monastery_aldric:'monastery',church_archive:'archive',archive_scriptorium:'archive',archive_level_four:'archive',archive_foundation:'dungeon',ashen_fields:'ashen',ashen_camp:'ashen',tower_ash:'tower',tower_antechamber:'tower',temple_quarter:'temple',
 });
 const TYPE_KITS=Object.freeze({tavern:'tavern',district:'temple',village:'village',outpost:'outpost',road:'road',fortress:'fortress',dungeon:'dungeon',wilderness:'forest',point_of_interest:'cartographer'});
 const SCENES=Object.freeze({tarnished_cup:'tarnished_cup_arrival',temple_quarter:'temple_quarter_arrival',thornwood_gate:'cartographer_missing',mol_village:'mol_village_arrival',monastery_aldric:'monastery_arrival',monastery_cellar:'monastery_dungeon_entry',merchant_road:'merchant_road_investigation',fortress_harren:'fortress_harren_arrival'});

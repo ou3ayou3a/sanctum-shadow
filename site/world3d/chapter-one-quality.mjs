@@ -5,6 +5,7 @@ const KIT_DEFAULTS=Object.freeze({
 });
 
 export const CHAPTER_ONE_IDENTITIES=Object.freeze({
+  archive_foundation:{name:'Archive Foundation',mark:'THE SIXTH STONE'},
   archive_level_four:{name:'Archive Level Four',mark:'THE BURIED SERIES'},
   monastery_depths:{name:'The Binding Chamber',mark:'THE VOICE BELOW'},
   mol_well_shaft:{name:'The Dry Well',mark:'THE SEAL BELOW MOL'},

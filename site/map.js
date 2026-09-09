@@ -394,7 +394,8 @@ const WORLD_LOCATIONS = {
     quests: ['c1q17'], encounters: ['cultist'], music: 'tavern_low', lightLevel: 'dark',
   },
 
-  archive_level_four:{id:'archive_level_four',name:'Archive Level Four',subtitle:'The Buried Series',x:602,y:132,type:'dungeon',icon:'📚',region:'northern_highlands',danger:4,discovered:false,connections:['archive_scriptorium'],parentLocation:'archive_scriptorium',physicalEntrance:'entrance_archive_level_four',description:'The oldest presses stand beside a stone older than the archive itself.',npcs:[],quests:['c1q17','c1q18'],encounters:[],music:'dungeon',lightLevel:'dark'},
+  archive_foundation:{id:'archive_foundation',name:'Archive Foundation',subtitle:'The Sixth Stone',x:607,y:137,type:'dungeon',icon:'🕳',region:'northern_highlands',danger:4,discovered:false,connections:['archive_level_four'],parentLocation:'archive_level_four',physicalEntrance:'entrance_archive_foundation',description:'A pre-Flame marker waits in the space beneath the foundation.',npcs:[],quests:['c1q18'],encounters:[],music:'dungeon',lightLevel:'dark'},
+  archive_level_four:{id:'archive_level_four',name:'Archive Level Four',subtitle:'The Buried Series',x:602,y:132,type:'dungeon',icon:'📚',region:'northern_highlands',danger:4,discovered:false,connections:['archive_scriptorium','archive_foundation'],parentLocation:'archive_scriptorium',physicalEntrance:'entrance_archive_level_four',description:'The oldest presses stand beside a stone older than the archive itself.',npcs:[],quests:['c1q17','c1q18'],encounters:[],music:'dungeon',lightLevel:'dark'},
   heartlands: { name: 'The Heartlands', color: 'rgba(100, 80, 40, 0.15)', strokeColor: 'rgba(201,168,76,0.3)' },
   western_reach: { name: 'The Western Reach', color: 'rgba(40, 80, 40, 0.15)', strokeColor: 'rgba(74,154,100,0.3)' },
   northern_highlands: { name: 'The Northern Highlands', color: 'rgba(40, 60, 100, 0.15)', strokeColor: 'rgba(100,140,200,0.3)' },

@@ -114,7 +114,7 @@
       { id:"descend", label:"Find the stair below the bottom of the Church Archive.", events:["scene:archive_lowest_level"] },
       { id:"hear_it", label:"Let the thing beneath the Archive speak.", events:["scene:archive_voice_names"] },
       { id:"learn_what_it_is", label:"Work out what has every name but one.", events:["scene:archive_voice_asks_name","scene:archive_voice_the_name","scene:archive_voice_told_name"] },
-      { id:"leave", label:"Climb back out of the Archive with what it gave you.", events:["scene:archive_voice_ascent"], completes:true },
+      { id:"leave", label:"Climb back up and report to Theones in reception.", events:["scene:archive_voice_ascent"], completes:true },
     ] },
     c1q19:{ objectives:[
       { id:"reach_chancery", label:"Reach the Chancery Room, where the Ninth is being re-engrossed.", events:["scene:chancery_records_room"] },

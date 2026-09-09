@@ -10,6 +10,9 @@
 //    that nobody has said it in four hundred years.
 (function(){
 
+  function archiveReward(flag,xp=0,holy=0){if(getFlag(flag))return;setFlag(flag);if(xp)grantXP(xp);if(holy)grantHolyPoints(holy);}
+  function openArchiveHatch(){setFlag('archive_hatch_unlocked');runScene('archive_voice_names');window.__world3d?.toast?.('The hatch is open. Use the foundation entrance, then approach the Sixth Stone.',4800);}
+
   // ── DEDUCTION GATES (Twist Bible §4 — redundancy guarantee) ───────────────
   // The name is reachable from any TWO of the four sources. A player who skipped
   // two side quests still solves it. Nothing here may depend on a pq_* flag.
@@ -86,7 +89,7 @@
     archive_lowest_level: () => {
       setFlag('archive_voice_quest_started');
       return {
-        location: 'Church Archive — Below Level Four',
+        location: 'Church Archive — Level Four Hatch',
         locationIcon: '📜',
         threat: '⚠ Not On Any Plan',
         narration: `Level Four is the bottom of the Archive on every plan the Church has drawn since Flame Year 12. Level Four also has a seam in its floor, three feet by three, cut clean, and the stone around the seam has been polished by four centuries of boots belonging to men who came down here specifically not to open it. There is a ring set into it. The ring is worn. Nobody wears a ring by not pulling it.\n\nUnderneath: a stair, going down, into air that is measurably colder than the rock it is cut through.`,
@@ -95,22 +98,21 @@
           { icon: '🔍', label: 'Read the floor before you open it — who has been down here?', type: 'explore',
             roll: { stat: 'INT', dc: 13 },
             onSuccess: () => {
-              setFlag('archive_stair_read');
+              archiveReward('archive_stair_read',60);
               addLog('📜 CLUE: The wear is all on the OUTSIDE of the seam. Nobody goes down. They come down to Level Four, stand beside the hatch, and go back up. Generations of archivists have made a pilgrimage to a closed door and called it filing.', 'holy');
-              grantXP(60);
-              runScene('archive_voice_names');
+              openArchiveHatch();
             },
-            onFail: () => { addLog('Dust and boot-polish and four hundred years. You can tell it is used. You cannot tell how.', 'system'); runScene('archive_voice_names'); } },
+            onFail: () => { addLog('Dust and boot-polish and four hundred years. You can tell it is used. You cannot tell how.', 'system'); openArchiveHatch(); } },
           { icon: '✝', label: 'Pray before you open it. You do not know what is down there.', type: 'explore',
             roll: { stat: 'WIS', dc: 12 },
             onSuccess: () => {
-              grantHolyPoints(5);
+              if(!getFlag('heard_the_archive_voice'))archiveReward('archive_hatch_prayed',0,5);
               addLog('☩ The stillness comes and it comes easily, here, at the bottom of the building where they buried it. Whatever is under this floor, it is not what you just prayed to. +5 Holy Points.', 'holy');
-              runScene('archive_voice_names');
+              openArchiveHatch();
             },
-            onFail: () => { addLog('The words go out of you and the cold takes them and gives nothing back. Not refusal. Just cold.', 'system'); runScene('archive_voice_names'); } },
-          { icon: '🕳', label: 'Pull the ring. Go down.', type: 'move',
-            action: () => runScene('archive_voice_names') },
+            onFail: () => { addLog('The words go out of you and the cold takes them and gives nothing back. Not refusal. Just cold.', 'system'); openArchiveHatch(); } },
+          { icon: '🕳', label: 'Pull the ring and open the descent.', type: 'move',
+            action: () => openArchiveHatch() },
           { icon: '🚪', label: 'Close it. Some doors are shut for a reason.', type: 'move',
             action: () => { addLog('You lower the hatch and the seam disappears into the floor as if it had never been cut. You will come back. Everyone comes back. That is what the polish on the stone is.', 'system'); } },
         ]
@@ -134,21 +136,20 @@
             { icon: '🕯', label: 'Say nothing. Let it finish the list.', type: 'explore',
               roll: { stat: 'WIS', dc: 14 },
               onSuccess: () => {
-                setFlag('let_the_voice_finish');
-                grantXP(80);
+                archiveReward('let_the_voice_finish',80);
                 addLog('📜 CLUE: It is not threatening you. It is not showing off. It is going through them one at a time, carefully, the way a man goes through a drawer looking for a thing he is certain he put there. It is checking.', 'holy');
                 runScene('archive_voice_asks_name');
               },
               onFail: () => { addLog('You last about ninety seconds. Then the fourth name arrives — the one off the headstone — and your nerve goes.', 'system'); runScene('archive_voice_asks_name'); } },
           ];
-          if (getFlag('solved_early') || getFlag('knows_the_name_early')) {
+          if (knowsTheName() && !getFlag('told_the_voice')) {
             opts.push({ icon: '🗣', label: 'Tell it its name.', type: 'talk',
               action: () => runScene('archive_voice_told_name') });
           }
           opts.push({ icon: '🚪', label: 'Get out. Now. Up the stair.', type: 'move',
             action: () => {
-              addLog('You get four steps up before it says the headstone name again, conversationally, the way you would say "you forgot your hat." You stop. Everybody stops. It has had four hundred years to work out how to keep somebody in a room.', 'narrator');
-              runScene('archive_voice_asks_name');
+              addLog('The Voice calls the headstone name as you step away. The stair remains open; you can leave or return to the marker.', 'narrator');
+              window.__world3d?.toast?.('Use the chamber exit to climb back to Level Four.');
             }});
           return opts;
         })(),
@@ -171,12 +172,11 @@
         sub: `"S—". It cannot get past the first letter of itself.`,
         options: (function(){
           var opts = [];
-          if (getFlag('clue_well_syllable')) {
+          if (getFlag('clue_well_syllable') && !getFlag('voice_matches_well')) {
             opts.push({ icon: '🔍', label: 'You have heard that exact failure before. In a well. In Mol.', type: 'explore',
               roll: { stat: 'INT', dc: 12 },
               onSuccess: () => {
-                setFlag('voice_matches_well');
-                grantXP(120);
+                archiveReward('voice_matches_well',120);
                 addLog('📜 DEDUCTION: Same syllable. Same failure. Same place in the word. The thing under the Archive and the thing under Mol\'s well are not two things being similar. They are one thing, reaching, at two of the seven stones — and the one in the city is reaching through the thinner floor.', 'holy');
                 runScene('archive_voice_asks_name');
               },
@@ -193,7 +193,7 @@
           opts.push({ icon: '💬', label: '"Who took it from you?"', type: 'talk',
             action: () => {
               addLog('A long pause. Then, and this is the part you will carry: "I don\'t know. I would have given it to them. They only had to ask. They asked me for everything else."', 'narrator');
-              grantXP(50);
+              archiveReward('archive_voice_theft_discussed',50);
               runScene('archive_voice_asks_name');
             }});
           opts.push({ icon: '🚪', label: 'Climb out. You have what you came for and you wish you did not.', type: 'move',
@@ -231,8 +231,7 @@
           opts.push({ icon: '🔍', label: '"Are you the thing under the monastery? The one that talks about pieces?"', type: 'explore',
             roll: { stat: 'WIS', dc: 13 },
             onSuccess: () => {
-              setFlag('voice_is_not_the_voice_below');
-              grantXP(120);
+              archiveReward('voice_is_not_the_voice_below',120);
               addLog('📜 CLUE: "That is a piece of me," it says. "The smallest one. It never found anybody to live in, so it stayed where they cut it." A pause. "Six of them found people. It talks about us in the third person now. It has been alone longer than I have and it is younger than I am, which I do not think it has worked out." — Six carriers, one fragment left in the monastery chamber. That is seven. All seven are accounted for. This is not an eighth thing. This is what the seven were taken OUT of.', 'holy');
               runScene('archive_voice_the_name');
             },
@@ -240,8 +239,7 @@
           opts.push({ icon: '💬', label: '"You know what the Church built on top of you. Say it."', type: 'talk',
             roll: { stat: 'CHA', dc: 14 },
             onSuccess: () => {
-              setFlag('voice_named_the_church');
-              grantXP(100);
+              archiveReward('voice_named_the_church',100);
               addLog('📜 It says: "They put a floor over me and a filing system on the floor. Four hundred years of clerks have stood on my head and been very careful with the paperwork." A beat. "I do not blame the clerks. Clerks are not the ones who decide."', 'narrator');
               runScene('archive_voice_the_name');
             },
@@ -255,6 +253,7 @@
 
     // EARLY-SOLVER REWARD #3 (Twist Bible §4). The option the chapter is built toward.
     archive_voice_told_name: () => {
+      if(!knowsTheName())return S.archive_voice_asks_name();
       if (!getFlag('told_the_voice')) {
         setFlag('told_the_voice');
         setFlag('clue_voice_cannot_say_own_name');
@@ -273,7 +272,7 @@
           { icon: '💬', label: '"Selvane. Do you know what they did to you?"', type: 'talk',
             action: () => {
               addLog('"They asked me," it says. "That is the part nobody will believe. They asked me and I said yes." The weeping stops the way a tap stops. "I would like to be asked something again. Anything. It has been a while."', 'narrator');
-              grantXP(75);
+              archiveReward('archive_voice_consent_discussed',75);
               runScene('archive_voice_told_name');
             }},
           { icon: '🗼', label: '"I am coming to the Tower. Wait for me."', type: 'talk',
@@ -296,21 +295,21 @@
         addLog('📜 QUEST COMPLETE: The Voice Beneath the Archive. It is not the Voice Below. The Voice Below is the seventh fragment and it is still in the monastery where it has always been. This is the man the fragments were cut out of, reaching, through the one stone in the realm with a city thin enough on top of it.', 'holy');
       }
       return {
-        location: 'Church Archive — Level Four',
+        location: 'Church Archive — Reception',
         locationIcon: '📜',
-        narration: `You come up through the hatch into Level Four and Head Archivist Theones is standing beside it with a lamp he has not lit, in the dark, at whatever hour this is. He does not ask what you heard. He has had forty years to ask and he has managed not to.\n\n"My predecessor stood here," he says. "His predecessor stood here. There is a marginal note in the Level Four inventory, in six different hands, all of them saying the same thing in slightly better Chancery each time: 'Sub-floor cavity. Not surveyed. Not to be surveyed.'" He looks at the hole. "It has been the last line of that inventory since Flame Year Twelve. I have initialled it eleven times."\n\nThen: "Did it use my name?"`,
+        narration: `Back at reception, Theones rests an unlit lamp beside his catalogue. He does not ask what you heard. He has had forty years to ask and he has managed not to.\n\n"My predecessor stood beside that hatch," he says. "His predecessor stood there. There is a marginal note in the Level Four inventory, in six different hands: 'Sub-floor cavity. Not surveyed. Not to be surveyed.' It has been the last line since Flame Year Twelve. I have initialled it eleven times."\n\nThen: "Did it use my name?"`,
         sub: `It used everyone's.`,
         options: [
           { icon: '💬', label: '"It used everyone\'s. That is the point. It has all of them except one."', type: 'talk',
             action: () => {
               addLog('Theones does not sit down. He stays standing, which costs him something. "Except one," he repeats. "Whose?" And you watch a man who has catalogued the history of the world discover there is a category he never opened.', 'narrator');
-              grantXP(60);
+              archiveReward('archive_voice_report_discussed',60);
               runScene('archive_voice_ascent');
             }},
           { icon: '📜', label: '"What are you rehearsing? I can hear you doing it at night."', type: 'talk',
             action: () => runScene('chancery_records_room') },
           { icon: '🚪', label: 'Say nothing. Go up. Go outside. Breathe.', type: 'move',
-            action: () => { addLog('You climb four levels and step out into the Temple Quarter and the bells are ringing for the evening office and two hundred people are singing the Sevenfold Benediction in the square, at the tops of their voices, beautifully, the way they have every evening for four hundred years.', 'narrator'); goTo('temple_quarter'); } },
+            action: () => window.__world3d?.toast?.('Use the reception exit to return to the Temple Quarter.') },
         ]
       };
     },
@@ -1031,6 +1030,11 @@
     },
 
   };
+
+  // Revalidate stale option callbacks as well as the initial scene boundary.
+  for(const id of ['archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent']){
+    const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
+  }
 
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);
   if (typeof window !== 'undefined') { window.SCENES = window.SCENES || SCENES; Object.assign(window.SCENES, S); }

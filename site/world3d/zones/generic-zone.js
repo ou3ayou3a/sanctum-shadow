@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import {getZoneProfile} from './zone-profiles.mjs?v=239';
+import {getZoneProfile} from './zone-profiles.mjs?v=241';
 import {getKitActions} from '../environment-actions.mjs';
 import {createArchitectureKit} from '../architecture-kit.mjs';
 import {createNatureKit} from '../nature-kit.mjs';
 import {interiorAssetFor,placeProductionAsset} from '../production-assets.mjs?v=164';
 import {createMedievalMaterialLibrary} from '../medieval-materials.mjs';
-import {createChapterOneQuality} from '../chapter-one-quality.mjs?v=239';
-import {createChapterOneLocationDressing} from '../chapter-one-location-dressing.mjs?v=239';
-import {interiorDefinitionFor,interiorEntrancesFor} from '../interior-registry.mjs?v=239';
+import {createChapterOneQuality} from '../chapter-one-quality.mjs?v=241';
+import {createChapterOneLocationDressing} from '../chapter-one-location-dressing.mjs?v=241';
+import {interiorDefinitionFor,interiorEntrancesFor} from '../interior-registry.mjs?v=241';
 import {createInteriorEntrance,createInteriorKit} from '../interior-kit.mjs?v=164';
 
 const PALETTES={

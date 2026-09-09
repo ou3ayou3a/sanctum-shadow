@@ -1,8 +1,8 @@
 # Step 5 — physical quest interactions
 
-Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`. The Brother Cael batch is local and not deployed. This is not the completed Step 5 acceptance gate.
+Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`. The archive foundation/Voice batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Latest suite: 389 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 401 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
 
 Implemented:
 
@@ -69,7 +69,13 @@ Brother Cael implementation (local): a staged NPC in Saint Aldric’s courtyard 
 
 Brother Cael browser check: loaded the completed-archive courtyard fixture, verified the Last Sayer tracker, walked to Cael, and confirmed his interaction prompt. Withheld the truth, then told it; the narration and available options updated correctly. Leaving closed the scene and kept the player in the courtyard, with no fatal runtime error reported by the fixture. This is targeted fixture QA, not the archive-to-monastery campaign journey or a rendered multiplayer test. Reward totals and stale/repeated callbacks are covered by automated tests.
 
-Next physical route: the lowest archive chamber and its Voice scenes in `story-extra-finale.js` still use remote scene progression and need distinct entrance/room/interaction boundaries and repeated-check reward protection.
+Archive foundation implementation (local): the Level Four hatch has its own physical scene and checks, unlocking a separate foundation entrance. A new dungeon interior, using existing assets, contains the Sixth Stone interaction. Hearing the Voice, collecting its clues, and saying its name require the stone context; stale callbacks revalidate reach. Reading/praying at the hatch, listening, deductions, optional questions, consent discussion, and the report cannot repeatedly award XP/Holy. Existing clue flags retain prior claims where available; formerly untracked optional rewards now have explicit one-time flags. Previously visited saves retain descent access. The player may withdraw immediately without being forced back into dialogue. Completing the quest now requires returning through the archive and speaking to Theones at reception; he no longer appears remotely at the hatch. The Chancery continuation queues an explicit records interaction in the scriptorium, but the rest of quest 19 is still awaiting conversion.
+
+Twelve targeted tests cover the entry gate/location agreement, physical boundaries, successful/failed hatch checks, doorway travel/reach, immediate withdrawal, stale callbacks, duplicate rewards, knowledge-gated name revelation, Tower unlock, reception completion and next-door markers. The world/collision catalog now contains 28 zones and 16 interiors. No new graphics-quality pass or full campaign/multiplayer playthrough is claimed.
+
+Foundation browser check: the first attempt exposed an outdated quest-entry location still pointing to reception; it was corrected to Level Four and regression-tested. In the corrected hatch fixture, walked to the hatch and confirmed it, opened the descent without remotely hearing the Voice, walked to the separate entrance, and entered the new foundation room. Then approached and confirmed the Sixth Stone and opened its authored dialogue. Asked for the Voice’s name, then chose to leave: the dialogue closed, the quest remained at 3/4, and the tracker directed the player to Theones without teleporting or completing the quest. The fixture reported no fatal runtime error. This is a targeted fixture route, not an entire campaign, save/reload, or rendered multiplayer playthrough; the full return/report and reward branches have automated coverage.
+
+Next physical route: complete the Chancery investigation and its records, officer dialogue, and return boundaries.
 
 Still required:
 

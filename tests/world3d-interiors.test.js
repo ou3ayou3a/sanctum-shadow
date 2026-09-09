@@ -10,7 +10,7 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('Chapter I interiors have authoritative assets, parents, entrances, gameplay hotspots, and occupants',async()=>{
   const {INTERIOR_LOCATION_IDS,interiorDefinitionFor,interiorEntrancesFor}=await import('../site/world3d/interior-registry.mjs');
-  assert.equal(INTERIOR_LOCATION_IDS.length,15);
+  assert.equal(INTERIOR_LOCATION_IDS.length,16);
   for(const id of INTERIOR_LOCATION_IDS){
     const interior=interiorDefinitionFor(id);
     assert.match(interior.asset,/^(tavern|shop|temple|castle|house|dungeon)_interior$/);

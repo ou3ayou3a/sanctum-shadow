@@ -25,7 +25,7 @@
     c1q15: Object.freeze({ scene:'mol_true_sermon_arrival', location:'mol_village', objective:'return_mol', destination:'the village green in Mol' }),
     c1q16: Object.freeze({ scene:'rival_company_shadow', location:'tarnished_cup', objective:'notice', destination:'the Tarnished Cup in Vaelthar' }),
     c1q17: Object.freeze({ scene:'church_archive_breakin', location:'church_archive', objective:'break_in', destination:'the sealed Church Archive' }),
-    c1q18: Object.freeze({ scene:'archive_lowest_level', location:'church_archive', objective:'descend', destination:'the lowest level of the Church Archive' }),
+    c1q18: Object.freeze({ scene:'archive_lowest_level', location:'archive_level_four', objective:'descend', destination:'the foundation hatch on Archive Level Four' }),
     c1q19: Object.freeze({ scene:'chancery_records_room', location:'archive_scriptorium', objective:'reach_chancery', destination:'the Archive Scriptorium and Chancery Room' }),
     c1q20: Object.freeze({ scene:'tower_ash_approach', location:'tower_ash', objective:'reach_tower', destination:'the Tower of Ash' }),
   });
