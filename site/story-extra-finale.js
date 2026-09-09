@@ -11,6 +11,7 @@
 (function(){
 
   function archiveReward(flag,xp=0,holy=0){if(getFlag(flag))return;setFlag(flag);if(xp)grantXP(xp);if(holy)grantHolyPoints(holy);}
+  function reviewCovenant(){runScene(getFlag('clue_author_signed_with_cross')?'covenant_author_closed':'chancery_vault_request');}
   function openArchiveHatch(){setFlag('archive_hatch_unlocked');runScene('archive_voice_names');window.__world3d?.toast?.('The hatch is open. Use the foundation entrance, then approach the Sixth Stone.',4800);}
 
   // ── DEDUCTION GATES (Twist Bible §4 — redundancy guarantee) ───────────────
@@ -322,37 +323,29 @@
 
     chancery_records_room: () => {
       setFlag('covenant_author_quest_started');
-      return {
-        location: 'Church Archive — The Chancery Room, Level Three',
-        locationIcon: '📚',
-        threat: '⚠ Ratification In Four Days',
-        narration: `Six days ago the Ninth Covenant was signed. Three days ago it was ash. The period expires this year and there is not one clerk in this building with the authority to say that out loud, so instead there are four copyists at four desks re-engrossing the whole instrument from the Ostrene counterpart, at speed, in silence, and the room smells of gum arabic and panic.\n\nAnd in the corner, in a chair too small for him, Head Archivist Theones is practising a sentence. Out loud. Phonetically. In a language he does not speak. He has been doing it, by his own account, for four months. He is the presiding officer of the Ninth Ratification and he has that one line to deliver and he is determined not to fumble it in front of the Crown.\n\nHe gets to the third syllable and stops and starts again. He has the vowels slightly wrong.`,
-        sub: `They are rebuilding the treaty from page four. Nobody in this room has read page one.`,
-        options: [
-          { icon: '🔍', label: 'The First Covenant, Flame Year 12 — get it out of the vault', type: 'explore',
+      return {location:'The Scriptorium — Chancery Index',locationIcon:'📚',narration:'The Ninth Covenant is being re-engrossed from the Ostrene counterpart. The index separates the original First Covenant from the unfinished copies. A rehearsal card is signed out to Head Archivist Theones at reception.',sub:'The records and their presiding officer must be approached separately.',options:[
+        {icon:'📜',label:'Find the First Covenant case.',type:'move',action:()=>runScene('chancery_vault_request')},
+        {icon:'🔍',label:'Inspect the unfinished copies.',type:'move',action:()=>runScene('chancery_copying_desk')},
+        {icon:'💬',label:'Ask Theones about his rehearsal card.',type:'move',action:()=>runScene('chancery_rubric_rehearsal')},
+        {icon:'🚪',label:'Step away from the index.',type:'move',action:()=>window.__world3d?.toast?.('Explore the scriptorium or use its exit.')}
+      ]};
+    },
+    chancery_vault_request:()=>({location:'The Scriptorium — First Covenant Case',locationIcon:'📜',narration:'The oldest series is filed in a separate case. Match its entry to the index before handling the original.',options:[{ icon: '🔍', label: 'The First Covenant, Flame Year 12 — get it out of the vault', type: 'explore',
             roll: { stat: 'INT', dc: 13 },
             onSuccess: () => {
               setFlag('pulled_first_covenant');
-              addLog('📜 You cite the correct shelf, the correct series, and the correct reason. The vault clerk is so relieved to meet someone who knows the catalogue that he hands you a four-hundred-year-old document and goes back to his tea.', 'holy');
+              addLog('📜 You cite the correct shelf, the correct series, and the correct reason. The shelf register leads you to the correct case. You carefully unfold the four-hundred-year-old document.', 'holy');
               runScene('covenant_signature_block');
             },
-            onFail: () => { addLog('The vault clerk refuses on procedure. Theones, without looking up from his sentence, says "give it to them" in the voice of a man who has stopped caring which rules he is breaking this week.', 'system'); runScene('covenant_signature_block'); } },
-          { icon: '🔍', label: 'Watch the copyists. What are they NOT copying?', type: 'explore',
+            onFail: () => { addLog('The catalogue reference is unclear, but a cross-index inside the case identifies the First Covenant. It takes longer to retrieve it.', 'system'); runScene('covenant_signature_block'); } }]}),
+    chancery_copying_desk:()=>({location:'The Scriptorium — Copying Desk',locationIcon:'📚',narration:'Four unfinished copies lie beside their reference sheets. Compare where each copy begins.',options:[{ icon: '🔍', label: 'Compare the unfinished copies. What is missing?', type: 'explore',
             roll: { stat: 'WIS', dc: 12 },
             onSuccess: () => {
-              setFlag('clue_copyists_skip_page_one');
-              grantXP(90);
+              archiveReward('clue_copyists_skip_page_one',90);
               addLog('📜 CLUE: All four start at clause the eighth — the schedules. Page one is marked in the margin "ENGROSSED PER RUBRIC — DO NOT COPY." It is not secret. It is not sealed. It is just not a copyist\'s job. Four hundred years of negotiators have fought over the schedules and skipped the preamble, because nobody reads the preamble.', 'holy');
               runScene('covenant_signature_block');
             },
-            onFail: () => { addLog('Four men copying fast. Whatever they are leaving out, they are leaving it out so routinely that it does not look like leaving anything out.', 'system'); runScene('covenant_signature_block'); } },
-          { icon: '💬', label: '"Theones. What is that sentence you keep saying?"', type: 'talk',
-            action: () => runScene('chancery_rubric_rehearsal') },
-          { icon: '🚪', label: 'Leave them to it. You have a tower to find.', type: 'move',
-            action: () => { addLog('You leave four men rebuilding a prayer they believe is a contract, at speed, four days before the deadline. They will finish. That is the horrifying part. They are good at their jobs.', 'system'); } },
-        ]
-      };
-    },
+            onFail: () => { addLog('Four unfinished copies, all following the same pattern. You cannot tell what is missing.', 'system'); runScene('covenant_signature_block'); } }]}),
 
     // PRIMARY CLUE — c1q19.
     covenant_signature_block: () => {
@@ -376,8 +369,7 @@
               type: 'explore',
               roll: { stat: 'INT', dc: minutes ? 12 : 15 },
               onSuccess: () => {
-                setFlag('clue_author_hand_matches_minutes');
-                grantXP(150);
+                archiveReward('clue_author_hand_matches_minutes',150,0);
                 addLog('📜 DEDUCTION: The hand that drafted page one of the First Covenant is the hand that took the founders\' minutes. Same letterforms, same eccentric ampersand, same man. He was in the room where they decided to make a god. He was in the room where they begged the old faith for the instrument to hold what they had made. ONE MAN WAS IN BOTH ROOMS.', 'holy');
                 runScene('chancery_rubric_rehearsal');
               },
@@ -385,8 +377,7 @@
             { icon: '📜', label: 'Read page one. All of it. Including the preamble.', type: 'explore',
               roll: { stat: 'INT', dc: 12 },
               onSuccess: () => {
-                setFlag('read_page_one');
-                grantXP(120);
+                archiveReward('read_page_one',120,0);
                 addLog('📜 CLUE: Page one is not a preamble. It is six petitions, each closing with a cross — and then a seventh cross, alone, with nothing after it. The chancery gloss in the margin: "the notarial mark, closing the instrument." Four hundred years of copyists have drawn the seventh clause of the most fought-over document in the world at the bottom of a page and called it punctuation.', 'holy');
                 runScene('chancery_rubric_rehearsal');
               },
@@ -414,11 +405,11 @@
         addLog('📜 The Chancery Rubric glosses it: "rendering approximately, IT IS DONE." It does not mean that. It has never meant that. Somebody wrote that gloss knowing exactly what he was doing.', 'holy');
       }
       return {
-        location: 'The Chancery Room — The Rubric',
+        location: 'Archive Reception — The Rubric',
         locationIcon: '📚',
         threat: first ? '☩ Something Real' : null,
         narration: first
-          ? `He hands you the rubric, mildly, the way you would hand someone a timetable. "The Chancery Rubric for the Ratification of the Covenant. Clause the seventh is not written — it is spoken, by the presiding officer alone, in the old form. There is a transliteration. The Archive's gloss says it renders approximately as 'it is done.'" A dry little shrug. "Four months. I have the vowels wrong. Listen."\n\nAnd Head Archivist Theones, sixty-seven years old, forty years in the service of the Church of the Eternal Flame, gets the vowels right for the first time — and says the name of Jesus Christ out loud in the Chancery Room, correctly, in front of you, because it was written on a card and it was his job.\n\nAnd the stillness comes.\n\nIt does not knock anything over. The copyists do not look up; two of them stop writing without noticing they have. It is quiet. It is certain. It does not argue with anybody. It simply is, and it is in the room, and it has come for the man in the small chair.\n\nHis hands are shaking. He looks at them as if they belong to someone else.`
+          ? `He hands you the rubric, mildly, the way you would hand someone a timetable. "The Chancery Rubric for the Ratification of the Covenant. Clause the seventh is not written — it is spoken, by the presiding officer alone, in the old form. There is a transliteration. The Archive's gloss says it renders approximately as 'it is done.'" A dry little shrug. "Four months. I have the vowels wrong. Listen."\n\nAnd Head Archivist Theones, sixty-seven years old, forty years in the service of the Church of the Eternal Flame, gets the vowels right for the first time — and says the name of Jesus Christ out loud at his reception desk, correctly, in front of you, because it was written on a card and it was his job.\n\nAnd the stillness comes.\n\nIt does not knock anything over. The pen beside his catalogue stops scratching. It is quiet. It is certain. It does not argue with anybody. It simply is, and it is in the room, and it has come for the man in the small chair.\n\nHis hands are shaking. He looks at them as if they belong to someone else.`
           : `He is still holding the card. He has not put it down since. "I have destroyed more documentation of that name than almost any person alive," he says, to nobody, for the third time in an hour. "I need you to understand what I'm telling you." Then, with the terrible precision of his profession: "In four days I was going to say it in the Cathedral. In front of the Crown. And go home."`,
         sub: first ? `He said it. He had no idea. He was four days from saying it in the Cathedral.` : `The presiding officer of the Ninth Ratification cannot stop looking at his own hands.`,
         options: (function(){
@@ -426,28 +417,27 @@
             { icon: '💬', label: '"Do you know what you just said?"', type: 'talk',
               action: () => {
                 addLog('☩ Theones: "I have destroyed more documentation of that name than almost any person alive. I need you to understand what I\'m telling you." He sits down. He does not do it gracefully. "Seventeen collections. I read every one of them first. Professional thoroughness." His hands have not stopped. "And it was on the card. It has been on the card since Flame Year Twelve. It was always on the card."', 'holy');
-                setFlag('theones_told');
-                grantXP(100);
+                archiveReward('theones_told',100,0);
                 runScene('chancery_rubric_rehearsal');
               }},
             { icon: '💬', label: '"Then Varek did not burn a treaty. He burned a prayer."', type: 'talk',
               action: () => {
                 addLog('📜 Theones, quietly, doing the arithmetic out loud like the archivist he is: "Signing does not seal it. Signing WARRANTS it. The saying seals it. Burn the instrument before ratification and the warrants never existed — and seven men who were licensed to stand at seven stones and speak are, as of three days ago, not licensed to do anything at all." A pause. "He burned the authorisation. The whole realm stopped being allowed to pray."', 'holy');
-                setFlag('understands_the_mechanism');
-                grantXP(120);
+                archiveReward('understands_the_mechanism',120,0);
                 runScene('chancery_rubric_rehearsal');
               }},
           ];
-          if (!(window.npcAbsent && window.npcAbsent('sister_mourne'))) {
+          if (getFlag('clue_author_signed_with_cross') && !(window.npcAbsent && window.npcAbsent('sister_mourne'))) {
             opts.push({ icon: '🕯', label: 'Take page one to Sister Mourne. She has read every buried text alive.', type: 'move',
               action: () => runScene('mourne_page_one') });
           }
-          if (varekReachable()) {
+          if (getFlag('clue_author_signed_with_cross') && window.npcAbsent?.('sister_mourne'))opts.push({icon:'🕯',label:'Look for Mourne at her rooms in the Temple Quarter.',type:'move',action:()=>runScene('mourne_page_one_absent')});
+          if (getFlag('clue_author_signed_with_cross') && varekReachable()) {
             opts.push({ icon: '⛩', label: 'Take page one to Elder Varek. Let him read the first page.', type: 'move',
               action: () => runScene('varek_first_page') });
           }
-          opts.push({ icon: '📜', label: 'Close the book. You know who wrote it now.', type: 'move',
-            action: () => runScene('covenant_author_closed') });
+          opts.push({ icon: '📜', label: getFlag('clue_author_signed_with_cross')?'Review the author’s identity with Theones.':'Read the original First Covenant before drawing conclusions.', type: 'move',
+            action: () => runScene(getFlag('clue_author_signed_with_cross')?'covenant_author_closed':'chancery_vault_request') });
           return opts;
         })(),
       };
@@ -468,15 +458,13 @@
           { icon: '💬', label: '"You were right about clause four. That was never the question."', type: 'talk',
             action: () => {
               addLog('Mourne: "No. I was right about clause four." She says it flatly, like reading a total off a ledger. "And the answer to the question I was actually being asked was on the first page, in a hand better than mine, and I turned past it because the first page of a treaty is —" And she stops. And she lets the sentence hang, which is what she does when she has decided not to say the last part. But this time you can see it on her, and it is not that she decided. It is that there is no last part.', 'narrator');
-              setFlag('mourne_broke');
-              grantXP(150);
+              archiveReward('mourne_broke',150,0);
               runScene('mourne_page_one');
             }},
           { icon: '🕯', label: '"You are called The Candle. You burned a prayer."', type: 'talk',
             roll: { stat: 'CHA', dc: 15 },
             onSuccess: () => {
-              setFlag('mourne_named');
-              grantHolyPoints(5);
+              archiveReward('mourne_named',0,5);
               addLog('📜 She does not flinch and she does not defend it. "Yes," she says. And then — the only time you will ever hear this from her — "I would like to sit down." She does not sit down. Varek\'s agents are trained.', 'holy');
               runScene('mourne_page_one');
             },
@@ -484,12 +472,11 @@
           { icon: '💬', label: '"Can it be mended? You know the texts better than anyone alive."', type: 'talk',
             action: () => {
               addLog('Mourne: "It requires a sayer who means it." A beat. "I have read more about Him than any priest in this city and I have never once meant a word of it. That is not modesty. It is a finding." She hands page one back. "You will need someone else."', 'narrator');
-              setFlag('mourne_declines_officer');
-              grantXP(80);
+              archiveReward('mourne_declines_officer',80,0);
               runScene('mourne_page_one');
             }},
           { icon: '📜', label: 'Take page one back. Leave her with it.', type: 'move',
-            action: () => runScene('covenant_author_closed') },
+            action: () => reviewCovenant() },
         ]
       };
     },
@@ -511,7 +498,7 @@
         sub: `Her absence is a hole in the page you will feel at the tower. You made it. You carry it.`,
         options: [
           { icon: '📜', label: 'Close the book. You know who wrote it now.', type: 'move',
-            action: () => { grantXP(120); runScene('covenant_author_closed'); } },
+            action: () => { archiveReward('mourne_absence_reflected',120); reviewCovenant(); } },
         ],
       };
     },
@@ -529,28 +516,25 @@
           { icon: '💬', label: '"You did not burn the seal. You evicted it."', type: 'talk',
             action: () => {
               addLog('📜 Varek: "The Candle burned a copy of a copy. I knew that when I ordered it — it was a copy, it was theatre, it was meant to buy the Church eighteen months." His voice does not change. "And the actual seal was seven men in this building who I had removed to make room for my bed."', 'hell');
-              setFlag('varek_understands');
-              grantXP(150);
+              archiveReward('varek_understands',150,0);
               runScene('varek_first_page');
             }},
           { icon: '💬', label: 'Let him ask his question.', type: 'talk',
             action: () => {
               addLog('Varek: "Would it have mattered? If I had read the first page?" — And the game does not answer him, and neither do you, because the answer is yes, it would have mattered, and he would not have believed it, and both of those are true at once and there is no sentence that holds them both.', 'narrator');
-              setFlag('varek_asked');
-              grantXP(80);
+              archiveReward('varek_asked',80,0);
               runScene('varek_first_page');
             }},
           { icon: '✝', label: '"Say it. Clause seven. You are an Elder — you are qualified to preside."', type: 'talk',
             roll: { stat: 'CHA', dc: 16 },
             onSuccess: () => {
               addLog('☩ He tries. He gets three words in — and stops. Not from fear. From accuracy. "It requires conviction," he says. "I have had forty years of the other thing." Elder Varek, who was right about clause four, is not qualified, and he is the first man in this chapter to work that out about himself unprompted.', 'holy');
-              setFlag('varek_cannot_say_it');
-              grantHolyPoints(5);
+              archiveReward('varek_cannot_say_it',0,5);
               runScene('varek_first_page');
             },
             onFail: () => { addLog('"No," he says. Just that. He is not being difficult. He is being correct and he knows it.', 'system'); runScene('varek_first_page'); } },
           { icon: '📜', label: 'Leave him with the first page. Let him hold it a while.', type: 'move',
-            action: () => runScene('covenant_author_closed') },
+            action: () => reviewCovenant() },
         ]
       };
     },
@@ -571,14 +555,13 @@
         sub: `The Covenant is not to be signed. It is to be said. Everything else is schedules.`,
         options: [
           { icon: '🗼', label: 'The Ashen Fields. The Tower. Stone VII. Go.', type: 'move',
-            action: () => { openTheTower(); addLog('You go south with a prayer in your coat and the name of a dead man in your mouth.', 'narrator'); goTo('tower_ash'); } },
+            action: () => { openTheTower(); window.__world3d?.toast?.('The Tower is marked. Leave through reception and choose your route south.'); } },
           { icon: '🌑', label: 'The Ashen Fields first — you want the ground under you before the door', type: 'move',
-            action: () => goTo('ashen_fields') },
+            action: () => window.__world3d?.toast?.('Leave through reception, then choose the Ashen Fields on the world map.') },
           { icon: '💬', label: 'Tell Theones the ratification is not a signing ceremony', type: 'talk',
             action: () => {
               addLog('📜 Theones: "Then the Crown\'s lawyers have been negotiating the annexes of a prayer since before my great-grandfather was born." He starts laughing and it goes wrong about four seconds in. "I have to tell the Cathedral. I have to stand up in front of the Crown and tell them what we have all been doing." He stops. "They will not believe me. I am the Head Archivist. I destroyed the evidence."', 'narrator');
-              setFlag('theones_will_testify');
-              grantXP(100);
+              archiveReward('theones_will_testify',100,0);
             }},
         ]
       };
@@ -1032,7 +1015,7 @@
   };
 
   // Revalidate stale option callbacks as well as the initial scene boundary.
-  for(const id of ['archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent']){
+  for(const id of ['archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent','chancery_records_room','chancery_vault_request','chancery_copying_desk','covenant_signature_block','chancery_rubric_rehearsal','mourne_page_one','mourne_page_one_absent','varek_first_page','covenant_author_closed']){
     const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
   }
 

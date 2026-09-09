@@ -49,7 +49,7 @@ body.vt-3d-active #vaelthar-overlay:has(.world3d-hud)::before{content:"";positio
 .world3d-title span{font-size:7px;letter-spacing:.22em}.world3d-title strong{font-size:15px;letter-spacing:.045em}
 .world3d-utility-bar{border-radius:2px;border-color:var(--w3-line);backdrop-filter:blur(10px)}
 .world3d-utility-bar button{transition:background .16s,color .16s,transform .16s}.world3d-utility-bar button:hover{transform:translateY(-2px)}
-.world3d-prompt{bottom:94px;filter:drop-shadow(0 7px 18px #000)}.world3d-prompt button{border:0;border-radius:3px;background:rgba(3,9,8,.93);box-shadow:0 0 0 1px rgba(225,197,112,.46),0 10px 32px rgba(0,0,0,.62);backdrop-filter:blur(9px)}
+.world3d-prompt{bottom:94px;z-index:40;filter:drop-shadow(0 7px 18px #000)}.world3d-prompt button{border:0;border-radius:3px;background:rgba(3,9,8,.93);box-shadow:0 0 0 1px rgba(225,197,112,.46),0 10px 32px rgba(0,0,0,.62);backdrop-filter:blur(9px)}
 .world3d-interaction-menu{bottom:72px;border:0;border-radius:4px;box-shadow:0 0 0 1px rgba(225,197,112,.38),0 24px 80px rgba(0,0,0,.78);backdrop-filter:blur(16px)}
 .world3d-interaction-choices>button{position:relative;border-radius:2px;overflow:hidden;transition:transform .14s,border-color .14s,background .14s}.world3d-interaction-choices>button:hover,.world3d-interaction-choices>button:focus-visible{color:#f1e9d7;background:linear-gradient(90deg,rgba(137,99,48,.48),rgba(20,35,30,.96));border-color:#d8bc72;transform:translateY(-1px)}
 .world3d-interaction-choices>button:hover>span:first-child,.world3d-interaction-choices>button:focus-visible>span:first-child{color:#f1d98e;background:rgba(225,197,112,.12)}.world3d-interaction-choices>button:hover small,.world3d-interaction-choices>button:focus-visible small{color:#b7c7c0}

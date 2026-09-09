@@ -547,6 +547,8 @@ const PHYSICAL_NPC_SCENE_RULES = Object.freeze([
 
 function requirePhysicalNpcForScene(sceneId) {
   if (!document.body?.classList.contains('vt-3d-active')) return true;
+  // Her empty rooms are a physical evidence target, not a living-NPC conversation.
+  if(sceneId==='mourne_page_one_absent'&&window.PhysicalQuestFlow?.SCENES?.[sceneId])return true;
   const rule = PHYSICAL_NPC_SCENE_RULES.find(entry => entry.pattern.test(sceneId));
   if (!rule) return true;
   const pending = window._pendingPhysicalNpcScenes || (window._pendingPhysicalNpcScenes = {});

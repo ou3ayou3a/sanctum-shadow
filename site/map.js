@@ -430,6 +430,7 @@ window.WORLD_LOCATIONS = WORLD_LOCATIONS;
 window.travelToWorldLocation = function(id) {
   const location=window.WORLD_LOCATIONS?.[id];
   if(!location)return false;
+  unlockLocationsByProgress();
   if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. Restricted passages must be unlocked first.');return false;}
   if(location.locked){window.toast?.(location.lockHint||`${location.name} is locked.`,'error');return false;}
   window.world3dReturnLocation=window.mapState?.currentLocation||'vaelthar_city';
@@ -707,7 +708,7 @@ const PROGRESS_UNLOCKS = {
   church_archive: () => {
     const flags = window.sceneState?.flags || {};
     return !!(flags.mourne_ally || flags.mourne_allied || flags.allied_sister_mourne
-      || flags.has_archive_access || flags.knows_varek_location);
+      || flags.has_archive_access || flags.knows_varek_location || window.PhysicalQuestFlow?.archiveAdmitted(window.sceneState));
   },
   tower_ash: () => {
     const flags = window.sceneState?.flags || {};
@@ -979,7 +980,9 @@ function travelToLocation(loc) {
   // Dungeons/wilderness always get an encounter check. Cities/taverns never do.
   const noEncounterTypes = ['city', 'tavern', 'village'];
   const alwaysEncounterTypes = ['dungeon', 'wilderness'];
-  if (!noEncounterTypes.includes(loc.type) && loc.encounters?.length) {
+  const fromLocation=WORLD_LOCATIONS[prev];
+  const physicalPassage=(loc.parentLocation===prev&&!!loc.physicalEntrance)||(fromLocation?.parentLocation===loc.id&&!!fromLocation.physicalEntrance);
+  if (!physicalPassage && !noEncounterTypes.includes(loc.type) && loc.encounters?.length) {
     const encounterChance = alwaysEncounterTypes.includes(loc.type)
       ? 0.85  // Dungeons — almost certain
       : Math.min(0.25 + loc.danger * 0.12, 0.75); // Roads/outposts — scales with danger

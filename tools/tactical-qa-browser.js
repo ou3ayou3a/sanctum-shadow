@@ -12,6 +12,7 @@ window.addEventListener('load',()=>{
  const fourOption=document.createElement('option');fourOption.value='archive_level_four';fourOption.textContent='Archive Level Four (admitted fixture)';panel.querySelector('select').append(fourOption);
  const caelOption=document.createElement('option');caelOption.value='monastery_cael';caelOption.textContent='Brother Cael (completed archive fixture)';panel.querySelector('select').append(caelOption);
  const voiceOption=document.createElement('option');voiceOption.value='archive_voice_hatch';voiceOption.textContent='Archive Voice (hatch fixture)';panel.querySelector('select').append(voiceOption);
+ const chanceryOption=document.createElement('option');chanceryOption.value='archive_scriptorium';chanceryOption.textContent='Chancery records (admitted fixture)';panel.querySelector('select').append(chanceryOption);
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
  let targetZone=null;const refreshTargets=()=>{const zone=window.__world3d?.zone;if(!zone||zone===targetZone)return;targetZone=zone;targetSelect.replaceChildren();for(const record of zone.interactables){const option=document.createElement('option');option.value=record.id;option.textContent=record.label||record.id;targetSelect.append(option);}};
  approach.onclick=()=>{const engine=window.__world3d,record=engine?.zone?.interactables.find(item=>item.id===targetSelect.value);if(record)engine.goToInteraction(record);};
@@ -27,6 +28,7 @@ window.addEventListener('load',()=>{
   if(window.mapState.currentLocation==='merchant_road'){window.resetSceneState();window.activateQuest('c1q4',true);}
   if(window.mapState.currentLocation==='fortress_harren'){window.resetSceneState();window.activateQuest('c1q6',true);}
   if(window.mapState.currentLocation==='church_archive'){window.resetSceneState();window.activateQuest('c1q17',true);}
+  if(window.mapState.currentLocation==='archive_scriptorium'){window.resetSceneState();window.activateQuest('c1q19',true);window.sceneState.flags.met_theones=true;}
   if(window.mapState.currentLocation==='archive_level_four'){window.resetSceneState();window.activateQuest(selection==='archive_voice_hatch'?'c1q18':'c1q17',true);window.sceneState.flags.met_theones=true;window.sceneState.flags.archive_breakin_started=true;}
   if(window.mapState.currentLocation==='monastery_cellar'){window.resetSceneState();window.activateQuest('c1q2',true);}
   if(window.mapState.currentLocation==='monastery_depths'){window.resetSceneState();window.activateQuest('c1q2',true);window.sceneState.flags.monastery_first_chamber_cleared=true;window.sceneState.flags.entered_monastery_dungeon=true;}

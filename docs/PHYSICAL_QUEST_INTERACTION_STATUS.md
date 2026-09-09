@@ -1,8 +1,8 @@
 # Step 5 — physical quest interactions
 
-Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`. The archive foundation/Voice batch is local and not deployed. This is not the completed Step 5 acceptance gate.
+Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Latest suite: 401 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 415 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
 
 Implemented:
 
@@ -75,7 +75,19 @@ Twelve targeted tests cover the entry gate/location agreement, physical boundari
 
 Foundation browser check: the first attempt exposed an outdated quest-entry location still pointing to reception; it was corrected to Level Four and regression-tested. In the corrected hatch fixture, walked to the hatch and confirmed it, opened the descent without remotely hearing the Voice, walked to the separate entrance, and entered the new foundation room. Then approached and confirmed the Sixth Stone and opened its authored dialogue. Asked for the Voice’s name, then chose to leave: the dialogue closed, the quest remained at 3/4, and the tracker directed the player to Theones without teleporting or completing the quest. The fixture reported no fatal runtime error. This is a targeted fixture route, not an entire campaign, save/reload, or rendered multiplayer playthrough; the full return/report and reward branches have automated coverage.
 
-Next physical route: complete the Chancery investigation and its records, officer dialogue, and return boundaries.
+Chancery implementation (local): the existing scriptorium now separates the index, First Covenant case, and unfinished copying desk. The index routes to the physical desks rather than offering remote checks. The case retains its INT 13 retrieval check and fail-forward route; unfinished-copy inspection retains WIS 12. Signature comparison keeps INT 12 with the founders’ minutes and INT 15 without them. The rubric and final author discussion now require Theones at reception, with narration matching his actual location. Hearing the rubric first offers a return to the original document instead of bypassing the signature milestone. Departure from the final discussion no longer teleports directly to the Tower or Ashen Fields.
+
+After reading the original and hearing the rubric, optional page-one visits require Mourne in the Temple Quarter or Varek at Saint Aldric. Mourne’s absent variant has a separate rooms/evidence target and bypasses the obsolete living-NPC requirement only for that scene. Varek is staged only after his existing finale gate; absent NPC fates suppress both actors. Returning from either optional conversation requires Theones again. Record deductions, optional discussions, testimony, and absence reflection use one-time reward flags, including legacy flags where already available. Fourteen targeted tests cover the handoffs, failure route, out-of-order discovery, stale callbacks, repeated rewards, NPC absence, and completion. Existing assets are reused; no graphics upgrade is claimed.
+
+Chancery browser QA exposed an overlapping quest marker intercepting the Interact prompt. The prompt now has an explicit higher stacking level. At the same overlapping position after reload, DOM hit testing identified the Interact button itself, and clicking opened the First Covenant retrieval check. This is a game-wide prompt layering fix, not a graphics redesign.
+
+The admitted scriptorium fixture also exposed reception remaining locked despite `met_theones`. Progress unlocks now recognize existing archive admission flags and are refreshed before world travel. A regression test verifies admitted saves unlock reception while strangers do not. After reloading, the fixture’s physical exit successfully returned to reception. Browser checks covered the index-to-case handoff, retrieval check and signature presentation, and a separately reloaded index-to-Theones return route. These are targeted fixture checks, not a complete campaign, save/reload playthrough, or rendered multiplayer run. Optional Mourne/Varek branches and final author rewards have automated coverage.
+
+The return route also exposed the base map scheduler rolling a random ambush inside reception. The road-encounter wrapper already excluded parent/child physical passages, but the base scheduler did not. Both now exclude those passages. A forced-random regression test confirms interior travel schedules no ambush while ordinary dungeon travel still does.
+
+Final browser recheck: after reloading the fixes, used the Chancery index, queued Theones, walked to the exit, returned to reception without an ambush, approached Theones, and confirmed his interaction. The rubric dialogue opened at reception and, on this rubric-first fixture route, correctly offered reading the original First Covenant before drawing conclusions.
+
+Next physical route: the Tower approach and finale interaction boundaries. Other unconverted Chapter I routes and full campaign/reload/multiplayer QA remain part of Step 5.
 
 Still required:
 
