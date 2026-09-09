@@ -20,6 +20,21 @@ test('every origin has exactly three authored shared quests and a distinct conta
   }
 });
 
+test('every origin investigation has a distinct reachable physical evidence target',()=>{
+  const catalog=require('../site/collision-catalog.js'),{NavigationGrid}=require('../site/navigation-core.js');
+  const ids=new Set();
+  for(const [origin,line]of Object.entries(OriginQuests.ORIGIN_LINES)){
+    const site=OriginQuests.INVESTIGATION_SITES[origin],id=OriginQuests.investigationEntityId(origin);
+    assert.ok(site,origin);assert.ok(!ids.has(id));ids.add(id);assert.notEqual(id,'location_focus');
+    const zone=catalog[line.targetLocation],nav=new NavigationGrid({...zone.bounds,obstacles:zone.obstacles,cellSize:.65,padding:.62});
+    const start={x:0,z:zone.bounds.maxZ<10?zone.bounds.minZ+1.2:17},point={x:site.position[0],z:site.position[2]};
+    let reachable=false;
+    for(let i=0;i<16;i++){const angle=i*Math.PI/8,stop={x:point.x+Math.sin(angle)*1.4,z:point.z+Math.cos(angle)*1.4};if(!nav.isPointBlocked(stop)&&nav.findPath(start,stop).length){reachable=true;break;}}
+    assert.equal(reachable,true,`${origin}: evidence must be reachable`);
+  }
+  assert.equal(OriginQuests.investigationEntityId('__proto__'),null);
+});
+
 test('a four-person party receives twelve unique quests regardless of race or class composition',()=>{
   const manifest=OriginQuests.buildManifest([
     {playerName:'A',character:hero('Aldren','fallen_noble','paladin')},
@@ -69,10 +84,14 @@ test('an origin arc advances reunion, world investigation, and reckoning for the
   assert.equal(second.stage,2);
   global.document.body={classList:{contains:()=>true}};
   let interacted=false;
-  global.__world3d={zone:{id:second.targetLocation,interactables:[{id:'location_focus'}]},
+  global.__world3d={zone:{id:second.targetLocation,interactables:[{id:OriginQuests.investigationEntityId(second.origin)}]},
     hasPhysicalInteraction:()=>interacted,physicalReach:()=>true};
   assert.equal(OriginQuests.onLocationEntered(second.targetLocation),false);
   assert.match(sceneId,/reunion$/,'arrival must not begin the origin investigation');
+  const validRecords=global.__world3d.zone.interactables;
+  global.__world3d.zone.interactables=[{id:'location_focus'}];interacted=true;
+  assert.equal(OriginQuests.resumePending(),false,'the regional focus cannot replace the personal evidence site');
+  global.__world3d.zone.interactables=validRecords;interacted=false;
   const investigation=OriginQuests.investigationAction(second.targetLocation);
   assert.ok(investigation.label.includes(second.ownerName));
   interacted=true;investigation.onSelect();

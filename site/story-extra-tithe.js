@@ -117,7 +117,8 @@
         grantXP(120);
         addLog('📜 CLUE: The tithe is a payroll. "…for the stipend of the Sayer of the Second Stone, that the seven clauses be said at the seven stones on the day of the year…" Seven stones. Seven Sayers. A Charter that licenses them. The money buys a saying.', 'holy');
       }
-      gameState.character?.inventory?.push('Mol Tithe Ledger — Founding Page');
+      const inventory=gameState.character?.inventory;
+      if(inventory&&!inventory.includes('Mol Tithe Ledger — Founding Page'))inventory.push('Mol Tithe Ledger — Founding Page');
       return {
         location: 'Mol — The Founding Page',
         locationIcon: '📜',
@@ -202,15 +203,18 @@
             },
             onFail: () => { addLog('Old. Older than the Church, you\'d guess, but a guess is not evidence.', 'system'); runScene('mol_tithe_stone'); } },
           { icon: '💬', label: '"Berrick. Who was the last man paid to stand here?"', type: 'talk',
-            action: () => {
-              addLog('Berrick thinks. "Old Perrin? He did something at the stone. Once a year. Took a coin for it." A shrug. "He died in the spring. Nobody\'s taken it on. It\'s not really a job, is it — standing in a field talking."', 'narrator');
-              setFlag('knows_sayer_two_dead');
-              runScene('mol_tithe_stone');
-            }},
+            action: () => runScene('mol_tithe_last_sayer') },
           { icon: '🗺', label: 'Take the founding page and go. Somebody in Vaelthar needs to read this.', type: 'move',
             action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
         ]
       };
+    },
+
+    mol_tithe_last_sayer: () => {
+      setFlag('knows_sayer_two_dead');
+      return {location:'Mol — Berrick’s Doorstep',locationIcon:'💬',
+        narration:'Berrick thinks. “Old Perrin? He did something at the stone. Once a year. Took a coin for it.” A shrug. “He died in the spring. Nobody’s taken it on. It’s not really a job, is it — standing in a field talking.”',
+        options:[{icon:'🗿',label:'Return to the Second Stone',type:'move',action:()=>runScene('mol_tithe_stone')}]};
     },
 
     // ══════════════════════════════════════════

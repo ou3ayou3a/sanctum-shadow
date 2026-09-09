@@ -12,7 +12,7 @@ test('every non-dedicated Chapter I destination owns a unique authored scene pla
     import('../site/world3d/zones/zone-profiles.mjs'),
     import('../site/world3d/chapter-one-location-plans.mjs'),
   ]);
-  const expected=CHAPTER_ONE_ZONE_IDS.filter(id=>!['vaelthar_city','tarnished_cup'].includes(id)).sort();
+  const expected=CHAPTER_ONE_ZONE_IDS.filter(id=>!['vaelthar_city','tarnished_cup','mol_well_shaft'].includes(id)).sort();
   assert.deepEqual([...AUTHORED_CHAPTER_ONE_LOCATION_IDS].sort(),expected);
   const signatures=new Set();
   for(const id of expected){

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=230';
+import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=231';
 
 const TARGET_RULES=[
   [/covenant_hall|signing/i,'signing_hall'],[/scribe/i,'npc:trembling_scribe'],[/rhael/i,'npc:captain_rhael'],[/mourne/i,'npc:sister_mourne'],[/temple/i,'temple_quarter'],[/cartographer/i,'npc:drunk_cartographer'],[/tarnished_cup/i,'tarnished_cup'],[/archive/i,'church_archive'],[/merchant_road|thornwood|monastery|fortress|mol_village/i,'north_gate'],
@@ -20,7 +20,7 @@ export class Chronicle3DAdapter{
     for(const record of this.engine.zone.interactables){
       const authored=(record.actions||[]).filter(action=>!action.questEntry);
       record.actions=[...authored,...(window.questEntryActions?.(this.engine.zone.id,record.id)||[])];
-      const origin=record.id==='location_focus'&&window.PartyOriginQuests?.investigationAction?.(this.engine.zone.id);
+      const origin=record.id.startsWith('origin_site:')&&window.PartyOriginQuests?.investigationAction?.(this.engine.zone.id,record.id);
       if(origin)record.actions.push(origin);
     }
     this.signature=questSignature();this.list.replaceChildren();const quests=activeQuests().slice(0,5);if(!quests.length){const empty=document.createElement('div');empty.className='w3q-empty';empty.textContent='No active objectives';this.list.appendChild(empty);}for(const quest of quests){const item=document.createElement('article'),objective=currentObjective(quest),done=Object.keys(objectiveState(quest.id)).length,total=objectives(quest.id).length;item.className=`w3q-item ${quest.type==='origin'||String(quest.id).startsWith('pq_')?'personal':''}`;const title=document.createElement('strong');title.textContent=quest.title||'Untitled Quest';const text=document.createElement('span');text.textContent=objective?.label||quest.desc||'Continue the Chronicle.';const count=document.createElement('small');count.textContent=total?`${done}/${total}`:'ACTIVE';item.append(title,text,count);this.list.appendChild(item);}this.rebuildMarkers(quests);
@@ -28,10 +28,10 @@ export class Chronicle3DAdapter{
   }
   targetFor(objective,quest){
     const requests=window.PhysicalQuestFlow?.restoreRequests(window.sceneState?.physicalSceneRequests)||{};
-    const pendingId=Object.keys(requests).find(id=>window.PhysicalQuestFlow.TARGETS[id].quest===quest?.id);
-    if(pendingId){const record=this.engine.zone.interactables.find(item=>item.id===pendingId);if(record)return{position:record.position,interaction:record};}
+    const pendingId=Object.keys(requests).reverse().find(id=>window.PhysicalQuestFlow.TARGETS[id].quest===quest?.id);
+    if(pendingId){const definition=window.PhysicalQuestFlow.TARGETS[pendingId],id=definition.location===this.engine.zone.id||!this.engine.zone.id?pendingId:this.engine.zone.id==='mol_well_shaft'?'well_rope_exit':definition.entrance;const record=this.engine.zone.interactables.find(item=>item.id===id);if(record)return{position:record.position,interaction:record};}
     const physicalScene=(objective?.events||[]).map(event=>event.replace(/^scene:/,'')).find(scene=>window.PhysicalQuestFlow?.SCENES?.[scene]);
-    const physicalId=window.PhysicalQuestFlow?.SCENES?.[physicalScene];
+    const physicalId=window.PhysicalQuestFlow?.sceneTarget?.(physicalScene,this.engine.zone.id);
     if(physicalId){const record=this.engine.zone.interactables.find(item=>item.id===physicalId);if(record)return{position:record.position,interaction:record};}
     const entry=window.QUEST_ENTRY_POINTS?.[quest?.id];
     if(entry&&entry.objective===objective?.id&&entry.location===this.engine.zone.id){
@@ -43,7 +43,7 @@ export class Chronicle3DAdapter{
       if(record)return{position:record.position||record.actor?.position,interaction:record.interaction,actor:record.actor};
     }
     if(quest?.type==='origin'&&quest.stage===2){
-      const targetId=window.mapState?.currentLocation===quest.targetLocation?'location_focus':'north_gate';
+      const targetId=window.mapState?.currentLocation===quest.targetLocation?window.PartyOriginQuests?.investigationEntityId?.(quest.origin):'north_gate';
       const exact=this.engine.zone.interactables.find(entry=>entry.id===targetId);
       if(exact)return{position:exact.position,interaction:exact};
     }

@@ -18,7 +18,7 @@ function worldLocations(){
 
 test('the Chapter I world graph is complete, connected, and uses valid reciprocal routes',async()=>{
   const[{CHAPTER_ONE_ZONE_IDS},locations]=await Promise.all([import('../site/world3d/zones/zone-profiles.mjs'),Promise.resolve(worldLocations())]);
-  assert.equal(CHAPTER_ONE_ZONE_IDS.length,24);
+  assert.equal(CHAPTER_ONE_ZONE_IDS.length,25);
   for(const id of CHAPTER_ONE_ZONE_IDS){
     const location=locations[id];assert.ok(location,`${id} is missing from the world map`);
     assert.ok(Array.isArray(location.connections)&&location.connections.length,`${id} has no travel route`);

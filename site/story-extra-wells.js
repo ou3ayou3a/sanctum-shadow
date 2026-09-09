@@ -53,9 +53,7 @@
         { icon: '👁', label: '"Forty years ago. What happened forty years ago?"', type: 'talk',
           action: () => runScene('well_villagers_dismiss') },
         { icon: '🪢', label: 'Have yourself lowered down the shaft', type: 'explore',
-          roll: { stat: 'DEX', dc: 12 },
-          onSuccess: () => runScene('well_dry_shaft'),
-          onFail: () => { addLog('The rope skids through the crank. You drop the last twelve feet and land badly. −4 HP.', 'narrator'); if (gameState.character) gameState.character.hp = Math.max(1, gameState.character.hp - 4); runScene('well_dry_shaft'); } },
+          action: () => runScene('well_rope_descent') },
         { icon: '🌙', label: 'Stay until dark and hear it for yourself', type: 'move',
           action: () => runScene('well_vigil_night') },
       ]
@@ -79,9 +77,7 @@
         { icon: '📜', label: '"How long have you counted? Give me a year."', type: 'talk',
           action: () => runScene('well_villagers_dismiss') },
         { icon: '🪢', label: '"I want to go down there."', type: 'explore',
-          roll: { stat: 'DEX', dc: 12 },
-          onSuccess: () => runScene('well_dry_shaft'),
-          onFail: () => { addLog('Hesk holds the crank while you go down and your boot finds nothing but air for a moment too long. −4 HP. He hauls you the rest of the way with the calm of a man who expected it.', 'narrator'); if (gameState.character) gameState.character.hp = Math.max(1, gameState.character.hp - 4); runScene('well_dry_shaft'); } },
+          action: () => runScene('well_rope_descent') },
         { icon: '🌙', label: 'Sit the night with him', type: 'move',
           action: () => runScene('well_vigil_night') },
       ]
@@ -109,6 +105,17 @@
       ]
     };
   },
+
+  well_rope_descent: () => ({
+    location:'Mol — The Well Rope',locationIcon:'🪢',
+    narration:'You stand at the stone rim and test the rope. The shaft is dry and deep; the old crank can lower you, but the last stretch requires a steady grip.',
+    options:[
+      {icon:'🪢',label:'Secure the rope and begin the descent',type:'explore',roll:{stat:'DEX',dc:12},
+        onSuccess:()=>runScene('well_dry_shaft'),
+        onFail:()=>{addLog('The rope skids through the crank. You catch the rim hard. −4 HP. You secure it before continuing.','narrator');if(gameState.character)gameState.character.hp=Math.max(1,gameState.character.hp-4);runScene('well_dry_shaft');}},
+      {icon:'↩',label:'Step back from the rim',type:'move',action:()=>runScene('well_that_screams_arrival')},
+    ],
+  }),
 
   well_dry_shaft: () => {
     setFlag('well_stone_seen');
@@ -250,7 +257,10 @@
 
   well_that_screams_capped: () => {
     if(!flags().well_capped&&num('well_nights_failed')<2&&num('well_nights_transcribed')<2&&!flags().clue_well_syllable)return null;
-    if(window.sceneState?.physicalSceneRequests)delete window.sceneState.physicalSceneRequests.mol_well_vigil;
+    if(window.sceneState?.physicalSceneRequests){
+      for(const id of ['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'])delete window.sceneState.physicalSceneRequests[id];
+      if(window.sceneState.physicalSceneRequests.mol_well==='well_rope_descent')delete window.sceneState.physicalSceneRequests.mol_well;
+    }
     once('well_capped_once', () => {
       setFlag('well_capped');
       addLog('🧱 Mol\'s well is capped: rubble, lime, sixty feet of it. The screaming stops. So does the counting.', 'narrator');

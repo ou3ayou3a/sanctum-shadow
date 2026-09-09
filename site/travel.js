@@ -956,7 +956,9 @@ function arriveAtDestination(locId) {
 
     // Decide on the encounter BEFORE running travel so we can claim the trip's
     // single encounter slot and stop map.js's own scheduler from double-firing.
-    const encObj = rollTravelEncounter(fromLoc, loc);
+    const physicalPassage = (loc.parentLocation === fromLoc.id && !!loc.physicalEntrance)
+      || (fromLoc.parentLocation === loc.id && !!fromLoc.physicalEntrance);
+    const encObj = physicalPassage ? null : rollTravelEncounter(fromLoc, loc);
 
     // Run travel (music, fog of war, description). This resets
     // window._travelEncounterFired = false at its start.

@@ -37,13 +37,14 @@ test('save restoration retains only catalogued entity-to-scene pairs',()=>{
   assert.deepEqual(state,{'npc:well_warden_hesk':'well_warden_tally'});
   assert.equal({}.polluted,undefined);
 });
-test('every Mol quest target has a reachable approach using the actual zone collision catalog',()=>{
-  const zone=catalog.mol_village,nav=new NavigationGrid({...zone.bounds,obstacles:zone.obstacles,cellSize:.65,padding:.62});
+test('every physical quest target has a reachable approach using the actual zone collision catalog',()=>{
   for(const [id,target]of Object.entries(Flow.TARGETS)){
+    const zone=catalog[target.location],nav=new NavigationGrid({...zone.bounds,obstacles:zone.obstacles,cellSize:.65,padding:.62});
+    const start=target.location==='mol_well_shaft'?{x:-2,z:-1.4}:{x:0,z:17};
     const position={x:target.position[0],z:target.position[2]};let reachable=false;
     for(let i=0;i<16;i++){
       const angle=i*Math.PI/8,stop={x:position.x+Math.sin(angle)*1.65,z:position.z+Math.cos(angle)*1.65};
-      if(!nav.isPointBlocked(stop)&&nav.findPath({x:0,z:17},stop).length){reachable=true;break;}
+      if(!nav.isPointBlocked(stop)&&nav.findPath(start,stop).length){reachable=true;break;}
     }
     assert.equal(reachable,true,id);
     if(target.npc)assert.equal(nav.isPointBlocked(position),false,`${id} must not stand in scenery`);

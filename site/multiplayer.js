@@ -733,6 +733,7 @@ function buildCampaignState(reason = 'sync') {
       knownFacts: sharedFacts,
       npcStates: window.sceneState?.npcStates || {},
       history: window.sceneState?.history || [],
+      physicalSceneRequests: window.PhysicalQuestFlow?.restoreRequests(window.sceneState?.physicalSceneRequests) || {},
       lastNarration: window.sceneState?._lastNarration || '',
       currentThreat: window.sceneState?.currentThreat || null,
       currentData,
@@ -764,6 +765,11 @@ function applyCampaignState(state) {
     window.sceneState.knownFacts = { ...(state.scene.knownFacts || {}), ...localFacts };
     window.sceneState.npcStates = state.scene.npcStates || {};
     window.sceneState.history = state.scene.history || [];
+    window.sceneState.physicalSceneRequests = window.PhysicalQuestFlow?.restoreRequests(state.scene.physicalSceneRequests) || {};
+    if(!state.scene.currentData&&Object.keys(window.sceneState.physicalSceneRequests).length&&!window.sceneState._currentScene?.personal){
+      document.getElementById('scene-panel')?.remove();
+      window.sceneState._currentScene=null;window.sceneState._currentOptions=[];
+    }
     window.sceneState._lastNarration = state.scene.lastNarration || '';
     window.sceneState.currentThreat = state.scene.currentThreat || null;
     if (state.scene.currentData && gameState.activeScreen === 'game'
@@ -791,6 +797,7 @@ function applyCampaignState(state) {
   window.updateQuestCounter?.();
   window.updateWorldClockUI?.();
   window.PartyOriginQuests?.syncLocalCharacter?.();
+  window.__world3d?.chronicleAdapter?.refresh?.();
 }
 
 function mpBroadcastCampaignState(reason = 'sync') {

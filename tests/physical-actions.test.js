@@ -46,3 +46,13 @@ test('stale menu and custom actions do not resolve after moving away',async()=>{
   engine.actor.position.x=0;engine.beginPhysicalInteraction(record);engine.activeInteraction=record;engine.actor.position.x=20;
   await engine.submitCustomEnvironmentAction();assert.equal(resolved(),0);
 });
+
+test('re-interacting while already in range shows a prompt without relying on a zero-length walk callback',()=>{
+  const {engine}=engineHarness(),record={...entity,id:'desk'};let walked=false,prompt=null;
+  Object.assign(engine.actor,{stop(){},turnToward(){},playOneShot(){}});
+  engine.showPrompt=value=>{prompt=value;};engine.moveActor=()=>{walked=true;};
+  engine.physicalContext={entityId:'other',locationId:'city'};
+  engine.goToInteraction(record);
+  assert.equal(walked,false);assert.equal(prompt,record);assert.equal(engine.pendingInteraction,record);
+  assert.equal(engine.physicalContext,null,'approach is not confirmation');
+});

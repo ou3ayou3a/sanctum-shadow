@@ -97,6 +97,18 @@
     }),
   });
 
+  const INVESTIGATION_SITES=Object.freeze({
+    fallen_noble:{position:[-3,0,0],label:'Inspect the estate deed cabinet',kind:'records'},
+    orphan_war:{position:[0,0,-4],label:'Inspect the sealed muster-room door',kind:'records'},
+    cursed_bloodline:{position:[3,0,-1],label:'Inspect the sealed family crypt',kind:'stone'},
+    divine_chosen:{position:[0,0,2.5],label:'Examine the old chapel relief',kind:'stone'},
+    exile:{position:[-2.8,0,0],label:'Inspect the restricted court records',kind:'records'},
+    monster_hunter:{position:[3,0,4],label:'Examine the old killing ground',kind:'stone'},
+    corrupted_saint:{position:[-3,0,-5],label:'Inspect the abandoned confessional',kind:'records'},
+    blood_debt:{position:[-4,0,4],label:'Examine the roadside cairn',kind:'stone'},
+  });
+  function investigationEntityId(origin){return Object.hasOwn(INVESTIGATION_SITES,origin)?`origin_site:${origin}`:null;}
+
   const state = { manifest:null, context:null, pending:null, scenesRegistered:false };
   const slug = value => String(value || 'hero').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,28) || 'hero';
   function stableHash(value) { let h=2166136261; for(const ch of String(value)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);} return (h>>>0).toString(36); }
@@ -152,7 +164,7 @@
   function allQuests(){return state.manifest?.owners?.flatMap(owner=>owner.quests || []) || [];}
   function getQuest(id){return allQuests().find(quest=>quest.id===id) || null;}
   function activeQuestForNpc(npcId){return (globalThis.gameState?.activeQuests || []).find(quest=>quest.type==='origin' && quest.npcId===npcId) || null;}
-  function activeStageAtLocation(locationId){return (globalThis.gameState?.activeQuests || []).find(quest=>quest.type==='origin' && quest.stage===2 && quest.targetLocation===locationId) || null;}
+  function activeStageAtLocation(locationId,origin){return (globalThis.gameState?.activeQuests || []).find(quest=>quest.type==='origin' && quest.stage===2 && quest.targetLocation===locationId && (!origin||quest.origin===origin)) || null;}
   function ownerForQuest(quest){return state.manifest?.owners?.find(owner=>owner.ownerKey===quest?.ownerKey) || null;}
   function lineForQuest(quest){return ORIGIN_LINES[quest?.origin] || null;}
 
@@ -226,15 +238,16 @@
     runQuestScene(quest,quest.stage===1?'reunion':'reckoning');return true;
   }
 
-  function onLocationEntered(locationId) {
+  function onLocationEntered(locationId,origin) {
     if(globalThis.mp?.sessionCode && !globalThis.mp?.isHost)return false;
-    const quest=activeStageAtLocation(locationId);if(!quest)return false;
+    const quest=activeStageAtLocation(locationId,origin);if(!quest)return false;
     state.pending={questId:quest.id,locationId};return resumePending();
   }
   function resumePending(){
     const pending=state.pending;if(!pending)return false;
     if(globalThis.document?.body?.classList.contains('vt-3d-active')){
-      const engine=globalThis.__world3d,record=engine?.zone?.interactables.find(item=>item.id==='location_focus');
+      const quest=getQuest(pending.questId),entityId=investigationEntityId(quest?.origin);
+      const engine=globalThis.__world3d,record=engine?.zone?.interactables.find(item=>item.id===entityId);
       if(engine?.zone?.id!==pending.locationId||!record||!engine.hasPhysicalInteraction?.(record.id)||!engine.physicalReach?.(record))return false;
     }
     const blocked=globalThis._travelEncounterScheduled || globalThis.combatState?.active || globalThis.npcConvState?.active
@@ -245,11 +258,13 @@
     runQuestScene(quest,'trail');return true;
   }
 
-  function investigationAction(locationId){
-    const quest=activeStageAtLocation(locationId);if(!quest)return null;
+  function investigationAction(locationId,entityId){
+    const origin=Object.keys(INVESTIGATION_SITES).find(id=>investigationEntityId(id)===entityId);
+    if(entityId&&!origin)return null;
+    const quest=activeStageAtLocation(locationId,origin);if(!quest)return null;
     return{id:`origin_investigate_${quest.id}`,questEntry:true,direct:true,icon:'!',
       label:`Investigate ${quest.ownerName}’s past at ${quest.targetLabel}`,
-      onSelect:()=>onLocationEntered(locationId)};
+      onSelect:()=>onLocationEntered(locationId,quest.origin)};
   }
 
   function bestPartyCharacter(ability) {
@@ -323,7 +338,7 @@
   }
   if(typeof window!=='undefined')window.addEventListener('DOMContentLoaded',()=>{registerScenes();if(!installResumeHook())setTimeout(installResumeHook,500);});
 
-  return Object.freeze({ORIGIN_LINES,npcRegistry,ownerKey,questsForCharacter,buildPartyHistory,buildManifest,getQuest,
+  return Object.freeze({ORIGIN_LINES,INVESTIGATION_SITES,investigationEntityId,npcRegistry,ownerKey,questsForCharacter,buildPartyHistory,buildManifest,getQuest,
     initialize,hydrate,serialize,syncLocalCharacter,beginNpcQuest,onLocationEntered,resumePending,registerScenes,investigationAction,
     isQuestNpc:id=>Object.values(ORIGIN_LINES).some(line=>line.npc.id===id)});
 });

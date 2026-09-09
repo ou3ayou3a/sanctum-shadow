@@ -84,12 +84,19 @@ const WORLD_LOCATIONS = {
     region: 'western_reach',
     danger: 3,
     discovered: false,
-    connections: ['thornwood_gate', 'thornwood_passage', 'mol_hearthfire'],
+    connections: ['thornwood_gate', 'thornwood_passage', 'mol_hearthfire', 'mol_well_shaft'],
     description: `A small village that should be unremarkable. It isn't. A preacher here draws crowds with sermons naming the Church of the Eternal Flame as a demonic institution. The villagers listen with the focused attention of people who have been waiting their whole lives to hear something true. The Church wants him silenced. He might be right.`,
     quests: ['c1q5', 'c1q7', 'c1q12', 'c1q15'],
     npcs: ['The Heretic Preacher Aldran', 'Elder Mosswick', 'The Congregation'],
     encounters: ['cultist', 'shadow_wraith'],
     music: 'village_uneasy',
+  },
+  mol_well_shaft: {
+    id:'mol_well_shaft',name:'The Dry Well',subtitle:'The Stone Beneath Mol',x:254,y:184,
+    type:'dungeon',icon:'🪢',region:'western_reach',danger:1,discovered:false,
+    connections:['mol_village'],physicalEntrance:'mol_well',parentLocation:'mol_village',
+    description:'The rope descends into a dry stone shaft. An ancient block marked with an old cross seals the bottom.',
+    quests:['c1q7'],npcs:[],encounters:[],music:'dungeon_horror',lightLevel:'dark',
   },
   monastery_aldric: {
     id: 'monastery_aldric',
@@ -414,6 +421,7 @@ window.WORLD_LOCATIONS = WORLD_LOCATIONS;
 window.travelToWorldLocation = function(id) {
   const location=window.WORLD_LOCATIONS?.[id];
   if(!location)return false;
+  if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the well’s rope to enter or leave the shaft.');return false;}
   if(location.locked){window.toast?.(location.lockHint||`${location.name} is locked.`,'error');return false;}
   window.world3dReturnLocation=window.mapState?.currentLocation||'vaelthar_city';
   window.travelToLocation?.(location);
@@ -893,6 +901,7 @@ function handleMapLocationClick(loc) {
 }
 
 function travelToLocation(loc) {
+  if(window.PhysicalQuestFlow?.canTravel(window,loc)===false){window.__world3d?.toast?.('Reach and use the well’s rope to enter or leave the shaft.');return false;}
   // #16: no travel during combat
   if (window.combatState?.active) {
     if (window.toast) toast('⚔ Not during combat!', 'error');
