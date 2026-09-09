@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 476 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 479 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — supporting NPC staging (local, not deployed):
+
+- Outdoor outcomes and receipt follow-up are deployed in `7517008`.
+- Rane is now represented at the wool-gate exhibition during the refusal route, exclusively instead of her legation actor. After exemplar resolution she returns to the legation. Her death/absence flags suppress the actor. This is state-based relocation, not a walking travel animation.
+- Added Brask's two Flame Agent escorts to both possible encounter locations, using their existing combat IDs. They stage only with the corresponding unresolved Brask encounter and respect individual death/arrest/departure and leader resolution flags. Their ambient response directs players to Brask rather than opening a second encounter.
+- Three additional tests cover Rane's exclusive location, agent staging and fates, roster uniqueness and actual collision-catalog reachability. All 479 tests pass.
+- Browser fixture verified walking to Rane at the wool gate, explicitly interacting and receiving her exhibition response. No captured world-load error. Escort visibility/transitions are covered by automated staging tests, not a completed rendered combat run.
+- Remaining: combat-victory continuation, rendered multiplayer/reconnect, absent-Rane dialogue alternatives and dying Halven presentation. Step 5 remains in progress.
 
 Ambassador quest — wool-gate browser route and outcome follow-up (local, not deployed):
 

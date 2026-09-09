@@ -96,6 +96,17 @@
   const LECT_ALLEY=Object.freeze([-4,0,-10]);
   function funeralActive(state,game){return !!state?.flags?.mol_true_sermon_started||state?.physicalSceneRequests?.mol_funeral_cart==='mol_true_sermon_arrival'||(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q15')||!!state?.flags?.mol_true_sermon_done;}
   function npcStage(id,location,state,game){
+    if(id==='undersecretary_rane'){
+      const flags=state?.flags||{},wool=!!flags.rane_refused_once&&!flags.has_ostrene_exemplar&&!flags.chancery_took_exemplar;
+      const active=!!flags.ambassador_quest_started&&location===(wool?'vaelthar_city':'ostrene_legation')&&!flags.npc_dead_undersecretary_rane&&!['dead','arrested','fled'].includes(flags.npc_fate_undersecretary_rane);
+      return{active,key:'rane:'+wool+':'+active};
+    }
+    if(['flame_agent_legation_1','flame_agent_legation_2'].includes(id)){
+      const flags=state?.flags||{},wool=!!flags.ambassador_seizure_at_wool;
+      const leader=npcStage(wool?'wool_gate_brask':'chancery_brask',location,state,game);
+      const active=leader.active&&!flags['npc_dead_'+id]&&!['dead','arrested','fled'].includes(flags['npc_fate_'+id]);
+      return{active,key:id+':'+wool+':'+active};
+    }
     if(id==='chancery_brask'||id==='wool_gate_brask'){
       const flags=state?.flags||{},wool=!!flags.ambassador_seizure_at_wool,active=!!flags.ambassador_seizure_pending&&!flags.has_ostrene_exemplar&&!flags.chancery_took_exemplar&&!flags.npc_dead_chancery_brask&&!['dead','arrested','fled'].includes(flags.npc_fate_chancery_brask)&&location===(wool?'vaelthar_city':'ostrene_legation')&&id===(wool?'wool_gate_brask':'chancery_brask');
       return{active,key:'brask:'+wool+':'+active};

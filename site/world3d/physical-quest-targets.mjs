@@ -5,6 +5,12 @@ export function preparePhysicalQuestTargets(zone){
   // Authored rosters may be frozen/shared across visits. Quest staging belongs
   // to this zone instance, never to the imported source roster.
   zone.npcs=(zone.npcs||[]).map(npc=>({...npc,position:Array.isArray(npc.position)?[...npc.position]:npc.position}));
+  if(['vaelthar_city','ostrene_legation'].includes(zone.id)){
+    const wool=zone.id==='vaelthar_city';
+    const extras=[{id:'undersecretary_rane',name:'Undersecretary Rane',title:'Ostrene Chancery',race:'human',classId:'mage',position:[-6.5,0,33],action:'ambient',ambientLine:'The case is exhibited here. Read the first page; I can help you compare it.'},
+      ...[1,2].map((number,index)=>({id:'flame_agent_legation_'+number,name:'Flame Agent',title:'Church Chancery Escort',race:'human',classId:'warrior',position:wool?[index? .5:-2.5,0,31.5]:[index?1.8:-1.8,0,-4.7],action:'ambient',ambientLine:'The agent waits for Under-Officer Brask. Speak to him about the warrant.'}))];
+    for(const npc of extras){if(npc.id==='undersecretary_rane'&&!wool)continue;if(!zone.npcs.some(record=>record.id===npc.id))zone.npcs.push(npc);}
+  }
   if(zone.id==='vaelthar_city'){const door=zone.interactables.find(record=>record.id==='ostrene_legation');if(door)door.actions=[{id:'enter_legation',label:'Enter the Ostrene Legation',direct:true,onSelect:()=>window.__world3d?.transitionToWorldLocation('ostrene_legation','The Ostrene Legation')},...(door.actions||[])];}
   if(zone.id==='merchant_road'){zone.npcs=zone.npcs||[];for(const [id,position]of [['merchant_cultist_left',[1,0,-3]],['merchant_cultist_right',[3,0,-5]]])if(!zone.npcs.some(npc=>npc.id===id))zone.npcs.push({id,name:'Covenant Cultist',title:'Awaiting the Elder’s Orders',race:'human',classId:'cleric',position,action:'ambient',ambientLine:'The cultist watches his leader. Speak to the leader to confront them.'});}
   if(['thornwood_gate','thornwood_passage'].includes(zone.id)){
