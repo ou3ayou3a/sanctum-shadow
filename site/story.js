@@ -1591,7 +1591,7 @@ const MISSING_SCENES = {
           onSuccess: () => { addLog('📜 CLUE: The monks wrote in sequence — the phrase appears 847 times, each one more hurried than the last. The last one was written in blood.', 'holy'); runScene('monastery_first_chamber'); },
           onFail: () => runScene('monastery_first_chamber') },
         { icon: '🏃', label: 'This is madness. Leave.', type: 'move',
-          action: () => { addLog('📜 QUEST FAILED: You left the dungeon. The Voice remains.', 'system'); travelToLocation && travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
+          action: () => { addLog('You withdraw from the investigation. The Voice remains. You can return when you are ready.', 'system'); window.__world3d?.toast?.('Use the cellar exit to return to the monastery.'); } },
       ]
     };
   },
@@ -1612,7 +1612,7 @@ const MISSING_SCENES = {
           ], { victoryScene:'monastery_deep_chamber' }) },
         { icon: '📜', label: 'Grab the journal while watching the skeletons', type: 'explore',
           roll: { stat: 'DEX', dc: 12 },
-          onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); gameState.character?.inventory?.push("Last Monk\'s Journal"); startCombat([
+          onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); const inventory=gameState.character?.inventory;if(inventory&&!inventory.includes("Last Monk's Journal"))inventory.push("Last Monk's Journal"); startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
           ], { victoryScene:'monastery_deep_chamber' }); },
@@ -1733,18 +1733,28 @@ const MISSING_SCENES = {
     };
   },
 
-  monastery_dungeon_cleared: () => ({
+  monastery_dungeon_cleared: () => {
+    setFlag('monastery_voice_cleared');
+    return {
     location: 'Monastery Dungeon — Cleared',
     locationIcon: '⛩',
-    narration: `The dungeon is quiet now in a way it hasn\'t been in years. The skeletons don\'t rise. The air is still. As you climb back to the monastery proper, the last monk — the one they called catatonic — is sitting up in the courtyard. He blinks. Looks at his hands. Looks at you. "Is it quiet?" he asks. "Yes," you say. He closes his eyes. "I\'ve been waiting a very long time to hear that."`,
+    narration: `The dungeon is quiet now in a way it hasn\'t been in years. The skeletons don\'t rise. The air is still. The way back to the monastery is open. Return to the courtyard to learn whether the silence has reached the monks above.`,
     sub: `The monastery is clear. The deeper mystery — the shattered god — remains.`,
     options: [
-      { icon: '🗺', label: 'Return to Vaelthar with what you\'ve learned', type: 'move',
-        action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
+      { icon: '🚶', label: 'Step away and find the cellar exit', type: 'move',
+        action: () => window.__world3d?.toast?.('Use the cellar exit to return to the monastery.') },
       { icon: '💬', label: 'Talk to the monk — he knows more', type: 'talk',
-        action: () => { addLog('The monk tells you: "The Voice was the first seal. There are six others. The Elder broke the first without knowing. God help us all."', 'narrator'); if (!getFlag('monastery_monk_reward')) { setFlag('monastery_monk_reward'); grantHolyPoints(5); } runScene('monastery_dungeon_cleared'); } },
+        action: () => runScene('monastery_recovered_monk') },
     ]
-  }),
+    };
+  },
+
+  monastery_recovered_monk: () => {
+    const cleared=getFlag('monastery_voice_cleared')||(gameState.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q2');
+    if(!cleared)return {location:'Monastery Courtyard',narration:'The monk remains unresponsive. The breathing below has not stopped.',options:[]};
+    if(!getFlag('monastery_monk_reward')){setFlag('monastery_monk_reward');grantHolyPoints(5);}
+    return {location:'Monastery Courtyard — The Recovering Monk',locationIcon:'⛩',narration:'The monk sits upright in the courtyard. “Is it quiet?” he asks. When you answer, he closes his eyes. “The Voice was the first seal. There are six others. The Elder broke the first without knowing. God help us all.”',options:[{icon:'🚶',label:'Leave him to recover',type:'move',action:()=>{}}]};
+  },
 
   // ══════════════════════════════════════════
   //  QUEST 3: THE MISSING CARTOGRAPHER (c1q3)

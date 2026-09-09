@@ -3,6 +3,9 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    monastery_depths_entry:{location:'monastery_cellar',label:'Inspect the passage into the lower depths',position:[0,0,-4],scene:'monastery_dungeon_entry',quest:'c1q2',kind:'stone',entrance:'entrance_monastery_cellar'},
+    monastery_first_altar:{location:'monastery_cellar',label:'Approach the cracked altar and journal',position:[0,0,4],scene:'monastery_first_chamber',quest:'c1q2',requires:'entered_monastery_dungeon',kind:'records',entrance:'entrance_monastery_cellar'},
+    'npc:recovering_monastery_monk':{location:'monastery_aldric',label:'Speak with the recovering monk',position:[-3,0,3],scene:'monastery_recovered_monk',quest:'c1q2',pendingOnly:true,entrance:'interior_exit',npc:{id:'recovering_monastery_monk',name:'Recovering Monk',title:'The Silence Has Returned',race:'human',classId:'cleric',action:'quest'}},
     merchant_caravan:{location:'merchant_road',label:'Inspect the abandoned caravan',position:[3,0,-7],scene:'merchant_road_investigation',quest:'c1q4',kind:'chest'},
     merchant_ritual_bodies:{location:'merchant_road',label:'Examine the ritual remains',position:[0,0,1],scene:'merchant_road_bodies',quest:'c1q4',requires:'merchant_road_quest_started',kind:'stone'},
     'npc:merchant_road_survivor':{location:'merchant_road',label:'Speak with the caravan survivor',position:[-3,0,4],scene:'merchant_road_survivor',quest:'c1q4',requires:'merchant_road_quest_started',npc:{id:'merchant_road_survivor',name:'Caravan Survivor',title:'Witness to the Attack',race:'human',classId:'ranger',action:'quest'}},
@@ -28,6 +31,7 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    monastery_dungeon_entry:'monastery_depths_entry',monastery_first_chamber:'monastery_first_altar',monastery_recovered_monk:'npc:recovering_monastery_monk',
     merchant_road_investigation:'merchant_caravan',merchant_road_bodies:'merchant_ritual_bodies',merchant_road_survivor:'npc:merchant_road_survivor',merchant_road_ambush:'npc:merchant_cultist_leader',
     cartographer_missing:'npc:mira_cartographer',thornwood_search:'thornwood_satchel',cartographer_found:'npc:edden_cartographer',cartographer_returned:'npc:mira_cartographer',
     well_that_screams_arrival:'mol_well',well_rope_descent:'mol_well',well_warden_tally:'npc:well_warden_hesk',well_villagers_dismiss:'npc:mol_well_witness',
@@ -44,6 +48,7 @@
   const LECT_ALLEY=Object.freeze([-4,0,-10]);
   function funeralActive(state,game){return !!state?.flags?.mol_true_sermon_started||state?.physicalSceneRequests?.mol_funeral_cart==='mol_true_sermon_arrival'||(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q15')||!!state?.flags?.mol_true_sermon_done;}
   function npcStage(id,location,state,game){
+    if(id==='recovering_monastery_monk'&&location==='monastery_aldric'){const active=!!state?.flags?.monastery_voice_cleared||(game?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q2');return {active,key:'monk-recovered:'+active};}
     if(['merchant_cultist_leader','merchant_cultist_left','merchant_cultist_right'].includes(id)&&location==='merchant_road'){const done=(game?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q4'),active=!done&&(!!state?.flags?.merchant_road_ambush_revealed||state?.physicalSceneRequests?.['npc:merchant_cultist_leader']==='merchant_road_ambush'||state?.currentScene==='merchant_road_ambush');return {active,key:'merchant-ambush:'+active};}
     if(id==='edden_reunited'&&location==='thornwood_gate')return {active:!!state?.flags?.cartographer_escort_pending||!!state?.flags?.cartographer_escorted,key:'edden-returned:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
     if(id==='edden_cartographer'&&location==='thornwood_passage')return {active:!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted,key:'edden:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
@@ -58,7 +63,7 @@
   function sceneTarget(sceneId,locationId){if(sceneId==='well_vigil_night'&&locationId==='mol_well_shaft')return'mol_well_deep_vigil';return Object.hasOwn(SCENES,sceneId)?SCENES[sceneId]:null;}
   function restoreRequests(value){const result={};if(!value||typeof value!=='object')return result;for(const [id,scene]of Object.entries(value))if(Object.hasOwn(TARGETS,id)&&sceneTarget(scene,TARGETS[id].location)===id)result[id]=scene;return result;}
   function available(target,game,flags){return !!target&&!target.pendingOnly&&(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)===target.quest)&&(!target.requires||!!flags?.[target.requires])&&(target.scene!=='well_cabb_offer'||((Number(flags?.well_nights_failed)>=2||Number(flags?.well_nights_transcribed)>=2)&&!flags?.well_capped));}
-  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;if(id==='npc:edden_cartographer'&&state?.flags?.cartographer_found&&!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted)return 'cartographer_found';return available(target,game,state?.flags)?target.scene:null;}
+  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;if(id==='npc:recovering_monastery_monk'&&npcStage('recovering_monastery_monk','monastery_aldric',state,game)?.active)return 'monastery_recovered_monk';if(id==='npc:edden_cartographer'&&state?.flags?.cartographer_found&&!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted)return 'cartographer_found';return available(target,game,state?.flags)?target.scene:null;}
   function canTravel(root,location){
     if(!root.document?.body?.classList.contains('vt-3d-active'))return true;
     const engine=root.__world3d;if(!engine)return location?.id!=='mol_well_shaft';
@@ -103,7 +108,7 @@
     engine?.chronicleAdapter?.refresh?.();
     root.mpBroadcastCampaignState?.('physical_quest_request');
     const place=root.WORLD_LOCATIONS?.[target.location]?.name||target.location.replaceAll('_',' ');
-    engine?.toast?.(`${target.location!==engine?.zone?.id?'Travel to '+place+' and find ': 'Find '}${target.label.replace(/^(Speak with|Inspect|Examine|Confront) /,'')}, then interact to continue.`,4800);
+    engine?.toast?.(`${target.location!==engine?.zone?.id?'Travel to '+place+' and find ': 'Find '}${target.label.replace(/^(Speak with|Inspect|Examine|Confront|Approach) /,'')}, then interact to continue.`,4800);
     return false;
   }
   return Object.freeze({TARGETS,SCENES,restoreRequests,available,nextScene,requireScene,sceneTarget,canTravel,npcStage,funeralActive,LECT_ALLEY});
