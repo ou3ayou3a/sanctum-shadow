@@ -3,9 +3,19 @@ function fixture(){
   const flags={},root={SCENES:{},sceneState:{flags},gameState:{character:{inventory:[]}},PhysicalQuestFlow:Flow,document:{body:{classList:{contains:()=>true}}},addLog(){},grantXP(){},grantHolyPoints(){},grantHellPoints(){}};root.window=root;root.getFlag=k=>flags[k];root.setFlag=(k,v=true)=>flags[k]=v;
   const engine=root.__world3d={zone:{id:'vaelthar_city',interactables:[{id:'npc:captain_rhael'}]},physicalContext:null,hasPhysicalInteraction:id=>engine.physicalContext===id,physicalReach:()=>true,toast(){}};
   vm.runInNewContext(fs.readFileSync(require.resolve('../site/story-extra-children.js'),'utf8'),root);
-  root.runScene=id=>{if(!Flow.requireScene(root,id))return false;return root.SCENES[id]();};
+  root.runScene=id=>{if(!Flow.requireScene(root,id))return false;const scene=root.SCENES[id]();if(scene)root.lastShown=scene;return scene;};
   return{root,flags,engine};
 }
+test('Halven testimony cannot restart or switch death outcomes after it ends',()=>{
+  for(const ending of ['ambassador_last_words','ambassador_dies_silent']){
+    const {root,flags,engine}=fixture();flags.ambassador_quest_started=true;engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'},{id:'ostrene_chancery_case'}]};engine.physicalContext='npc:oret_halven';let xp=0;root.grantXP=n=>xp+=n;
+    assert.ok(root.runScene(ending));for(const scene of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent'])assert.equal(root.runScene(scene),null);
+    assert.equal(xp,ending==='ambassador_last_words'?80:0);assert.equal(!!flags.ambassador_last_words_heard,ending==='ambassador_last_words');assert.equal(!!flags.ambassador_died_before_answering,ending==='ambassador_dies_silent');assert.equal(root.sceneState.physicalSceneRequests.ostrene_chancery_case,'ambassador_strongbox');
+  }
+});
+test('stale bedside and examination choices cannot speak to Halven or earn trust after his death',()=>{
+  const {root,flags,engine}=fixture();flags.ambassador_quest_started=true;engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'},{id:'ostrene_chancery_case'}]};engine.physicalContext='npc:oret_halven';const bedside=root.runScene('ambassador_bedside'),exam=root.runScene('ambassador_poison_check');root.runScene('ambassador_dies_silent');let holy=0;root.grantHolyPoints=n=>holy+=n;bedside.options[3].action();exam.options[0].action();assert.equal(holy,0);assert.equal(flags.rane_trusts_you,undefined);assert.equal(flags.ambassador_last_words_heard,undefined);
+});
 test('absent Rane leaves an actionable exhibition docket instead of blocking case access',()=>{
   for(const fate of ['dead','arrested','fled']){const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_last_words_heard:true,npc_fate_undersecretary_rane:fate});engine.zone={id:'ostrene_legation',interactables:[{id:'ostrene_chancery_case'}]};engine.physicalContext='ostrene_chancery_case';const scene=root.runScene('ambassador_strongbox');assert.match(scene.narration,/courier docket/);assert.equal(scene.options.length,1);scene.options[0].action();assert.equal(flags.rane_refused_once,true);assert.equal(root.sceneState.physicalSceneRequests.ostrene_wool_exhibition,'ambassador_wool_exhibition');}
 });
@@ -16,7 +26,7 @@ test('stale Rane-dependent callbacks refresh when she becomes absent',()=>{
   const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_last_words_heard:true});engine.zone={id:'ostrene_legation',interactables:[{id:'ostrene_chancery_case'}]};engine.physicalContext='ostrene_chancery_case';const scene=root.runScene('ambassador_seven_clauses');flags.npc_dead_undersecretary_rane=true;scene.options[1].action();assert.equal(flags.rane_collated_it,undefined);assert.equal(flags.clue_seventh_clause_exists,undefined);assert.equal(flags.ambassador_seizure_pending,undefined);
 });
 test('absent Rane is not narrated at Halven bedside or the kept-exemplar handoff',()=>{
-  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,npc_dead_undersecretary_rane:true});engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'}]};engine.physicalContext='npc:oret_halven';const bedside=root.runScene('ambassador_bedside');assert.doesNotMatch(bedside.narration,/Rane/);bedside.options[3].action();assert.equal(flags.rane_trusts_you,undefined);const words=root.runScene('ambassador_last_words');assert.equal(words.options.length,1);assert.doesNotMatch(words.narration,/Rane/);flags.ambassador_seizure_pending=true;assert.doesNotMatch(root.SCENES.ambassador_exemplar_kept().narration,/Rane/);
+  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,npc_dead_undersecretary_rane:true});engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'}]};engine.physicalContext='npc:oret_halven';const bedside=root.runScene('ambassador_bedside');assert.doesNotMatch(bedside.narration,/Rane/);bedside.options[3].action();assert.equal(flags.rane_trusts_you,undefined);const words=root.lastShown;assert.equal(words.options.length,1);assert.doesNotMatch(words.narration,/Rane/);flags.ambassador_seizure_pending=true;assert.doesNotMatch(root.SCENES.ambassador_exemplar_kept().narration,/Rane/);
 });
 test('outdoor exemplar outcomes retain wool-gate setting without a bedside scene',()=>{
   for(const kept of [false,true]){const {root,flags}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true,ambassador_seizure_at_wool:true});const scene=root.SCENES[kept?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered']();assert.match(scene.location,/Wool Gate/);assert.doesNotMatch(scene.narration,/in this room|looks at the bed|Rane puts/);}
@@ -65,7 +75,7 @@ test('page-one choices cannot stack collation rewards or restart after resolutio
 test('bedside patience and case theft grant alignment once per choice',()=>{
   const {root,flags,engine}=fixture();flags.ambassador_quest_started=true;engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'},{id:'ostrene_chancery_case'}]};engine.physicalContext='npc:oret_halven';let holy=0,hell=0;root.grantHolyPoints=n=>holy+=n;root.grantHellPoints=n=>hell+=n;
   const bedside=root.runScene('ambassador_bedside');const sit=bedside.options.find(o=>o.label.startsWith('Sit down'));sit.action();sit.action();assert.equal(holy,5);
-  const words=root.runScene('ambassador_last_words');const wait=words.options.find(o=>o.label.includes('Rane'));assert.ok(wait);wait.action();wait.action();assert.equal(holy,8);
+  const words=root.lastShown;const wait=words.options.find(o=>o.label.includes('Rane'));assert.ok(wait);wait.action();wait.action();assert.equal(holy,8);
   engine.physicalContext='ostrene_chancery_case';const box=root.runScene('ambassador_strongbox');const steal=box.options.find(o=>o.roll?.stat==='DEX');steal.onSuccess();steal.onSuccess();assert.equal(hell,4);
 });
 test('the exemplar handoff queues Rhael instead of narrating a remote conversation',()=>{

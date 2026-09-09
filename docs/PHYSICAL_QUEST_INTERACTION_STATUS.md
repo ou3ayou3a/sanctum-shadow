@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 489 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 491 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — completed testimony guards (local, not deployed):
+
+- Multiplayer panel reconciliation is deployed in `a786136`.
+- Halven's bedside, examination, final-words and silent-death factories now route to the physical chancery case after either testimony outcome is recorded. Re-entry cannot switch from silent death to last words or vice versa.
+- Captured bedside/examination callbacks recheck the completed testimony before invoking their original effects, preventing post-death speech, trust and kindness farming. Already-rendered final-words/silent-death handoff choices remain usable so the original panel can still direct the party to the case.
+- Added tests for both terminal testimony paths, redirected case requests, unchanged XP, and stale bedside/examination callbacks. Updated existing tests to inspect the original displayed final-words scene instead of recreating it after death. All 491 tests pass.
+- This is automated narrative-state verification, not a visual corpse/bed animation change. Halven's model presentation and rendered multiplayer/reconnect acceptance remain outstanding, along with the rest of Step 5.
 
 Multiplayer — stale quest panel reconciliation (local, not deployed):
 

@@ -23,6 +23,7 @@
   const HYMN_TRANSCRIPT = 'Transcript: The Sevenfold Benediction (as recited by the fourteen)';
   const PALM_RUBBING = 'Rubbing: The Overdrawn Palm Mark';
   function raneAbsent(){return !!getFlag('npc_dead_undersecretary_rane')||['dead','arrested','fled'].includes(getFlag('npc_fate_undersecretary_rane'))||!!window.npcAbsent?.('undersecretary_rane');}
+  function halvenTestimonyEnded(){return !!getFlag('ambassador_last_words_heard')||!!getFlag('ambassador_died_before_answering');}
   function requestChancerySeizure(){setFlag('ambassador_seizure_pending');setFlag('ambassador_seizure_at_wool',!!getFlag('rane_refused_once'));runScene('ambassador_chancery_seizure');}
   function leaveAmbassadorConversation(){
     if(window.document?.body?.classList.contains('vt-3d-active')){
@@ -663,7 +664,20 @@
       if(id==='ambassador_strongbox'&&!getFlag('ambassador_last_words_heard')&&!getFlag('ambassador_died_before_answering'))return false;
       return window.PhysicalQuestFlow?.requireScene(window,id)!==false;
     };
-    S[id]=()=>{if(!allowed())return null;if(id==='ambassador_bedside'&&(getFlag('ambassador_last_words_heard')||getFlag('ambassador_died_before_answering'))){runScene('ambassador_strongbox');return null;}const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const action=option[key];option[key]=(...args)=>{if(allowed())return action(...args);};}return scene;};
+    S[id]=()=>{
+      if(!allowed())return null;
+      const testimony=['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent'].includes(id);
+      if(testimony&&halvenTestimonyEnded()){runScene('ambassador_strongbox');return null;}
+      const scene=factory();
+      for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){
+        const action=option[key];option[key]=(...args)=>{
+          if(!allowed())return;
+          if(['ambassador_bedside','ambassador_poison_check'].includes(id)&&halvenTestimonyEnded()){runScene('ambassador_strongbox');return;}
+          return action(...args);
+        };
+      }
+      return scene;
+    };
   }
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);
   if (typeof window !== 'undefined') { window.SCENES = window.SCENES || SCENES; Object.assign(window.SCENES, S); }
