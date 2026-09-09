@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 459 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 462 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — wool-gate fallback (local, not deployed):
+
+- Legation bedside/case work is deployed in `9ed02a5`.
+- Rane's refusal now routes to a separate case at the southern wool gate. Her refusal dialogue and its callbacks require the legation case; the reading scene requires the wool-gate interaction after refusal, or the legation case on the permission route.
+- The exhibition exposes an explicit wait action at fifth bell, defined in the UI as 17:00. Waiting advances to the next occurrence, allowing a late arrival to recover instead of losing the clue permanently. Waiting and reading still recheck the current physical context; the attendance flag alone does not grant remote access.
+- Three new tests cover remote refusal routing, early/on-time/late waiting, stale callbacks, prerequisites and saved requests. The actual city collision catalog confirms the new case is reachable. All 462 tests pass. This batch has automated verification; the wool-gate route has not yet had rendered browser or multiplayer QA.
+- Brask's staged confrontation, later reward replay guards, and the complete ambassador route remain unfinished.
 
 Ambassador quest — legation bedside and case (local, not deployed):
 

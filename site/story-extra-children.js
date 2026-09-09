@@ -162,7 +162,7 @@
       sub: `She did not give you the document. She gave you the timetable. That is what a clerk has instead of a conscience.`,
       options: [
         { icon: '🗺', label: 'Be at the wool gate at fifth bell', type: 'move',
-          action: () => { addLog('📜 Fifth bell. A table, a lamp, an open case, and a bored Ostrene courier who has been instructed not to hurry.', 'system'); runScene('ambassador_seven_clauses'); } },
+          action: () => runScene('ambassador_wool_exhibition') },
         { icon: '💬', label: '"You want me to read it. Why not just hand it to me?"', type: 'talk',
           roll: { stat: 'WIS', dc: 11 },
           onSuccess: () => { addLog('📜 Rane: "Because then I gave it to you. This way it was exhibited, and I filed that it was exhibited, and in forty years nobody will be able to prove I did anything at all." She has been in this trade a long time.', 'holy'); runScene('ambassador_seven_clauses'); },
@@ -170,6 +170,8 @@
       ]
       };
     },
+
+    ambassador_wool_exhibition:()=>({location:'The Wool Gate — Ostrene Exhibition',locationIcon:'📜',narration:'The courier has set a table beside the wool gate. Public inspection begins at fifth bell (17:00). You may wait here for the next exhibition; arriving late does not permanently lose the clue.',options:[{label:'Wait here for fifth bell and inspect the exhibited case',type:'explore',action:()=>{const hour=Number(window.worldClock?.hour);if(Number.isFinite(hour)&&window.advanceTime){const wait=(17-hour+24)%24;if(wait)window.advanceTime(wait);}setFlag('ostrene_exhibition_attended');runScene('ambassador_seven_clauses');}}]}),
 
     // ── PRIMARY CLUE: L1 — clue_seventh_clause_exists ───────────────
     ambassador_seven_clauses: () => {
@@ -571,11 +573,17 @@
 
   };
 
-  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox']){
+  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox','ambassador_rane_refuses','ambassador_wool_exhibition','ambassador_seven_clauses']){
     const factory=S[id];
     const allowed=()=>{
       if(window.mp?.sessionCode&&!window.mp.isHost)return false;
       if(!getFlag('ambassador_quest_started'))return false;
+      if(id==='ambassador_wool_exhibition'&&!getFlag('rane_refused_once'))return false;
+      if(id==='ambassador_seven_clauses'){
+        if(getFlag('rane_refused_once')){if(!getFlag('ostrene_exhibition_attended')){runScene('ambassador_wool_exhibition');return false;}return window.PhysicalQuestFlow?.requireScene(window,'ambassador_wool_exhibition')!==false;}
+        if(!getFlag('ambassador_last_words_heard')&&!getFlag('ambassador_died_before_answering'))return false;
+        return window.PhysicalQuestFlow?.requireScene(window,'ambassador_strongbox')!==false;
+      }
       if(id==='ambassador_strongbox'&&!getFlag('ambassador_last_words_heard')&&!getFlag('ambassador_died_before_answering'))return false;
       return window.PhysicalQuestFlow?.requireScene(window,id)!==false;
     };
