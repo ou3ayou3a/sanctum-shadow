@@ -10,6 +10,7 @@ window.addEventListener('load',()=>{
  const harrenOption=document.createElement('option');harrenOption.value='fortress_harren';harrenOption.textContent='Harren fortress interactions';panel.querySelector('select').append(harrenOption);
  const archiveOption=document.createElement('option');archiveOption.value='church_archive';archiveOption.textContent='Archive reception interactions';panel.querySelector('select').append(archiveOption);
  const fourOption=document.createElement('option');fourOption.value='archive_level_four';fourOption.textContent='Archive Level Four (admitted fixture)';panel.querySelector('select').append(fourOption);
+ const caelOption=document.createElement('option');caelOption.value='monastery_cael';caelOption.textContent='Brother Cael (completed archive fixture)';panel.querySelector('select').append(caelOption);
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
  let targetZone=null;const refreshTargets=()=>{const zone=window.__world3d?.zone;if(!zone||zone===targetZone)return;targetZone=zone;targetSelect.replaceChildren();for(const record of zone.interactables){const option=document.createElement('option');option.value=record.id;option.textContent=record.label||record.id;targetSelect.append(option);}};
  approach.onclick=()=>{const engine=window.__world3d,record=engine?.zone?.interactables.find(item=>item.id===targetSelect.value);if(record)engine.goToInteraction(record);};
@@ -18,8 +19,9 @@ window.addEventListener('load',()=>{
  load.onclick=async()=>{try{
   if(window.combatState)window.combatState.active=false;window.unloadWorld3D?.();
   Object.assign(window.gameState,{character:{name:'Tactical QA',race:'human',class:'rogue',level:10,hp:300,maxHp:300,mp:300,maxMp:300,holyPoints:100,hellPoints:0,gold:100,xp:0,inventory:['Health Potion'],stats:{str:16,dex:30,con:16,int:16,wis:16,cha:16},skillTrees:['shadowblade'],origin:'war_orphan',revealChoice:'truth'},world3dPositions:{},activeQuests:[],completedQuests:[],questProgress:{}});
-  const sermon=panel.querySelector('select').value==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':panel.querySelector('select').value;
+  const selection=panel.querySelector('select').value,sermon=selection==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':selection==='monastery_cael'?'monastery_aldric':selection;
   initGameScreen();
+  if(selection==='monastery_cael'){window.resetSceneState();window.sceneState.flags.clue_aldric_exception=true;window.sceneState.flags.archive_breakin_done=true;window.gameState.completedQuests=[{id:'c1q17'}];}
   if(window.mapState.currentLocation==='thornwood_gate'){window.resetSceneState();window.activateQuest('c1q3',true);}
   if(window.mapState.currentLocation==='merchant_road'){window.resetSceneState();window.activateQuest('c1q4',true);}
   if(window.mapState.currentLocation==='fortress_harren'){window.resetSceneState();window.activateQuest('c1q6',true);}

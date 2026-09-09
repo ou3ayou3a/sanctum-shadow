@@ -515,34 +515,42 @@
     // ── §6 REQUIRED SCENE: Brother Cael, the last warranted Sayer ──
     cael_the_last_sayer: () => {
       SF('met_cael_sayer');
+      const inReach=()=>window.PhysicalQuestFlow?.requireScene(window,'cael_the_last_sayer')!==false;
+      const rewardOnce=(amount)=>{if(F('cael_reward_claimed')||F('cael_told')||F('cael_untold'))return;SF('cael_reward_claimed');HOLY(amount);};
       const opts = [
         { icon: '💬', label: 'Tell him what he is.', type: 'talk',
           action: () => {
-            SF('cael_told'); HOLY(10);
+            if(!inReach()||F('cael_told'))return;
+            rewardOnce(10);SF('cael_told');if(typeof setFlag==='function')setFlag('cael_untold',false);
             LOG('📜 You tell him. The Aldric Exception. The provision. The stipend. The first clause, and the sayer who has to mean it, and the seven monks who were evicted to make a room for an Elder in a hurry — and the one who was in the root cellar and did not stop.', 'holy');
             LOG('"Oh," Brother Cael says. He thinks about it for a while. He is thirty-three and he has not slept properly in three days and he is still holding his hands the way he was holding them when you walked in. "I thought I was just praying."', 'holy');
             LOG('📜 He asks whether he should keep going. You realise he is asking your permission, and that he will do whatever you say, and that one of the two answers keeps a seal shut and the other lets a man rest, and the game will not tell you which one is kinder.', 'system');
+            GO('cael_the_last_sayer');
           } },
         { icon: '🤫', label: 'Don\'t tell him. Ask him to keep going, and don\'t say why.', type: 'talk',
           action: () => {
-            SF('cael_untold'); HOLY(5);
+            if(!inReach()||F('cael_told')||F('cael_untold'))return;
+            rewardOnce(5);SF('cael_untold');
             LOG('📜 You ask him to keep praying. He says he was going to anyway; it did not occur to him that it was the sort of thing a person could be asked for. He looks pleased that somebody wanted something from him. You leave him kneeling in the courtyard of an empty monastery, holding the first seal shut with his mouth, and not knowing it, which is either a mercy or the cruellest thing you have done in Vaelthar.', 'holy');
+            GO('cael_the_last_sayer');
           } },
         { icon: '💬', label: '"What do you say, exactly? In the night hours."', type: 'talk',
           action: () => {
+            if(!inReach())return;
             SF('cael_recited_order');
             LOG('He tells you, without drama, because you asked. Every morning, every evening, and three times during the night hours — and always in the same order, which he cannot explain. "Brother Ilm taught me. His teacher taught him that way. Nobody ever said why the order mattered." He shrugs. "It\'s not a rule. It\'s just how you say it."', 'narrator');
             GO('cael_the_last_sayer');
           } },
         { icon: '🚶', label: 'Leave him to it', type: 'move',
-          action: () => { LOG('You leave him in the courtyard. Behind you, at the correct hour, quietly, a frightened man says the thing he has said every day of his life, alone, to nobody, in a building the Church protects and will not explain.', 'narrator'); TRAVEL('vaelthar_city'); } },
+          action: () => window.__world3d?.toast?.('You step away from Cael. Explore the courtyard or choose your onward route.') },
       ];
+      if(F('cael_told'))opts.splice(0,2);else if(F('cael_untold'))opts.splice(1,1);
       return {
         location: 'Monastery of Saint Aldric — The Courtyard',
         locationIcon: '🧎',
         threat: null,
-        narration: `The house the file protects is empty, because an Elder needed somewhere to hide and signed a housing requisition, and seven men were escorted or carried out of it four days ago. One is left. Brother Cael is thirty-three, and he is in the courtyard, on his knees, and he has been there since it happened, and he is not catatonic — he is praying. Every morning. Every evening. Three times during the night hours. He never stopped, not in the root cellar with the sounds overhead, not since. He does not know that the Archive has a four-hundred-year-old open file whose entire operative purpose is to keep him alive and saying it. He thinks he is a frightened man who prays.`,
-        sub: `The last warranted Sayer of the First Stone is a terrified monk who thinks he is just praying.`,
+        narration: F('cael_told')?'Cael remains in the courtyard, but now he knows why the Church protects this house. “I thought I was just praying,” he says. He is still frightened, and still here.':F('cael_untold')?'Cael continues his prayers at your request, unaware of the archive’s four-hundred-year-old provision. You can still choose to tell him the truth.':`The house the file protects is empty, because an Elder needed somewhere to hide and signed a housing requisition, and seven men were escorted or carried out of it four days ago. One is left. Brother Cael is thirty-three, and he is in the courtyard, on his knees, and he has been there since it happened, and he is not catatonic — he is praying. Every morning. Every evening. Three times during the night hours. He never stopped, not in the root cellar with the sounds overhead, not since. He does not know that the Archive has a four-hundred-year-old open file whose entire operative purpose is to keep him alive and saying it. He thinks he is a frightened man who prays.`,
+        sub: F('cael_told')?'The last warranted Sayer now knows what his prayers protect.':'The last warranted Sayer of the First Stone is a terrified monk who thinks he is just praying.',
         options: opts,
       };
     },
