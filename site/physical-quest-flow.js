@@ -3,6 +3,8 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    tower_sealed_door:{location:'tower_ash',label:'Inspect the Tower door',position:[0,0,-6],scene:'tower_ash_approach',quest:'c1q20',kind:'stone'},
+    tower_last_step:{location:'tower_antechamber',label:'Approach the sealed stair',position:[0,0,3.5],scene:'tower_thirty_seventh_step',quest:'c1q20',kind:'stone',entrance:'entrance_tower_antechamber'},
     chancery_first_covenant:{location:'archive_scriptorium',label:'Retrieve the First Covenant',position:[-2.5,0,2],scene:'chancery_vault_request',quest:'c1q19',kind:'records',entrance:'entrance_archive_scriptorium'},
     chancery_copying_desk:{location:'archive_scriptorium',label:'Inspect the unfinished copies',position:[0,0,-.5],scene:'chancery_copying_desk',quest:'c1q19',kind:'records',entrance:'entrance_archive_scriptorium'},
     'npc:sister_mourne':{location:'temple_quarter',label:'Show page one to Sister Mourne',position:[0,0,2.5],scene:'mourne_page_one',quest:'c1q19',pendingOnly:true,entrance:'interior_exit',npc:{id:'sister_mourne',name:'Sister Mourne',title:'The Candle · Inquisitor',race:'human',classId:'cleric',action:'dialogue'}},
@@ -53,6 +55,7 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    tower_ash_approach:'tower_sealed_door',tower_thirty_seventh_step:'tower_last_step',tower_speak_his_name:'tower_last_step',tower_name_without_name:'tower_last_step',tower_charter_officer:'tower_last_step',
     chancery_vault_request:'chancery_first_covenant',covenant_signature_block:'chancery_first_covenant',chancery_copying_desk:'chancery_copying_desk',chancery_rubric_rehearsal:'npc:head_archivist_theones',covenant_author_closed:'npc:head_archivist_theones',mourne_page_one:'npc:sister_mourne',mourne_page_one_absent:'mourne_empty_rooms',varek_first_page:'npc:elder_varek',
     chancery_records_room:'archive_chancery_register',
     archive_lowest_level:'archive_hatch',archive_voice_names:'archive_sixth_stone',archive_voice_asks_name:'archive_sixth_stone',archive_voice_the_name:'archive_sixth_stone',archive_voice_told_name:'archive_sixth_stone',archive_voice_ascent:'npc:head_archivist_theones',
@@ -130,6 +133,7 @@ function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS
     return !!record&&engine.hasPhysicalInteraction?.(targetId)&&engine.physicalReach?.(record);
   }
   function requireScene(root,sceneId){
+    if(['tower_thirty_seventh_step','tower_speak_his_name','tower_name_without_name','tower_charter_officer'].includes(sceneId)&&root.document?.body?.classList.contains('vt-3d-active')&&!(root.sceneState?.flags?.tower_door_answered||root.sceneState?.flags?.faced_the_shattered_god)){root.runScene?.('tower_ash_approach');return false;}
     if(sceneId==='covenant_author_closed'&&!(root.sceneState?.flags?.clue_author_signed_with_cross&&root.sceneState?.flags?.clue_rubric_seventh_clause_spoken))return false;
     if(['mourne_page_one','mourne_page_one_absent','varek_first_page'].includes(sceneId)&&!(root.sceneState?.flags?.clue_rubric_seventh_clause_spoken&&root.sceneState?.flags?.clue_author_signed_with_cross))return false;
     if(sceneId==='varek_first_page'&&(!root.sceneState?.flags?.chapter1_finale||root.sceneState?.flags?.npc_dead_elder_varek))return false;

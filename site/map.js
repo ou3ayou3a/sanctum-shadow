@@ -349,10 +349,10 @@ const WORLD_LOCATIONS = {
     subtitle: 'What the Tower Left Behind',
     x: 405, y: 510,
     type: 'tavern', icon: '🗼', region: 'southern_wastes', danger: 5,
-    discovered: false, connections: ['tower_ash'],
+    discovered: false, connections: ['tower_ash'],parentLocation:'tower_ash',physicalEntrance:'entrance_tower_antechamber',
     description: `A crumbling ante-chamber outside the tower's sealed door. Previous visitors — whoever they were — left behind a case of black-bottled wine, a journal (water-damaged, only fragments readable), and a note that says: "You'll need this." The wine has no label and smells faintly of something burning. Drinking it makes your hands stop shaking. It also makes the symbols on the tower door easier to read. Make of that what you will.`,
     npcs: ['Nobody Alive'],
-    quests: ['c1q18'], encounters: ['shadow_wraith'], music: 'tavern_low', lightLevel: 'pitch_dark',
+    quests: ['c1q20'], encounters: [], music: 'tavern_low', lightLevel: 'pitch_dark',
   },
 
   // Thornwood Passage — a ruined forester's hut

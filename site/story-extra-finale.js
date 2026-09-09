@@ -11,6 +11,7 @@
 (function(){
 
   function archiveReward(flag,xp=0,holy=0){if(getFlag(flag))return;setFlag(flag);if(xp)grantXP(xp);if(holy)grantHolyPoints(holy);}
+  function answerTowerDoor(){setFlag('tower_door_answered');runScene('tower_thirty_seventh_step');window.__world3d?.toast?.('Enter the Waiting Room and approach the sealed stair to continue.',4800);}
   function reviewCovenant(){runScene(getFlag('clue_author_signed_with_cross')?'covenant_author_closed':'chancery_vault_request');}
   function openArchiveHatch(){setFlag('archive_hatch_unlocked');runScene('archive_voice_names');window.__world3d?.toast?.('The hatch is open. Use the foundation entrance, then approach the Sixth Stone.',4800);}
 
@@ -589,38 +590,35 @@
           if (getFlag('clue_flame_is_traced_cross') || getFlag('clue_tower_door_mark')) {
             opts.push({ icon: '🔍', label: 'The symbol. You know what it is now.', type: 'explore',
               action: () => {
-                setFlag('read_tower_door');
-                grantXP(90);
+                archiveReward('read_tower_door',90);
                 addLog('📜 It is a cross with the crossbar drawn out into a torch, half-finished, the tracing still visible — the same overdrawing as the children\'s palms and the caravan dead. Somebody started converting this door and gave up partway through. You can see exactly where his nerve went.', 'holy');
-                runScene('tower_thirty_seventh_step');
+                answerTowerDoor();
               }});
           } else {
             opts.push({ icon: '🔍', label: 'Read the symbol on the door', type: 'explore',
               roll: { stat: 'INT', dc: 14 },
               onSuccess: () => {
-                setFlag('read_tower_door');
-                grantXP(90);
+                archiveReward('read_tower_door',90);
                 addLog('📜 CLUE: It is not a ward. It is a cross that somebody began redrawing into a torch and abandoned halfway. The tracing is still visible. Whatever the Eternal Flame is, it was made out of something that was already here.', 'holy');
-                runScene('tower_thirty_seventh_step');
+                answerTowerDoor();
               },
-              onFail: () => { addLog('Old blood in a shape your eye insists it knows. Your eye is right and you cannot make it say why.', 'system'); runScene('tower_thirty_seventh_step'); } });
+              onFail: () => { addLog('Old blood in a shape your eye insists it knows. Your eye is right and you cannot make it say why.', 'system'); answerTowerDoor(); } });
           }
           if (knowsTheName()) {
             opts.push({ icon: '🗣', label: 'Say his name at the door. "Selvane."', type: 'talk',
               action: () => {
-                setFlag('named_him_at_the_door');
-                grantHolyPoints(5);
+                archiveReward('named_him_at_the_door',0,5);
                 addLog('☩ Nothing dramatic. The door simply is not there any more, in the way that a thing you were arguing with turns out to have been a misunderstanding. There was never a lock. There was a man who had not been called anything in four hundred years, and a wall made out of that.', 'holy');
-                runScene('tower_thirty_seventh_step');
+                answerTowerDoor();
               }});
           }
           opts.push({ icon: '✊', label: 'Knock. It costs nothing to be civil to a tower.', type: 'talk',
             action: () => {
               addLog('You knock. The ash stops for two full seconds. Then it resumes. Somewhere above you something that has not been treated as a person since before the calendar started does not know what to do with a knock.', 'narrator');
-              runScene('tower_thirty_seventh_step');
+              answerTowerDoor();
             }});
           opts.push({ icon: '🚪', label: 'Not today. Turn around. Walk out of the Fields.', type: 'move',
-            action: () => { addLog('You walk out of the Ashen Fields. The Tower keeps. It has kept for four hundred years and it will keep for another week, and the man on the thirty-seventh step will spend that week doing what he has done every other week, which is waiting politely.', 'system'); goTo('ashen_fields'); } });
+            action: () => { if(window.document?.body?.classList.contains('vt-3d-active')){window.__world3d?.toast?.('Leave the court using the route back to the Ashen Fields.');return;}goTo('ashen_fields'); } });
           return opts;
         })(),
       };
@@ -700,15 +698,13 @@
             { icon: '💬', label: '"Nobody made you. Say it again."', type: 'talk',
               action: () => {
                 addLog('Selvane: "Nobody made me. They asked. I was — " and he searches for it, and finds it, and it is the worst word in the chapter — "flattered. They said it would help. They said I would be back in three days and I would be able to tell everyone what it was like." He looks at his hands, which are not there. "I have been able to tell nobody anything at all."', 'narrator');
-                setFlag('selvane_consented_aloud');
-                grantXP(100);
+                archiveReward('selvane_consented_aloud',100);
                 runScene('tower_speak_his_name');
               }},
             { icon: '💬', label: '"It has been four hundred and four years."', type: 'talk',
               action: () => {
                 addLog('Selvane: "Oh." A pause of a kind you will think about for the rest of your life. "Then it did not work." And then, and he is being kind to THEM, which is unbearable: "They must have been so frightened. Eleven years of it and nothing coming back but pieces. I hope somebody looked after them."', 'narrator');
-                setFlag('selvane_told_the_years');
-                grantXP(100);
+                archiveReward('selvane_told_the_years',100);
                 runScene('tower_speak_his_name');
               }},
           ];
@@ -725,8 +721,7 @@
 
     // FAILURE STATE — the Name spoken over an "it". It teaches you why it exists.
     tower_name_without_name: () => {
-      setFlag('spoke_the_name_at_an_it');
-      grantHolyPoints(5);
+      archiveReward('spoke_the_name_at_an_it',0,5);
       return {
         location: 'The Tower of Ash — The Thirty-Seventh Step',
         locationIcon: '🗼',
@@ -751,9 +746,8 @@
           }
           opts.push({ icon: '💬', label: 'Ask it the question back. "Has it been three days yet?"', type: 'talk',
             action: () => {
-              setFlag('asked_it_back');
+              archiveReward('asked_it_back',80);
               addLog('You ask a hundred stolen faces whether it has been three days yet. Every one of them answers at once, in your voice, in your mother\'s voice, in the voice off the headstone: "Has it been three days yet?" It is not mocking you. It cannot hear you. It has never been able to hear anybody — that is what the question IS. Four hundred years of asking into a room with nobody in it, and now there is somebody in the room, and it still cannot tell.', 'narrator');
-              grantXP(80);
               runScene('tower_name_without_name');
             }});
           if (canReadTheCharter()) {
@@ -1015,7 +1009,7 @@
   };
 
   // Revalidate stale option callbacks as well as the initial scene boundary.
-  for(const id of ['archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent','chancery_records_room','chancery_vault_request','chancery_copying_desk','covenant_signature_block','chancery_rubric_rehearsal','mourne_page_one','mourne_page_one_absent','varek_first_page','covenant_author_closed']){
+  for(const id of ['tower_ash_approach','tower_thirty_seventh_step','tower_speak_his_name','tower_name_without_name','tower_charter_officer','archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent','chancery_records_room','chancery_vault_request','chancery_copying_desk','covenant_signature_block','chancery_rubric_rehearsal','mourne_page_one','mourne_page_one_absent','varek_first_page','covenant_author_closed']){
     const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
   }
 

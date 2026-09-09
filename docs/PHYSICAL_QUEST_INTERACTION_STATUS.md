@@ -2,7 +2,19 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Latest suite: 415 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Deployment update: the Chancery batch above is now deployed in `183a402`. The Tower entry batch below is local and not deployed.
+
+Latest suite: 421 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Tower entry pass:
+
+- Door inspection requires the explicit outer-court target. Successful checks, failed checks, naming and knocking all unlock a pending interior interaction instead of opening the confrontation outdoors.
+- The existing Waiting Room has a sealed-stair interaction for the confrontation. No modeled thirty-seven-step ascent or new boss/NPC model is claimed in this pass.
+- Door and confrontation callbacks revalidate physical context and reach, including stale attack buttons. Previously confronted saves remain accepted without the new door flag.
+- Door interpretation, naming, repeated personal questions and the failed Name attempt no longer farm their XP/Holy rewards.
+- Turning away does not teleport in 3D. The Waiting Room is associated with quest 20 and has parent/entrance metadata so local passage does not schedule road ambushes.
+- Six focused automated tests cover entry, all door outcomes, old saves, repeated rewards, stale attacks and physical departure. Collision-catalog navigation tests pass. This batch has not had rendered browser QA or a full finale playthrough.
+- Remaining Tower work: stage the supporting officers/NPCs, validate every ending's prerequisites and mutually exclusive completion/rewards, verify boss victory return and save/reconnect behavior, and perform rendered end-to-end QA. Step 5 remains in progress.
 
 Implemented:
 
