@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 473 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 476 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — wool-gate browser route and outcome follow-up (local, not deployed):
+
+- City loading correction is deployed in `d32bde3`.
+- Added a local-only refusal-stage fixture. Browser run: loaded Vaelthar with Rane's refusal recorded, walked to the exhibition case, explicitly interacted, selected the fifth-bell wait, reached page one, selected collation, walked to the separate wool-gate Brask actor, confirmed the confrontation and surrendered the counterpart. No captured world-initialization error. This begins after refusal, not from a fresh campaign or the initial legation check.
+- Corrected the outdoor kept/surrendered outcome headings and narration: no return to Halven's bedside or description of an indoor room at the wool gate. The party now retains the receipt stub.
+- Receipt success/failure now presents a visible follow-up with a return-to-exploration option instead of reopening `vaelthar_main` remotely. Guests and conflicting outcomes cannot apply the receipt clue. Three regression tests cover outdoor descriptions, both visible receipt results and invalid callbacks. All 476 tests pass. The revised receipt panel is unit-tested, not yet separately rendered in-browser.
+- Remaining: Rane/courier representation at the exhibition (collation still invokes Rane while her actor is in the legation), Brask's two exploration agents, combat-victory continuation, and rendered multiplayer/reconnect QA. Step 5 is not complete.
 
 City loading — frozen roster correction (local, not deployed):
 

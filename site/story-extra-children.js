@@ -30,6 +30,14 @@
     }
     runScene('vaelthar_main');
   }
+  function ambassadorReceipt(understood){
+    if((window.mp?.sessionCode&&!window.mp.isHost)||!getFlag('chancery_took_exemplar')||getFlag('has_ostrene_exemplar'))return;
+    if(understood)setFlag('saw_standing_instruction_date');
+    const narration=understood?'The receipt cites a standing instruction: somebody decided this once, and nobody has decided it since. Someone, at some point, decided the capital would read five clauses. That decision has a date. The receipt does not reveal who made it.':'The receipt gives an instruction number, but no explanation. Without the chancery register, you cannot trace the decision behind it.';
+    addLog(narration,'system');
+    if(window.document?.body?.classList.contains('vt-3d-active')&&window.showScene){window.showScene({location:getFlag('ambassador_seizure_at_wool')?'The Wool Gate — The Receipt':'The Ostrene Legation — The Receipt',locationIcon:'📜',narration,options:[{label:'Put the receipt aside — return to exploration',type:'explore',action:leaveAmbassadorConversation}]});return;}
+    leaveAmbassadorConversation();
+  }
   function ambassadorRewardOnce(key, reward, legacyClaimed=false){
     if(window.mp?.sessionCode&&!window.mp.isHost)return false;
     const flag='ambassador_reward_'+key;
@@ -293,9 +301,9 @@
       addLog('📜 ITEM GAINED: Ostrene Counterpart Exemplar — the Eighth Covenant, FY 355, unredacted.', 'holy');
       addLog('📜 You hold the only unredacted Covenant text in Vaelthar. It is the eighth of nine. Nobody in this city has read its first page in forty-nine years.', 'holy');
       return {
-        location: 'The Ostrene Legation — Afterwards',
+        location: getFlag('ambassador_seizure_at_wool')?'The Wool Gate — Afterwards':'The Ostrene Legation — Afterwards',
         locationIcon: '🏛',
-        narration: `Undersecretary Rane puts the exemplar into your hands herself, which is not protocol, and enters it in the ledger as "exhibited, not surrendered", which is. Then she says the only unprofessional thing she has said all day. "He kept asking why none of you would read the first page. I told him it was because it is not operative." She closes the book. "I have been a chancery clerk for nineteen years and I have never once read a preamble. Not one. In nineteen years." She looks at the bed. "He knew that about us. He thought it was funny, until about six days ago."`,
+        narration: getFlag('ambassador_seizure_at_wool')?`The exemplar remains on the exhibition table. You gather its stitched pages and secure the unredacted counterpart before the courier can pack it away. Beyond the wool gate, carts rattle along the road. Seven clauses, in your hands at last.`:`Undersecretary Rane puts the exemplar into your hands herself, which is not protocol, and enters it in the ledger as "exhibited, not surrendered", which is. Then she says the only unprofessional thing she has said all day. "He kept asking why none of you would read the first page. I told him it was because it is not operative." She closes the book. "I have been a chancery clerk for nineteen years and I have never once read a preamble. Not one. In nineteen years." She looks at the bed. "He knew that about us. He thought it was funny, until about six days ago."`,
         sub: `Seven clauses on page one. Five in every copy in the capital. And there have been nine Covenants.`,
         options: [
           { icon: '💬', label: 'Take it to Captain Rhael — the Watch needs to see this', type: 'move',
@@ -317,15 +325,15 @@
     ambassador_exemplar_surrendered: () => {
       if(!resolveExemplar(false))return null;
       return {
-        location: 'The Ostrene Legation — Afterwards',
+        location: getFlag('ambassador_seizure_at_wool')?'The Wool Gate — Afterwards':'The Ostrene Legation — Afterwards',
         locationIcon: '🕯',
-        narration: `Brask does not gloat, because Brask does not care. He puts the exemplar in a satchel, writes a receipt, tears the receipt along a perforation and hands Rane the stub — and you catch the top line as it goes past: a standing instruction number, and a date beside it that is older than every person in this room put together. Not an order from Elder Varek. Not an order from anybody living. A standing instruction, executed correctly, by a bored man, on a Tuesday. Rane files the stub. Brask leaves. The whole thing takes ninety seconds and it is entirely lawful and that is the most frightening thing you have seen in three days.`,
+        narration: `Brask does not gloat, because Brask does not care. He puts the exemplar in a satchel, writes a receipt, tears the receipt along a perforation and hands you the stub — and you catch the top line as it goes past: a standing instruction number, and a date beside it that is older than every person ${getFlag('ambassador_seizure_at_wool')?'at the exhibition table':'in this room'} put together. Not an order from Elder Varek. Not an order from anybody living. A standing instruction, executed correctly, by a bored man, on a Tuesday. You keep the stub. Brask leaves. The whole thing takes ninety seconds and it is entirely lawful and that is the most frightening thing you have seen in three days.`,
         sub: `Nobody stole it. It was collected, under an instruction with a date on it. Chancery decisions have dates.`,
         options: [
           { icon: '💬', label: '"What was that number on the receipt?"', type: 'talk',
             roll: { stat: 'INT', dc: 12 },
-            onSuccess: () => { setFlag('saw_standing_instruction_date'); addLog('📜 Rane: "A standing instruction. It means somebody decided it once and nobody has decided it since." A pause. "Ours are numbered too. Ours you can look up. Yours you cannot." Someone, at some point, decided the capital would read five clauses. That decision has a date. You cannot reach it from here.', 'holy'); runScene('vaelthar_main'); },
-            onFail: () => { addLog('Rane shrugs. "A number. They all have numbers."', 'system'); runScene('vaelthar_main'); } },
+            onSuccess: () => ambassadorReceipt(true),
+            onFail: () => ambassadorReceipt(false) },
           { icon: '👶', label: 'Rane mentioned a consular file — fourteen children, seven villages', type: 'move',
             action: () => runScene('children_almshouse') },
           { icon: '🗺', label: 'End the conversation — return to exploration', type: 'explore', action: leaveAmbassadorConversation },

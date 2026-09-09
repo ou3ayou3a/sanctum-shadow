@@ -6,6 +6,15 @@ function fixture(){
   root.runScene=id=>{if(!Flow.requireScene(root,id))return false;return root.SCENES[id]();};
   return{root,flags,engine};
 }
+test('outdoor exemplar outcomes retain wool-gate setting without a bedside scene',()=>{
+  for(const kept of [false,true]){const {root,flags}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true,ambassador_seizure_at_wool:true});const scene=root.SCENES[kept?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered']();assert.match(scene.location,/Wool Gate/);assert.doesNotMatch(scene.narration,/in this room|looks at the bed|Rane puts/);}
+});
+test('receipt success and failure show a visible follow-up without opening remote city actions',()=>{
+  for(const success of [false,true])for(const wool of [false,true]){const {root,flags}=fixture();Object.assign(flags,{chancery_took_exemplar:true,ambassador_seizure_at_wool:wool});let shown;root.showScene=scene=>shown=scene;root.runScene=()=>assert.fail('remote scene opened');const receipt=root.SCENES.ambassador_exemplar_surrendered().options[0];receipt[success?'onSuccess':'onFail']();assert.ok(shown.narration);assert.match(shown.location,wool?/Wool Gate/:/Legation/);assert.equal(!!flags.saw_standing_instruction_date,success);shown.options[0].action();}
+});
+test('stale receipt callbacks cannot apply a guest or conflicting outcome effect',()=>{
+  for(const guest of [false,true]){const {root,flags}=fixture();flags.chancery_took_exemplar=true;const receipt=root.SCENES.ambassador_exemplar_surrendered().options[0];if(guest)root.mp={sessionCode:'party',isHost:false};else flags.has_ostrene_exemplar=true;root.showScene=()=>assert.fail('invalid receipt shown');receipt.onSuccess();assert.equal(flags.saw_standing_instruction_date,undefined);}
+});
 test('ambassador departures end dialogue without remotely opening city scenes',()=>{
   for(const kept of [false,true])for(const city of [false,true]){
     const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});engine.zone.id=city?'vaelthar_city':'ostrene_legation';
