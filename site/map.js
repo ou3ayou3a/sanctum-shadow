@@ -714,7 +714,8 @@ const PROGRESS_UNLOCKS = {
     const flags = window.sceneState?.flags || {};
     const ashen = WORLD_LOCATIONS.ashen_fields;
     return !!((ashen && ashen.discovered) || window.mapDiscovered?.ashen_fields
-      || flags.ashen_fields_investigated || flags.ashen_fields_complete);
+      || flags.ashen_fields_investigated || flags.ashen_fields_complete
+      || flags.tower_opened || flags.unlocked_tower_ash || flags.tower_door_answered || flags.faced_the_shattered_god);
   },
 };
 

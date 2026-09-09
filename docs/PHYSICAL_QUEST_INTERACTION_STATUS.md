@@ -2,9 +2,18 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, and finale validation in `6562f6e`. Officer recruitment below is local and not deployed.
+Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, and officer recruitment in `391b112`. The browser-discovered Tower exit recovery fix is local and not deployed.
 
-Latest suite: 436 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 437 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Tower rendered QA follow-up:
+
+- Added a local-only recruited-officer fixture to the existing QA harness. It starts inside the Tower with prepared charter knowledge and recruitment flags; it is not a campaign playthrough or a test of the full cross-region recruitment journey.
+- Visually observed both officer actors using existing character assets. Walked to Cael, confirmed interaction, accepted consent, walked to the stone, confirmed again and reached the Charter ending. The quest disappeared from the active tracker after completion.
+- On a separately reloaded fixture, walked to Theones, heard his failed attempt, then walked back to the stone and verified he was no longer offered while Cael and the player remained options.
+- The first exit attempt failed with “The way forward is unavailable”: the parent Tower lock did not recognize already-reached Tower state. Progress unlocking now recognizes explicit Tower opening, answered-door and confronted-boss flags, without opening it for a fresh character.
+- Reloaded the fix and verified physical exit to `tower_ash`, with no scheduled local ambush. The final browser error-log check returned no errors; the fixture reported no fatal world error.
+- Added a regression covering all four recovery flags and fresh locked state. Full rendered combat victory, multiplayer/reconnect, remaining finale crowd/NPC staging and complete campaign QA remain outstanding. Existing generic officer appearance and interior camera obstruction are not graphics upgrades in this pass.
 
 Charter officer recruitment pass:
 
