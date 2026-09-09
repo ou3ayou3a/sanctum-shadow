@@ -2,9 +2,18 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Deployment update: the Chancery batch above is now deployed in `183a402`. The Tower entry batch below is local and not deployed.
+Deployment update: the Chancery batch above is deployed in `183a402`, and the Tower entry batch in `be5dca2`. The finale validation batch below is local and not deployed.
 
-Latest suite: 421 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 431 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Finale validation pass:
+
+- All six ending factories now check current prerequisites before granting completion. Sword requires the normalized persisted boss-death flag written by solo/host victory processing; its postcombat continuation does not require surviving dialogue context.
+- Charter requires the clauses and a valid officer outcome; Third Day requires the restored personal name. Consequence endings recheck current eligibility. Absent Cael/Theones are not offered as officers, and dead/arrested/fled Mourne cannot qualify Restoration.
+- Existing ending flags lock the run to that outcome. A stale confrontation cannot start another fight after completion. Reopening a completed ending preserves old saves without awarding completion again.
+- Individual epilogue actions have persistent one-time claims and reach checks. 3D return options direct the player to the physical exit rather than teleporting. Multiplayer guests cannot independently execute ending completion/rewards.
+- Ten added automated tests cover all six earned endings, conflicting outcomes, missing prerequisites, boss-death evidence, stale choices, epilogue state restoration, guest protection and absent NPC eligibility.
+- Limits: these are browser story/state guards, not new server-authoritative ending claims. No rendered finale or save/reconnect playthrough was performed. Supporting NPC staging, the full boss-to-ending runtime handoff, legacy saves with conflicting ending flags, and full campaign QA remain outstanding.
 
 Tower entry pass:
 

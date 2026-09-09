@@ -11,6 +11,22 @@
 (function(){
 
   function archiveReward(flag,xp=0,holy=0){if(getFlag(flag))return;setFlag(flag);if(xp)grantXP(xp);if(holy)grantHolyPoints(holy);}
+  const towerEndings=['sword','charter','third_day','uprising','restoration','devour'];
+  function completedTowerEnding(){return towerEndings.find(ending=>getFlag('chapter1_ending_'+ending));}
+  function canResolveTowerEnding(ending){
+    if(window.mp?.sessionCode&&!window.mp.isHost)return false;
+    const completed=completedTowerEnding();
+    if(completed)return completed===ending;
+    if(getFlag('chapter1_complete')||!getFlag('faced_the_shattered_god'))return false;
+    // Both solo and host multiplayer victory handlers persist this normalized
+    // death flag before running the authored continuation. A combat timer need
+    // not retain the original conversation's physical context.
+    if(ending==='sword')return !!getFlag('npc_dead_shattered_god');
+    if(window.PhysicalQuestFlow?.requireScene(window,'tower_thirty_seventh_step')===false)return false;
+    if(ending==='third_day')return !!getFlag('spoke_selvane');
+    if(ending==='charter')return canReadTheCharter()&&!!((getFlag('officer_cael')&&caelAlive())||(getFlag('officer_player')&&getFlag('player_tried_saying')));
+    return window.availableEndings?.()[ending]===true;
+  }
   function answerTowerDoor(){setFlag('tower_door_answered');runScene('tower_thirty_seventh_step');window.__world3d?.toast?.('Enter the Waiting Room and approach the sealed stair to continue.',4800);}
   function reviewCovenant(){runScene(getFlag('clue_author_signed_with_cross')?'covenant_author_closed':'chancery_vault_request');}
   function openArchiveHatch(){setFlag('archive_hatch_unlocked');runScene('archive_voice_names');window.__world3d?.toast?.('The hatch is open. Use the foundation entrance, then approach the Sixth Stone.',4800);}
@@ -35,10 +51,10 @@
     return !!(getFlag('clue_old_benediction_six_lines') && hasLineSeven());
   }
   function caelAlive() {
-    return !getFlag('npc_dead_last_monk') && !getFlag('npc_dead_brother_cael');
+    return !getFlag('npc_dead_last_monk') && !getFlag('npc_dead_brother_cael') && !window.npcAbsent?.('brother_cael');
   }
   function theonesAlive() {
-    return !getFlag('npc_dead_head_archivist_theones') && !getFlag('npc_dead_theones');
+    return !getFlag('npc_dead_head_archivist_theones') && !getFlag('npc_dead_theones') && !window.npcAbsent?.('head_archivist_theones');
   }
   function varekReachable() {
     return getFlag('chapter1_finale') && !getFlag('npc_dead_elder_varek');
@@ -679,6 +695,7 @@
 
     // ENDING 3 — STEP ONE. Nothing supernatural happens. Write it flat.
     tower_speak_his_name: () => {
+      if(!knowsTheName()&&!getFlag('spoke_selvane'))return null;
       if (!getFlag('spoke_selvane')) {
         setFlag('spoke_selvane');
         grantHolyPoints(10);
@@ -762,7 +779,7 @@
     },
 
     // ENDING 2 — the officer. The cost is a person and the player picks them.
-    tower_charter_officer: () => ({
+    tower_charter_officer: () => canReadTheCharter()?({
       location: 'The Tower of Ash — Stone VII',
       locationIcon: '📜',
       threat: '⚠ Clause The Seventh',
@@ -801,7 +818,7 @@
         }
         return opts;
       })(),
-    }),
+    }):null,
 
     // ══════════════ ENDING 1 — THE SWORD ══════════════
     // Always available. No puzzle. No flags. It works.
@@ -1010,7 +1027,30 @@
 
   // Revalidate stale option callbacks as well as the initial scene boundary.
   for(const id of ['tower_ash_approach','tower_thirty_seventh_step','tower_speak_his_name','tower_name_without_name','tower_charter_officer','archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent','chancery_records_room','chancery_vault_request','chancery_copying_desk','covenant_signature_block','chancery_rubric_rehearsal','mourne_page_one','mourne_page_one_absent','varek_first_page','covenant_author_closed']){
-    const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
+    const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;if(id.startsWith('tower_')&&completedTowerEnding()){runScene('tower_ending_'+completedTowerEnding());return null;}const scene=factory();if(!scene)return null;for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(id.startsWith('tower_')&&getFlag('chapter1_complete'))return;if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
+  }
+
+  // Guard before factories award completion, not just while offering choices.
+  // Epilogue callbacks have persistent individual claims, including old panels.
+  for(const ending of towerEndings){
+    const id='tower_ending_'+ending,factory=S[id];
+    S[id]=()=>{
+      if(!canResolveTowerEnding(ending))return null;
+      const scene=factory();
+      for(const [index,option]of (scene.options||[]).entries()){
+        if(typeof option.action!=='function')continue;
+        const action=option.action;
+        option.action=(...args)=>{
+          if(!canResolveTowerEnding(ending))return;
+          if(window.PhysicalQuestFlow?.requireScene(window,'tower_thirty_seventh_step')===false)return;
+          if(option.type==='move'&&window.document?.body?.classList.contains('vt-3d-active')){window.__world3d?.toast?.('Use the exit to leave the Tower, then travel back to Vaelthar.');return;}
+          const claim='tower_epilogue_'+ending+'_'+index;
+          if(getFlag(claim))return;
+          setFlag(claim);return action(...args);
+        };
+      }
+      return scene;
+    };
   }
 
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);

@@ -97,7 +97,7 @@
       // a holy run, and Mourne alive to carry the flame.
       restoration: (churchTier === 'honored' || churchTier === 'revered')
         && (tier === 'devout' || tier === 'saint')
-        && mourne !== 'dead',
+        && !ABSENT_FATES.includes(mourne),
       // You take his faces for yourself — a damned run that spilled real blood
       // and turned the city against you.
       devour: tier === 'damned' && (mourne === 'dead' || rhael === 'dead') && cits < 0,
