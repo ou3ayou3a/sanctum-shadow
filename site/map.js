@@ -388,12 +388,13 @@ const WORLD_LOCATIONS = {
     subtitle: 'Where Archivists Hid Their Wine',
     x: 590, y: 140,
     type: 'tavern', icon: '📚', region: 'northern_highlands', danger: 4,
-    discovered: false, connections: ['church_archive'],
+    discovered: false, connections: ['church_archive','archive_level_four'],parentLocation:'church_archive',physicalEntrance:'entrance_archive_scriptorium',
     description: `Three levels underground in the Church Archive, there is a scriptorium where generations of archivists have hidden wine in the hollow spaces between bookshelves. The collection is extraordinary and completely unsanctioned. Someone left a chair, a reading lamp, and a note: "If you found this, you're either authorized or you're exactly who we hoped would come. Pour yourself something. You're going to need it before you reach the lower levels."`,
     npcs: ['Mira the Archivist (if she made it here)', 'Ghost of Old Archivist'],
     quests: ['c1q17'], encounters: ['cultist'], music: 'tavern_low', lightLevel: 'dark',
   },
 
+  archive_level_four:{id:'archive_level_four',name:'Archive Level Four',subtitle:'The Buried Series',x:602,y:132,type:'dungeon',icon:'📚',region:'northern_highlands',danger:4,discovered:false,connections:['archive_scriptorium'],parentLocation:'archive_scriptorium',physicalEntrance:'entrance_archive_level_four',description:'The oldest presses stand beside a stone older than the archive itself.',npcs:[],quests:['c1q17','c1q18'],encounters:[],music:'dungeon',lightLevel:'dark'},
   heartlands: { name: 'The Heartlands', color: 'rgba(100, 80, 40, 0.15)', strokeColor: 'rgba(201,168,76,0.3)' },
   western_reach: { name: 'The Western Reach', color: 'rgba(40, 80, 40, 0.15)', strokeColor: 'rgba(74,154,100,0.3)' },
   northern_highlands: { name: 'The Northern Highlands', color: 'rgba(40, 60, 100, 0.15)', strokeColor: 'rgba(100,140,200,0.3)' },
@@ -428,7 +429,7 @@ window.WORLD_LOCATIONS = WORLD_LOCATIONS;
 window.travelToWorldLocation = function(id) {
   const location=window.WORLD_LOCATIONS?.[id];
   if(!location)return false;
-  if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. The lower monastery door opens after the skeletons are defeated.');return false;}
+  if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. Restricted passages must be unlocked first.');return false;}
   if(location.locked){window.toast?.(location.lockHint||`${location.name} is locked.`,'error');return false;}
   window.world3dReturnLocation=window.mapState?.currentLocation||'vaelthar_city';
   window.travelToLocation?.(location);
@@ -908,7 +909,7 @@ function handleMapLocationClick(loc) {
 }
 
 function travelToLocation(loc) {
-  if(window.PhysicalQuestFlow?.canTravel(window,loc)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. The lower monastery door opens after the skeletons are defeated.');return false;}
+  if(window.PhysicalQuestFlow?.canTravel(window,loc)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. Restricted passages must be unlocked first.');return false;}
   // #16: no travel during combat
   if (window.combatState?.active) {
     if (window.toast) toast('⚔ Not during combat!', 'error');

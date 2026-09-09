@@ -1,6 +1,7 @@
 const emptyEffects=()=>({flags:{},facts:{},reputation:[],resources:{hp:0,holy:0,hell:0,xp:0},items:{add:[],remove:[]},questEvents:[]});
 
 const INTERIORS=Object.freeze({
+  archive_level_four:{asset:'shop_interior',size:[14,5.5,16],returnTo:'archive_scriptorium',entrance:[0,2.7],variant:'buried_series',accent:0x9971b0,npcs:[]},
   monastery_depths:{asset:'dungeon_interior',size:[16,6,20],returnTo:'monastery_cellar',entrance:[0,6],variant:'binding_chamber',accent:0x8d72bc,npcs:[]},
   tarnished_cup:{asset:'tavern_interior',size:[18,6.1,14],returnTo:'vaelthar_city',entrance:[-16,18],variant:'city_tavern'},
   temple_quarter:{asset:'temple_interior',size:[13.5,6.2,13],returnTo:'vaelthar_city',entrance:[22,-7],variant:'flame_temple',accent:0xd8bd68,

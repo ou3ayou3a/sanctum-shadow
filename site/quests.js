@@ -106,9 +106,9 @@
     c1q17:{ objectives:[
       { id:"break_in", label:"Get inside the Church Archive.", events:["scene:church_archive_breakin"] },
       { id:"reach_theones", label:"Get past Head Archivist Theones — or get him to open the door himself.", events:["scene:archive_theones_desk"] },
-      { id:"level_four", label:"Reach Level Four, the room nobody is assigned to.", events:["scene:archive_level_four"] },
-      { id:"minutes", label:"Find the founders' minutes at the beginning of the series.", events:["scene:archive_founders_minutes"] },
-      { id:"leave", label:"Get out of the Archive with what you found.", events:["scene:archive_c1q17_end"], completes:true },
+      { id:"level_four", label:"Reach Level Four or persuade Theones to retrieve its records.", events:["scene:archive_level_four","scene:archive_delivered_minutes"] },
+      { id:"minutes", label:"Find the founders' minutes at the beginning of the series.", events:["scene:archive_founders_minutes","scene:archive_delivered_minutes"] },
+      { id:"leave", label:"Bring the findings back to Theones in reception.", events:["scene:archive_c1q17_end"], completes:true },
     ] },
     c1q18:{ objectives:[
       { id:"descend", label:"Find the stair below the bottom of the Church Archive.", events:["scene:archive_lowest_level"] },

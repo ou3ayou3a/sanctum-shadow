@@ -361,7 +361,7 @@
             LOG('📜 He does not ask how you know. That is the tell — a man who has spent forty years being surprised by nothing has just been surprised, and his first act is not a question, it is a walk. He goes and gets the minutes himself.', 'holy');
             LOG('📜 ITEM GAINED: The Founders\' Minutes (unredacted) — the only copy. The only document in the world that proves a murder in chancery prose.', 'holy');
             ITEM('The Founders\' Minutes (unredacted)');
-            GO('archive_founders_minutes');
+            SF('archive_minutes_delivered');GO('archive_delivered_minutes');
           } });
       }
       opts.push(
@@ -405,20 +405,22 @@
         sub: `Two presses that matter, and a stone in the floor that nobody built around by accident.`,
         options: [
           { icon: '🔍', label: 'The near press is open to a standing file. Read what it\'s standing for.', type: 'explore',
-            roll: { stat: 'INT', dc: 13 },
-            onSuccess: () => GO('archive_aldric_exception'),
-            onFail: () => { LOG('You pull the wrong drawer. It is the oldest press on Four and the drawer is the bottom one and it is not hidden, it is simply first, and inside it is the beginning of the whole series.', 'narrator'); GO('archive_founders_minutes'); } },
+            action:()=>GO('archive_standing_press') },
           { icon: '📜', label: 'Go to the beginning. The first minute book of the Church.', type: 'explore',
             action: () => GO('archive_founders_minutes') },
           { icon: '👂', label: 'Kneel on the stone in the floor. Put your ear to it.', type: 'explore',
-            action: () => {
-              SF('archive_floor_stone_seen');
-              LOG('Cold, and then not cold — the cold of a room on the other side of it. There is nothing to hear. There is something not hearing you back. You are still kneeling on it when you notice you have been kneeling on it for a while, and that nobody in four hundred years of the most thoroughly catalogued building in the realm has written one word about the stone in the middle of Level Four.', 'narrator');
-              GO('archive_founders_minutes');
-            } },
+            action:()=>GO('archive_stone_listen') },
         ]
       };
     },
+
+    archive_standing_press:()=>({location:'Archive Level Four — Standing Files',narration:'The standing file lies open in the near press. Its renewals run back centuries.',options:[{icon:'🔍',label:'Trace the standing file through its renewals',type:'explore',roll:{stat:'INT',dc:13},onSuccess:()=>GO('archive_aldric_exception'),onFail:()=>{LOG('The index points you toward the oldest press instead. Go to the beginning of the series.','narrator');GO('archive_founders_minutes');}}]}),
+    archive_stone_listen:()=>{SF('archive_floor_stone_seen');return {location:'Archive Level Four — The Stone',narration:'The stone feels cold, and then not cold: like a room on the other side. Nothing answers your listening. No catalogue entry explains why it is here.',options:[{icon:'📜',label:'Go back to the founders’ press',type:'move',action:()=>GO('archive_founders_minutes')}]};},
+    archive_stone_wake:()=>{SF('archive_lower_stair_open');return {location:'Archive Level Four — Beneath the Stone',narration:'At the stone, something below speaks a name you have never written on any document. The way beneath the archive is now open.',options:[{icon:'🚶',label:'Step away from the stone',type:'move',action:()=>window.__world3d?.toast?.('The lower stair is recorded. Its deeper route is a separate lead.')}]};},
+    archive_delivered_minutes:()=>S.archive_founders_minutes(),
+    archive_charter_search:()=>{SF('archive_searched_year_one');return {location:'Archive Level Four — Founding Shelf',narration:'There is a charter for the fish market and a requisition for the mortar that sealed an apprentice inside a wall. Here, where the Church’s own founding charter should be, there is no charter, no minute, and no explanation. Year One is a date without a recorded event.',options:[{icon:'💬',label:'Bring this absence to Theones',type:'move',action:()=>GO('archive_c1q17_end')}]};},
+    archive_theones_aldric:()=>{SF('theones_aldric_line');return {location:'Church Archive — Theones’s Desk',narration:'“I never destroyed a single document about Saint Aldric,” he says. “There were none. You cannot burn what was never written. I spent forty years assuming the gaps were mine.”',options:[{icon:'📜',label:'Return to the standing file',type:'move',action:()=>GO('archive_aldric_exception')}]};},
+    archive_theones_minutes:()=>{SF('theones_read_the_minutes');return {location:'Church Archive — Theones’s Desk',narration:'Theones checks the accession number, the hand, and the ink. Then he reads the words. He sits behind his desk, holding the edge of the page. The first minute book is genuine.',options:[{icon:'💬',label:'Discuss what the records mean',type:'talk',action:()=>GO('archive_c1q17_end')}]};},
 
     // ── CORROBORATOR (c1q17): The Aldric Exception ──
     archive_aldric_exception: () => {
@@ -435,11 +437,7 @@
           },
           onFail: () => { LOG('Four centuries of minuted renewals, all correct, all boring. You cannot find the sentence that makes them make sense. It is in here. It is three lines long.', 'narrator'); GO('archive_founders_minutes'); } },
         { icon: '💬', label: '"Theones. Why does a saint have no birth record?"', type: 'talk',
-          action: () => {
-            SF('theones_aldric_line');
-            LOG('📜 "I never destroyed a single document about Saint Aldric." He says it slowly, because he is hearing it as he says it. "There were none. You cannot burn what was never written." He looks at the shelf where four hundred years of a saint\'s life is not. "I have spent forty years assuming the gaps were mine."', 'holy');
-            GO('archive_aldric_exception');
-          } },
+          action:()=>GO('archive_theones_aldric') },
         { icon: '💬', label: '"Four hundred years of persecution — with one exception, filed correctly."', type: 'talk',
           action: () => {
             LOG('That is the sentence that does it. Not the atrocity — the filing. The Church burned the Remnant everywhere in the world except the one house it could not do without, and it did not do that in secret, and it did not do it out of mercy. It did it because it needed somebody, somewhere, to still mean the words. And it wrote that down. In a file. With a series number. And renewed it every year for four centuries without one single Elder ever asking what a Church needs a real believer FOR.', 'holy');
@@ -474,17 +472,9 @@
           },
           onFail: () => { LOG('You read the sentence four times. It refuses to be dramatic. It is a filing instruction about a man\'s name and it was carried out by clerks who went home afterwards.', 'narrator'); GO('archive_c1q17_end'); } },
         { icon: '🔍', label: 'Flame Year 1. Find the founding charter. There is always a charter.', type: 'explore',
-          action: () => {
-            SF('archive_searched_year_one');
-            LOG('There is always a charter. There is a charter for the fish market. There is a charter for the mortar that bricked up an apprentice. There is no charter for the Church of the Eternal Flame, and no minute, and no event, and no note explaining the absence — and this building has never once failed to note an absence. Year 1 is a date the realm has been writing at the top of its letters for four hundred years, and nobody wrote down what happened on it.', 'holy');
-            GO('archive_c1q17_end');
-          } },
+          action:()=>GO('archive_charter_search') },
         { icon: '💬', label: 'Put the page in front of Theones. Make him read it.', type: 'talk',
-          action: () => {
-            SF('theones_read_the_minutes');
-            LOG('He checks the accession number first. Not the words — the number, and the hand, and the ink, because that is what he is and forty years does not come off a man in one afternoon. It takes him about nine seconds to confirm that it is genuine, first minute book, Series I, correctly filed since Flame Year 12. Then he reads the words. Then he sits down on the floor of Level Four, in his own archive, holding the arm of a chair he did not reach.', 'holy');
-            GO('archive_c1q17_end');
-          } },
+          action:()=>GO('archive_theones_minutes') },
         { icon: '📜', label: 'Take the minute book. All of it.', type: 'move',
           action: () => { LOG('📜 It fits under one arm. Four hundred years of the most powerful institution in the world begins with a meeting, and the meeting fits under one arm, and nobody ever burned it because nobody ever thought it was worth burning. It is minutes. It is the most boring document in the building.', 'holy'); GO('archive_c1q17_end'); } },
       ];
@@ -507,20 +497,16 @@
       }
       opts.push(
         { icon: '💬', label: 'Ask Theones what he does now', type: 'talk',
-          action: () => TALK_THEN('head_archivist_theones', 'On Level Four, holding the founders\' minute book, I ask Head Archivist Theones what a man does with forty years after he reads this.', 'archive_c1q17_end') },
+          action: () => TALK_THEN('head_archivist_theones', 'At his reception desk, holding the founders\' minute book, I ask Head Archivist Theones what a man does with forty years after he reads this.', 'archive_c1q17_end') },
         { icon: '👂', label: 'Stay. The stone in the floor is not finished with you.', type: 'explore',
-          action: () => {
-            SF('archive_lower_stair_open');
-            LOG('📜 You stay. The others go up. Somewhere under the stone in the middle of Level Four, in a city built on a marker nobody has moved in three hundred and ninety-three years, something says a name that belongs to a person standing in this room, and it is correct, and it is not the name on any document you have ever signed.', 'hell');
-            LOG('📜 The way down is open. Whatever is beneath the Archive knows you are here now.', 'system');
-          } },
+          action:()=>GO('archive_stone_wake') },
         { icon: '🚶', label: 'Get out of the Archive with the file', type: 'move',
-          action: () => { LOG('📜 You walk out of the Church Archive carrying the founders\' minutes and a live file, and nobody stops you, because nobody has ever written a procedure for somebody leaving with the boring drawer.', 'holy'); TRAVEL('vaelthar_city'); } }
+          action: () => window.__world3d?.toast?.('Use the reception exit to leave the archive with your records.') }
       );
       return {
-        location: 'The Church Archive — The Stair Up',
+        location: 'The Church Archive — Reception',
         locationIcon: '📚',
-        narration: `Four levels of the most honest building in the realm, and this is what it had: a minute book that says they needed a man of local esteem and that he agreed; a live file that says they have protected one house of the faith they exterminated, for four centuries, because they need somebody who means it; and eleven blank years at the start of a calendar the whole world writes at the top of its letters. Theones stands at the foot of the stair with his hands behind his back, because if he puts them anywhere you will see them. "It was all filed," he says. "That is the part I want you to understand. Nobody hid any of this. We just never read it in the right order."`,
+        narration: `Back at reception, you place the minute book before Theones: a man of local esteem, his consent, and eleven blank years at the beginning of the realm's calendar.${F('clue_aldric_exception')?' Beside it lies the Aldric Exception, protecting the one house the Church could not do without.':''} Theones rests his hands on the desk. "It was all filed," he says. "That is the part I want you to understand. Nobody hid any of this. We just never read it in the right order."`,
         sub: `They didn't bury the truth. They catalogued it, and trusted that nobody would ever request the whole series.`,
         options: opts,
       };

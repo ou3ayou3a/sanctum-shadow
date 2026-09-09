@@ -6,6 +6,7 @@ const prop=(kind,x,z,rotation=0,scale=1)=>Object.freeze({kind,x,z,rotation,scale
 // quest state: every client can build the same scene locally and the existing
 // authoritative interaction layer remains the only source of gameplay effects.
 export const CHAPTER_ONE_LOCATION_PLANS=Object.freeze({
+  archive_level_four:{signature:'The Unread Founding',interior:true,props:[prop('candles',-4,-4),prop('candles',4,-4),prop('papers',-3,2),prop('papers',3,2),prop('rune_ring',0,4),prop('black_bottles',5,5)]},
   monastery_depths:{signature:'The Broken Binding',interior:true,props:[prop('rune_ring',0,6),prop('candles',-2,6),prop('candles',2,6),prop('blue_brazier',-2,-4),prop('blue_brazier',2,-4),prop('black_bottles',6,-6)]},
   temple_quarter:{signature:'Three Faiths Nave',interior:true,props:[prop('altar',0,3),prop('banner',-4,2),prop('banner',4,2),prop('reliquary',-4,-2),prop('reliquary',4,-2),prop('candles',0,1)]},
   thornwood_gate:{signature:'Iron Gate Frontier',assets:[asset('castle_wall',-12,-11,[11,5.8,1.2]),asset('castle_wall',12,-11,[11,5.8,1.2]),asset('castle_tower',-16,-11,[5.2,8.5,5.2]),asset('castle_tower',16,-11,[5.2,8.5,5.2]),asset('craft_workshop',-10,-1,[6,6,5],.18)],props:[prop('barricade',-4,-5,.12),prop('barricade',4,-5,-.12),prop('banner',-7,-9),prop('banner',7,-9),prop('cart',10,6,.45),prop('crates',-9,5)]},

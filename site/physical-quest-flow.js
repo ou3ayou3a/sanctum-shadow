@@ -3,6 +3,10 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    archive_four_landing:{location:'archive_level_four',label:'Survey the Level Four reading room',position:[0,0,-4],scene:'archive_level_four',quest:'c1q17',kind:'records',entrance:'entrance_archive_level_four'},
+    archive_standing_press:{location:'archive_level_four',label:'Inspect the standing-file press',position:[-3,0,2],scene:'archive_standing_press',quest:'c1q17',requires:'reached_archive_level_four',kind:'records',entrance:'entrance_archive_level_four'},
+    archive_minutes_press:{location:'archive_level_four',label:'Read the founders’ minute book',position:[3,0,2],scene:'archive_founders_minutes',quest:'c1q17',requires:'reached_archive_level_four',kind:'records',entrance:'entrance_archive_level_four'},
+    archive_floor_stone:{location:'archive_level_four',label:'Examine the stone beneath the archive',position:[0,0,4],scene:'archive_stone_listen',quest:'c1q17',requires:'reached_archive_level_four',kind:'stone',entrance:'entrance_archive_level_four'},
     'npc:archive_admissions_deacon':{location:'church_archive',label:'Speak with the archive admissions deacon',position:[-2.8,0,-2],scene:'church_archive_breakin',quest:'c1q17',npc:{id:'archive_admissions_deacon',name:'Archive Deacon',title:'Admissions and Access Writs',race:'human',classId:'cleric',action:'quest'}},
     'npc:head_archivist_theones':{location:'church_archive',label:'Speak with Head Archivist Theones',position:[2.8,0,-2],scene:'archive_theones_desk',quest:'c1q17',entrance:'interior_exit',requires:'met_theones',npc:{id:'head_archivist_theones',name:'Head Archivist Theones',title:'Keeper of the Buried Texts',race:'human',classId:'mage',action:'quest'}},
     archive_wine_hollow:{location:'archive_scriptorium',label:'Inspect the hollow wine shelves',position:[0,0,-1.5],scene:'archive_wine_passage',quest:'c1q17',requires:'archive_breakin_started',kind:'records',entrance:'entrance_archive_scriptorium'},
@@ -40,6 +44,8 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    archive_charter_search:'archive_minutes_press',
+    archive_level_four:'archive_four_landing',archive_standing_press:'archive_standing_press',archive_aldric_exception:'archive_standing_press',archive_founders_minutes:'archive_minutes_press',archive_stone_listen:'archive_floor_stone',archive_stone_wake:'archive_floor_stone',archive_delivered_minutes:'npc:head_archivist_theones',archive_theones_aldric:'npc:head_archivist_theones',archive_theones_minutes:'npc:head_archivist_theones',archive_c1q17_end:'npc:head_archivist_theones',
     church_archive_breakin:'npc:archive_admissions_deacon',archive_theones_desk:'npc:head_archivist_theones',archive_wine_passage:'archive_wine_hollow',
     harren_field_order:'harren_field_order',
     fortress_harren_arrival:'harren_gate_notice',harren_opens_door:'harren_gate_notice',harren_refuses_order:'harren_gate_notice',harren_confession:'npc:sir_harren',harren_hesitates:'npc:sir_harren',harren_forced_entry:'npc:sir_harren',harren_joins:'npc:sir_harren',harren_order_arrives:'npc:commander_vael',
@@ -79,12 +85,16 @@
   function sceneTarget(sceneId,locationId){if(sceneId==='well_vigil_night'&&locationId==='mol_well_shaft')return'mol_well_deep_vigil';return Object.hasOwn(SCENES,sceneId)?SCENES[sceneId]:null;}
   function restoreRequests(value){const result={};if(!value||typeof value!=='object')return result;for(const [id,scene]of Object.entries(value))if(Object.hasOwn(TARGETS,id)&&sceneTarget(scene,TARGETS[id].location)===id)result[id]=scene;return result;}
   function available(target,game,flags){return !!target&&!target.pendingOnly&&(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)===target.quest)&&(!target.requires||!!flags?.[target.requires])&&(target.scene!=='well_cabb_offer'||((Number(flags?.well_nights_failed)>=2||Number(flags?.well_nights_transcribed)>=2)&&!flags?.well_capped));}
-  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;if(['monastery_voice','monastery_binding_circle'].includes(id)&&monasteryCleared(state,game))return null;if(['harren_gate_notice','npc:sir_harren','npc:commander_vael'].includes(id)){const done=!!state?.flags?.harren_dead||!!state?.flags?.harren_ally||(game?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q6');if(done)return id==='npc:sir_harren'&&state?.flags?.harren_ally&&!state?.flags?.harren_dead?'harren_joins':null;}if(id==='archive_wine_hollow'&&archiveAdmitted(state))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;if(id==='npc:head_archivist_theones'&&archiveAdmitted(state))return 'archive_theones_desk';if(id==='harren_field_order'&&state?.flags?.harren_dead)return 'harren_field_order';if(id==='npc:sir_harren'&&state?.flags?.harren_hostile)return 'harren_forced_entry';if(id==='npc:sir_harren'&&state?.flags?.harren_told_truth)return 'harren_confession';if(id==='npc:recovering_monastery_monk'&&npcStage('recovering_monastery_monk','monastery_aldric',state,game)?.active)return 'monastery_recovered_monk';if(id==='npc:edden_cartographer'&&state?.flags?.cartographer_found&&!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted)return 'cartographer_found';return available(target,game,state?.flags)?target.scene:null;}
+  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;if(['monastery_voice','monastery_binding_circle'].includes(id)&&monasteryCleared(state,game))return null;if(['harren_gate_notice','npc:sir_harren','npc:commander_vael'].includes(id)){const done=!!state?.flags?.harren_dead||!!state?.flags?.harren_ally||(game?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q6');if(done)return id==='npc:sir_harren'&&state?.flags?.harren_ally&&!state?.flags?.harren_dead?'harren_joins':null;}if(id==='archive_wine_hollow'&&archiveAdmitted(state))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;if(id==='npc:head_archivist_theones'&&state?.flags?.archive_breakin_done&&state?.flags?.clue_founders_minutes)return 'archive_c1q17_end';if(id==='archive_floor_stone'&&state?.flags?.archive_breakin_done)return 'archive_stone_wake';if(id==='npc:head_archivist_theones'&&archiveAdmitted(state))return 'archive_theones_desk';if(id==='harren_field_order'&&state?.flags?.harren_dead)return 'harren_field_order';if(id==='npc:sir_harren'&&state?.flags?.harren_hostile)return 'harren_forced_entry';if(id==='npc:sir_harren'&&state?.flags?.harren_told_truth)return 'harren_confession';if(id==='npc:recovering_monastery_monk'&&npcStage('recovering_monastery_monk','monastery_aldric',state,game)?.active)return 'monastery_recovered_monk';if(id==='npc:edden_cartographer'&&state?.flags?.cartographer_found&&!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted)return 'cartographer_found';return available(target,game,state?.flags)?target.scene:null;}
   function canTravel(root,location){
     if(!root.document?.body?.classList.contains('vt-3d-active'))return true;
-    const engine=root.__world3d;if(!engine)return !['mol_well_shaft','monastery_depths'].includes(location?.id);
+    const engine=root.__world3d;if(!engine)return !['mol_well_shaft','monastery_depths','archive_level_four'].includes(location?.id);
     let targetId;
-    if(location?.id==='monastery_depths'){
+    if(location?.id==='archive_level_four'){
+      if(engine.zone.id!=='archive_scriptorium'||!archiveAdmitted(root.sceneState))return false;targetId='entrance_archive_level_four';
+    }else if(engine.zone.id==='archive_level_four'){
+      if(location?.id!=='archive_scriptorium')return false;targetId='interior_exit';
+    }else if(location?.id==='monastery_depths'){
       if(engine.zone.id!=='monastery_cellar'||!monasteryUnlocked(root.sceneState,root.gameState))return false;
       targetId='entrance_monastery_depths';
     }else if(engine.zone.id==='monastery_depths'){
@@ -100,6 +110,10 @@
     return !!record&&engine.hasPhysicalInteraction?.(targetId)&&engine.physicalReach?.(record);
   }
   function requireScene(root,sceneId){
+    if(sceneId==='archive_delivered_minutes'&&!root.sceneState?.flags?.archive_minutes_delivered)return false;
+    if(['archive_c1q17_end','archive_theones_minutes'].includes(sceneId)&&!root.sceneState?.flags?.clue_founders_minutes)return false;
+    if(sceneId==='archive_theones_aldric'&&!root.sceneState?.flags?.clue_aldric_exception)return false;
+    if(sceneId==='archive_stone_wake'&&!root.sceneState?.flags?.archive_breakin_done)return false;
     if(sceneId==='archive_wine_passage'&&archiveAdmitted(root.sceneState))return false;
     if(sceneId==='harren_field_order'&&!root.sceneState?.flags?.harren_dead)return false;
     if(sceneId==='harren_joins'&&root.sceneState?.flags?.harren_dead)return false;
