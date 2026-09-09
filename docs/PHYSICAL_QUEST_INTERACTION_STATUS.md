@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 471 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 473 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+City loading — frozen roster correction (local, not deployed):
+
+- Ambassador departure correction is deployed in `79f065b`.
+- Reproduced the city failure on a direct City QA load. Captured `TypeError: Cannot add property 46, object is not extensible` at `preparePhysicalQuestTargets`: it attempted to append wool-gate Brask to the imported frozen `VAELTHAR_NPCS` roster. This was a deterministic code error, not an established graphics-memory or exit-specific issue.
+- Quest preparation now copies the roster, NPC records and position arrays into the zone instance before adding staged actors. The source roster remains unchanged across visits. Browser import versions were bumped through bootstrap, engine and adapter.
+- Added tests using the actual frozen city roster, verifying Brask addition, no duplicate Rhael, independent visits/positions and unchanged source data; also covered a zone without a roster. All 473 tests pass.
+- Browser retest: loaded the legation, approached and explicitly confirmed its physical exit, then reached `vaelthar_city` with the 3D HUD, rendered player position and city NPC interaction roster available. The local world-error capture remained empty. This verifies the formerly failing transition, not a full campaign or rendered multiplayer run.
+- Added local-only world-error capture to the QA harness. Remaining ambassador acceptance work: wool-gate route, combat-victory continuation and rendered multiplayer/reconnect checks.
 
 Ambassador quest — rendered surrender route and departure correction (local, not deployed):
 
