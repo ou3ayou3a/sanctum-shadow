@@ -744,6 +744,10 @@ function buildCampaignState(reason = 'sync') {
   };
 }
 
+function campaignSceneSignature(scene){
+  if(!scene)return '';
+  return JSON.stringify({id:scene.id,location:scene.location,locationIcon:scene.locationIcon,threat:scene.threat,narration:scene.narration,sub:scene.sub,personal:!!scene.personal,options:(scene.options||[]).map(o=>({label:o.label,icon:o.icon,type:o.type,roll:o.roll?{stat:o.roll.stat,skill:o.roll.skill,dc:o.roll.dc,advantage:!!o.roll.advantage,disadvantage:!!o.roll.disadvantage}:null,cost:o.cost,next:o.next,nextFail:o.nextFail}))});
+}
 function applyCampaignState(state) {
   if (!state || typeof state !== 'object') return;
   state = window.SanctumSchema?.migrateCampaignState(state) || state;
@@ -766,14 +770,15 @@ function applyCampaignState(state) {
     window.sceneState.npcStates = state.scene.npcStates || {};
     window.sceneState.history = state.scene.history || [];
     window.sceneState.physicalSceneRequests = window.PhysicalQuestFlow?.restoreRequests(state.scene.physicalSceneRequests) || {};
-    if(!state.scene.currentData&&Object.keys(window.sceneState.physicalSceneRequests).length&&!window.sceneState._currentScene?.personal){
+    if(Object.hasOwn(state.scene,'currentData')&&!state.scene.currentData&&!window.sceneState._currentScene?.personal){
       document.getElementById('scene-panel')?.remove();
       window.sceneState._currentScene=null;window.sceneState._currentOptions=[];
     }
     window.sceneState._lastNarration = state.scene.lastNarration || '';
     window.sceneState.currentThreat = state.scene.currentThreat || null;
     if (state.scene.currentData && gameState.activeScreen === 'game'
-        && !document.getElementById('scene-panel')
+        && !window.sceneState._currentScene?.personal
+        && (!document.getElementById('scene-panel')||campaignSceneSignature(window.sceneState._currentScene)!==campaignSceneSignature(state.scene.currentData))
         && !window.combatState?.active && !window.npcConvState?.active) {
       const prevReceiving = window.mp._receiving;
       window.mp._receiving = true;

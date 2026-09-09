@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 485 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 489 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Multiplayer — stale quest panel reconciliation (local, not deployed):
+
+- Absent-Rane continuity is deployed in `5a379f8`.
+- Found a snapshot recovery gap: `applyCampaignState` only displayed shared scene data when no panel existed, leaving an already-open stale guest panel untouched. It also only closed an explicitly ended scene when a physical request was pending.
+- Snapshots now compare presentation fields/options, replace changed shared panels under the receiving guard, and close explicitly null shared scenes even without a pending target. Identical scene presentations do not restart typing. Private scenes and active combat/NPC conversations are not replaced; older snapshot versions remain rejected.
+- Four new tests cover ambassador outcome/quest/claim restoration without running scene factories or rewards, unchanged snapshot deduplication, explicit closures, protected private/combat presentation, same-ID option updates and stale versions. All 489 tests pass, including the existing real four-player server integration test.
+- This batch is automated client snapshot verification, not rendered multi-client ambassador QA. Multiplayer rendering/reconnect acceptance, dying Halven presentation and broader Step 5 work remain outstanding.
 
 Ambassador quest — absent-clerk continuity (local, not deployed):
 
