@@ -716,6 +716,44 @@
 
   };
 
+  // Treasury evidence and alignment decisions are persistent claims, not
+  // repeatable dialogue rewards. Keep these separate from quest completion XP.
+  const treasuryClaims = {
+    treasury_caught_crossing: { 1: ['standing_order'] },
+    treasury_fortynine_counted: { 0: ['year_list'], 1: ['fiftieth', 'clue_covenant_expires_treasury_corroboration'] },
+    treasury_warrant_read: { 1: ['relic_schedule'] },
+    treasury_candle_arithmetic: { 1: ['raid_stopped', 'temple_quarter_raid_stopped'] },
+    treasury_blame_the_candle: { 2: ['abandoned_report'] },
+    treasury_second_key: { 1: ['house_search'], 2: ['forced_key', 'took_second_key_by_force'] },
+    treasury_rats_resolved: { 0: ['stone_history'], 2: ['withdrawal', 'watched_the_withdrawal'], 3: ['arrest', 'sallow_arrested'] },
+  };
+  const treasuryAuthority = () => !(window.mp?.sessionCode && !window.mp.isHost);
+  Object.keys(S).filter(id => id.startsWith('treasury_')).forEach(id => {
+    const factory = S[id];
+    S[id] = () => {
+      if (!treasuryAuthority()) return null;
+      const scene = factory();
+      scene.options.forEach((option, index) => {
+        const claim = treasuryClaims[id]?.[index];
+        for (const kind of ['action', 'onSuccess', 'onFail']) {
+          const callback = option[kind];
+          if (typeof callback !== 'function') continue;
+          option[kind] = (...args) => {
+            if (!treasuryAuthority()) return;
+            if (claim && kind !== 'onFail') {
+              const key = 'treasury_reward_' + claim[0];
+              const alreadyClaimed = getFlag(key) || (claim[1] && getFlag(claim[1]));
+              setFlag(key);
+              if (alreadyClaimed) return runScene(id);
+            }
+            return callback(...args);
+          };
+        }
+      });
+      return scene;
+    };
+  });
+
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);
   if (typeof window !== 'undefined') { window.SCENES = window.SCENES || SCENES; Object.assign(window.SCENES, S); }
 })();

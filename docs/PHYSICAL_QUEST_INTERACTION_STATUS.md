@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 491 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 496 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Treasury quest — optional reward claims (local, not deployed):
+
+- Halven testimony safeguards are deployed in `cc00336`.
+- Found eleven repeatable Treasury choices awarding XP or Holy/Hell points on every revisit. Added persistent claims for the standing order, year list, missing fiftieth candle, relic schedule, stopped raid, abandoned report, house search, forced key, stone history, witnessed withdrawal and arrest.
+- Existing milestone flags suppress identifiable legacy rewards. Choices without historical flags cannot be retrospectively distinguished from unclaimed discoveries; their new claim is tracked from this version onward. Existing candle, count, arithmetic, warrant and resolution rewards remain independent once-only claims.
+- Treasury factories and captured callbacks reject guest-client execution. Failed rolls do not claim successful rewards. This is client-side replay protection, not server-authoritative reward or proximity validation.
+- Five new automated tests cover all eleven choices, recreated panels, saved flag reloads, legacy milestones, guest/stale callbacks, failed checks and existing evidence rewards. Full check passes: 496 tests. No rendered Treasury playthrough was performed in this batch.
+- Physical vault entry/evidence targets, Sallow's home, NPC availability after arrest, combat re-entry and the remaining Treasury spatial/story continuity work are still outstanding. Step 5 remains incomplete.
 
 Ambassador quest — completed testimony guards (local, not deployed):
 
