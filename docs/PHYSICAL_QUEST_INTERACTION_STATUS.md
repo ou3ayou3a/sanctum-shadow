@@ -4,7 +4,14 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 450 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 452 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Tower revisit follow-up (local, not deployed):
+
+- Epilogue presentation is deployed in `d6248a2`.
+- The sealed stair remains usable after quest twenty leaves the active list. A completed campaign with a recognized ending routes through the confirmed stair interaction to that earned ending, ahead of obsolete pending officer requests. A bare completion flag without a recognized ending does not expose a payoff.
+- Two regressions cover all six saved ending variants, no active quest, stale pending requests, no new combat or completion reward, and incomplete/unknown-ending states. Full suite: 452 passed.
+- Browser fixture: opened the earned Sword ending, chose its departure option, walked to and confirmed the physical exit, reached `tower_ash`, walked to and confirmed the Waiting Room entrance, then approached and confirmed the sealed stair again. The earned Sword ending reopened with its three choices, with combat inactive and quest twenty absent from the active tracker. This was a local fixture round trip, not a full campaign or rendered multiplayer/reconnect test.
 
 Epilogue presentation follow-up (local, not deployed):
 
