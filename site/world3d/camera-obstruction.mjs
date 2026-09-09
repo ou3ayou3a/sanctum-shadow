@@ -32,9 +32,27 @@ export class CameraObstruction{
 
   update(dt){
     this.elapsed+=dt;this.updateFades(dt);const quality=this.engine.worldPolish?.quality||'medium',interval=quality==='low'?.18:quality==='high'?.09:.12;if(this.elapsed<interval)return;this.elapsed=0;
-    const target=this.engine.controls.target,camera=this.engine.camera.position;this.direction.copy(camera).sub(target);const distance=this.direction.length();if(distance<.1)return;this.direction.normalize();this.cameraRight.setFromMatrixColumn(this.engine.camera.matrixWorld,0).multiplyScalar(.34);
-    const candidates=this.occluderRecords.filter(record=>record.object.visible&&(record.position.distanceTo(target)<=distance+8||record.position.distanceTo(camera)<=distance+8)).map(record=>record.object),next=new Set(),origins=quality==='low'?[this.target.copy(target)]:[this.target.copy(target),target.clone().add(this.cameraRight),target.clone().sub(this.cameraRight)];
-    for(const origin of origins){this.raycaster.set(origin,this.direction);this.raycaster.far=distance-.18;const hits=this.raycaster.intersectObjects(candidates,false);for(const hit of hits){for(const mesh of this.relatedMeshes(hit.object)){next.add(mesh);this.fade(mesh).target=.045;}}}
+    const camera=this.engine.camera.getWorldPosition(new THREE.Vector3()),next=new Set();
+    this.cameraRight.setFromMatrixColumn(this.engine.camera.matrixWorld,0).multiplyScalar(.34);
+    const targets=[this.engine.controls.target.clone()],combat=this.engine.combatController;
+    // Protect rendered combatants, not just the panned camera focus. Limit the
+    // extra work and prioritize the selected target and party in large fights.
+    if(combat?.active){
+      const selected=combat.state()?.selectedTarget;
+      const records=[...combat.records.entries()].filter(([,record])=>record.actor?.visible&&record.combatant?.hp>0);
+      records.sort(([a,ra],[b,rb])=>(b===selected?2:rb.combatant.isPlayer?1:0)-(a===selected?2:ra.combatant.isPlayer?1:0));
+      for(const[,record]of records.slice(0,12))targets.push(record.actor.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,1,0)));
+    }
+    for(const target of targets){
+      const distance=camera.distanceTo(target);
+      const candidates=this.occluderRecords.filter(record=>record.object.visible&&(record.position.distanceTo(target)<=distance+8||record.position.distanceTo(camera)<=distance+8)).map(record=>record.object);
+      const origins=quality==='low'?[target]:[target,target.clone().add(this.cameraRight),target.clone().sub(this.cameraRight)];
+      for(const origin of origins){
+        this.direction.copy(camera).sub(origin);const rayLength=this.direction.length();if(rayLength<.2)continue;
+        this.raycaster.set(origin,this.direction.normalize());this.raycaster.far=rayLength-.18;
+        const hits=this.raycaster.intersectObjects(candidates,false);for(const hit of hits){for(const mesh of this.relatedMeshes(hit.object)){next.add(mesh);this.fade(mesh).target=.045;}}
+      }
+    }
     for(const[mesh,state]of this.blocked)if(!next.has(mesh))state.target=1;
   }
 

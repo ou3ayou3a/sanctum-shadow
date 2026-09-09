@@ -2,9 +2,16 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, and Tower exit recovery in `2a6ea67`. The combat initiative layout fix below is local and not deployed.
+Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 438 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 443 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Combat obstruction follow-up (local):
+
+- Wall fading now samples living, visible combatant positions as well as the camera focus. Selected targets and party members take priority, with a twelve-combatant budget. Each offset ray points independently toward the camera.
+- Five real Three.js geometry tests cover enemy-only obstruction on Low/Medium/High, restoration after combat, and excluding dead/hidden combatants. Cache versions updated through the browser entry point.
+- Added a hide/show button to the local QA overlay so it no longer masks the battlefield during inspection. This harness is not served in production.
+- Reloaded the Tower fixture, walked to the sealed stair, started the controlled final-blow encounter, and hid the QA overlay. The enemy still did not appear in the current viewport. Encounter camera framing remains a separate unresolved issue; this pass does not claim the rendered boss-to-sword-ending handoff, normal boss balance, or full campaign completion.
 
 Combat initiative QA follow-up:
 
