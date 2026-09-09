@@ -82,8 +82,8 @@ test('Varek resolutions continue to quest two instead of prematurely starting Ch
 
 test('combat resolutions cannot strand the monastery or Harren quest',()=>{
   const source=read('site/story.js');
-  const voiceCalls=[...source.matchAll(/startCombat\(\[generateEnemy\('the_voice_below', 4\)\][^\n]*/g)].map(match=>match[0]);
-  assert.equal(voiceCalls.length,9);
+  const voiceCalls=[...source.matchAll(/startCombat\(\[generateEnemy\('the_voice_below',\s*4\)\][^\n]*/g)].map(match=>match[0]);
+  assert.equal(voiceCalls.length,10);
   assert.ok(voiceCalls.every(call=>call.includes("victoryScene:'monastery_dungeon_cleared'")));
   assert.match(source,/id: 'harren'.*victoryScene:'harren_fallen'/);
   assert.match(source,/harren_fallen: \(\) =>/);

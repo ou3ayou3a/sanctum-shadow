@@ -18,7 +18,7 @@ function worldLocations(){
 
 test('the Chapter I world graph is complete, connected, and uses valid reciprocal routes',async()=>{
   const[{CHAPTER_ONE_ZONE_IDS},locations]=await Promise.all([import('../site/world3d/zones/zone-profiles.mjs'),Promise.resolve(worldLocations())]);
-  assert.equal(CHAPTER_ONE_ZONE_IDS.length,25);
+  assert.equal(CHAPTER_ONE_ZONE_IDS.length,26);
   for(const id of CHAPTER_ONE_ZONE_IDS){
     const location=locations[id];assert.ok(location,`${id} is missing from the world map`);
     assert.ok(Array.isArray(location.connections)&&location.connections.length,`${id} has no travel route`);
@@ -48,7 +48,7 @@ test('all authored production assets exist and every placement stays inside its 
 
 test('every interior has a reachable parent route, physical exit, hotspots, and a checkpoint-safe return',async()=>{
   const[{INTERIOR_LOCATION_IDS,interiorDefinitionFor},locations]=await Promise.all([import('../site/world3d/interior-registry.mjs'),Promise.resolve(worldLocations())]);
-  assert.equal(INTERIOR_LOCATION_IDS.length,13);
+  assert.equal(INTERIOR_LOCATION_IDS.length,14);
   for(const id of INTERIOR_LOCATION_IDS){const definition=interiorDefinitionFor(id),location=locations[id];assert.ok(location.connections.includes(definition.returnTo),`${id} cannot return to ${definition.returnTo}`);assert.ok(locations[definition.returnTo].connections.includes(id),`${definition.returnTo} cannot enter ${id}`);assert.equal(definition.hotspots.length,3,`${id} lacks interaction hotspots`);}
   const generic=read('site/world3d/zones/generic-zone.js');assert.match(generic,/id:'interior_exit'/);assert.match(generic,/transitionToWorldLocation\(destination/);
 });

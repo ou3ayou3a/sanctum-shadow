@@ -40,7 +40,7 @@ test('save restoration retains only catalogued entity-to-scene pairs',()=>{
 test('every physical quest target has a reachable approach using the actual zone collision catalog',()=>{
   for(const [id,target]of Object.entries(Flow.TARGETS)){
     const zone=catalog[target.location],nav=new NavigationGrid({...zone.bounds,obstacles:zone.obstacles,cellSize:.65,padding:.62});
-    const start=target.location==='mol_well_shaft'?{x:-2,z:-1.4}:target.location==='monastery_cellar'?{x:0,z:-6.35}:{x:0,z:17};
+    const start=target.location==='mol_well_shaft'?{x:-2,z:-1.4}:target.location==='monastery_depths'?{x:0,z:-8.35}:target.location==='monastery_cellar'?{x:0,z:-6.35}:{x:0,z:17};
     const position={x:target.position[0],z:target.position[2]};let reachable=false;
     for(let i=0;i<16;i++){
       const angle=i*Math.PI/8,stop={x:position.x+Math.sin(angle)*1.65,z:position.z+Math.cos(angle)*1.65};

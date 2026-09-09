@@ -1,6 +1,7 @@
 const emptyEffects=()=>({flags:{},facts:{},reputation:[],resources:{hp:0,holy:0,hell:0,xp:0},items:{add:[],remove:[]},questEvents:[]});
 
 const INTERIORS=Object.freeze({
+  monastery_depths:{asset:'dungeon_interior',size:[16,6,20],returnTo:'monastery_cellar',entrance:[0,6],variant:'binding_chamber',accent:0x8d72bc,npcs:[]},
   tarnished_cup:{asset:'tavern_interior',size:[18,6.1,14],returnTo:'vaelthar_city',entrance:[-16,18],variant:'city_tavern'},
   temple_quarter:{asset:'temple_interior',size:[13.5,6.2,13],returnTo:'vaelthar_city',entrance:[22,-7],variant:'flame_temple',accent:0xd8bd68,
     npcs:[{id:'sister_mourne',name:'Sister Mourne',title:'The Candle · Inquisitor',position:[0,0,2.5],facing:Math.PI,race:'human',classId:'cleric',action:'dialogue'},{id:'temple_sacristan',name:'Brother Pell',title:'Sacristan · Keeper of Ashes',position:[-3.6,0,-1.2],action:'ambient',ambientLine:'“The oldest stones beneath the altar bear no flame.”',race:'human',classId:'cleric'}]},

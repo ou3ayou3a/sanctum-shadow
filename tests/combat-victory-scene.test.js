@@ -10,5 +10,5 @@ test('authored non-boss combats can continue into an explicit victory scene',()=
   assert.match(combat,/combatState\.victoryScene = typeof encounter\?\.victoryScene/);
   assert.match(combat,/const victoryScene=combatState\.victoryScene/);
   assert.match(combat,/runScene\?\.\(victoryScene\)/);
-  assert.equal((story.match(/victoryScene:'monastery_deep_chamber'/g)||[]).length,3);
+  assert.equal((story.match(/victoryScene:'monastery_altar_cleared'/g)||[]).length,3);
 });

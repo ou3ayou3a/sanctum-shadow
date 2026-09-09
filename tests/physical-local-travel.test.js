@@ -9,3 +9,10 @@ test('entering and leaving a local physical shaft never rolls a road discovery o
  assert.equal(travels,2);assert.equal(rolls,0);
  root.travelToLocation(locations.merchant_road);assert.equal(rolls,1);
 });
+test('the lower monastery doorway is a local passage in both directions',()=>{
+ let rolls=0;
+ const locations={monastery_cellar:{id:'monastery_cellar'},monastery_depths:{id:'monastery_depths',parentLocation:'monastery_cellar',physicalEntrance:'entrance_monastery_depths'}};
+ const root={WORLD_LOCATIONS:locations,mapState:{currentLocation:'monastery_cellar'},travelToLocation:loc=>{root.mapState.currentLocation=loc.id;return true;}};
+ vm.runInNewContext(source.slice(source.indexOf('(function hookTravel()')),{window:root,document:{getElementById:()=>null},console:{log(){}},rollTravelEncounter:()=>{rolls++;return null;},setTimeout(){throw Error('Unexpected road encounter');}});
+ root.travelToLocation(locations.monastery_depths);root.travelToLocation(locations.monastery_cellar);assert.equal(rolls,0);
+});

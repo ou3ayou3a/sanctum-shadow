@@ -1597,6 +1597,7 @@ const MISSING_SCENES = {
   },
 
   monastery_first_chamber: () => {
+    if(window.PhysicalQuestFlow?.monasteryUnlocked(sceneState,gameState))return {location:'Monastery Dungeon — Cracked Altar',narration:'The skeletons lie still. The lower doorway beyond the altar is open.',options:[{icon:'🚶',label:'Find the lower chamber doorway',type:'move',action:()=>runScene('monastery_deep_chamber')}]};
     return {
       location: 'Monastery Dungeon — First Chamber',
       locationIcon: '🕳',
@@ -1609,20 +1610,25 @@ const MISSING_SCENES = {
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_3', xp: 40 },
-          ], { victoryScene:'monastery_deep_chamber' }) },
+          ], { victoryScene:'monastery_altar_cleared' }) },
         { icon: '📜', label: 'Grab the journal while watching the skeletons', type: 'explore',
           roll: { stat: 'DEX', dc: 12 },
           onSuccess: () => { setFlag('has_monk_journal'); addLog('📜 ITEM GAINED: The Last Monk\'s Journal. "It said: I am what remains when a god refuses to die."', 'holy'); const inventory=gameState.character?.inventory;if(inventory&&!inventory.includes("Last Monk's Journal"))inventory.push("Last Monk's Journal"); startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
-          ], { victoryScene:'monastery_deep_chamber' }); },
+          ], { victoryScene:'monastery_altar_cleared' }); },
           onFail: () => startCombat([
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_1', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_2', xp: 40 },
             { name: 'Risen Skeleton', hp: 20, ac: 9, atk: 3, icon: '💀', id: 'skel_3', xp: 40 },
-          ], { victoryScene:'monastery_deep_chamber' }) },
+          ], { victoryScene:'monastery_altar_cleared' }) },
       ]
     };
+  },
+
+  monastery_altar_cleared: () => {
+    setFlag('monastery_first_chamber_cleared');
+    return {location:'Monastery Dungeon — Cracked Altar',narration:'The last skeleton falls. Beyond the altar, the passage into the lower chamber is now safe to use.',options:[{icon:'🚶',label:'Find the lower chamber doorway',type:'move',action:()=>runScene('monastery_deep_chamber')}]};
   },
 
   monastery_deep_chamber: () => {
@@ -1650,10 +1656,7 @@ const MISSING_SCENES = {
           roll: { stat: 'WIS', dc: 14 },
           onSuccess: () => runScene('voice_below_speaks'),
           onFail: () => { addLog('It speaks anyway. "I want what every broken thing wants. To be whole, or to end."', 'narrator'); startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }); } },
-        { icon: '🔍', label: 'Look for something that binds it — the monks must have had a way', type: 'explore',
-          roll: { stat: 'INT', dc: 15 },
-          onSuccess: () => runScene('voice_weakness_found'),
-          onFail: () => startCombat([generateEnemy('the_voice_below', 4)], { victoryScene:'monastery_dungeon_cleared' }) },
+        { icon: '🔍', label: 'Find and inspect the broken binding circle', type: 'explore',action:()=>runScene('voice_runes_inspect') },
       ]
     };
   },
@@ -1677,6 +1680,12 @@ const MISSING_SCENES = {
     };
   },
 
+  voice_runes_inspect: () => {
+    if(getFlag('voice_agreed_binding'))return MISSING_SCENES.voice_willing_ritual();
+    if(getFlag('knows_voice_weakness'))return MISSING_SCENES.voice_weakness_found();
+    return {location:'Monastery Dungeon — Binding Circle',narration:'Broken runes interrupt a circle cut into the floor. Kneeling beside them, you can try to reconstruct their purpose.',options:[{icon:'🔍',label:'Decipher the damaged runes',type:'explore',roll:{stat:'INT',dc:15},onSuccess:()=>runScene('voice_weakness_found'),onFail:()=>startCombat([generateEnemy('the_voice_below',4)],{victoryScene:'monastery_dungeon_cleared'})}]};
+  },
+
   voice_weakness_found: () => {
     setFlag('knows_voice_weakness');
     addLog('📜 CLUE: The runes on the floor form a binding circle. If completed, they will re-contain the Voice. Requires holy power.', 'holy');
@@ -1688,6 +1697,8 @@ const MISSING_SCENES = {
       options: [
         { icon: '✝', label: 'Complete the runes — spend Holy Points to bind it (costs 15)', type: 'explore',
           action: () => {
+            if(window.PhysicalQuestFlow?.monasteryCleared(sceneState,gameState))return;
+            if(window.PhysicalQuestFlow?.requireScene(window,'voice_weakness_found')===false)return;
             const char = gameState.character;
             if ((char?.holyPoints || 0) >= 15) {
               char.holyPoints -= 15;
@@ -1713,8 +1724,22 @@ const MISSING_SCENES = {
       narration: `A long silence. Then: "The circle. The monks built it. It requires a willing hand and sufficient — conviction." It might be mocking the word "holy." It might not be. "If you complete the runes, I return to the state I was in before the seal broke. Aware. Contained. Not free. Not dead." Another pause. "It is better than this."`,
       sub: `It\'s willing to be rebound. Complete the runes if you have Holy Points.`,
       options: [
+        {icon:'🚶',label:'Go to the binding circle',type:'move',action:()=>runScene('voice_willing_ritual')},
+        {icon:'⚔',label:'I do not trust it. Fight.',type:'combat',action:()=>startCombat([generateEnemy('the_voice_below',4)],{victoryScene:'monastery_dungeon_cleared'})},
+      ]
+    };
+  },
+
+  voice_willing_ritual: () => {
+    if(!getFlag('voice_agreed_binding'))return MISSING_SCENES.voice_runes_inspect();
+    return {
+      location:'Monastery Dungeon — Binding Circle',locationIcon:'🕳',
+      narration:'At the broken circle, the Voice waits for your hand to finish the runes.',
+      options:[
         { icon: '✝', label: 'Complete the binding (costs 15 Holy Points)', type: 'explore',
           action: () => {
+            if(window.PhysicalQuestFlow?.monasteryCleared(sceneState,gameState))return;
+            if(window.PhysicalQuestFlow?.requireScene(window,'voice_willing_ritual')===false)return;
             const char = gameState.character;
             if ((char?.holyPoints || 0) >= 15) {
               char.holyPoints -= 15;

@@ -29,7 +29,7 @@ export class Chronicle3DAdapter{
   targetFor(objective,quest){
     const requests=window.PhysicalQuestFlow?.restoreRequests(window.sceneState?.physicalSceneRequests)||{};
     const pendingId=Object.keys(requests).reverse().find(id=>window.PhysicalQuestFlow.TARGETS[id].quest===quest?.id);
-    if(pendingId){const definition=window.PhysicalQuestFlow.TARGETS[pendingId],id=definition.location===this.engine.zone.id||!this.engine.zone.id?pendingId:this.engine.zone.id==='mol_well_shaft'?'well_rope_exit':definition.entrance;const record=this.engine.zone.interactables.find(item=>item.id===id);if(record)return{position:record.position,interaction:record};}
+    if(pendingId){const definition=window.PhysicalQuestFlow.TARGETS[pendingId],id=definition.location===this.engine.zone.id||!this.engine.zone.id?pendingId:this.engine.zone.id==='mol_well_shaft'?'well_rope_exit':this.engine.zone.id==='monastery_depths'?'interior_exit':definition.entrance;const record=this.engine.zone.interactables.find(item=>item.id===id);if(record)return{position:record.position,interaction:record};}
     const physicalScene=(objective?.events||[]).map(event=>event.replace(/^scene:/,'')).find(scene=>window.PhysicalQuestFlow?.SCENES?.[scene]);
     const physicalId=window.PhysicalQuestFlow?.sceneTarget?.(physicalScene,this.engine.zone.id);
     if(physicalId){const record=this.engine.zone.interactables.find(item=>item.id===physicalId);if(record)return{position:record.position,interaction:record};}

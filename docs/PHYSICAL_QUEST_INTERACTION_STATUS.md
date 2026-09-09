@@ -1,8 +1,8 @@
 # Step 5 — physical quest interactions
 
-Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`. The monastery entry/altar/courtyard batch below is local and not deployed. This is not the completed Step 5 acceptance gate.
+Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`. The lower monastery chamber and binding-circle batch below is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Latest suite: 349 tests passed, including the existing four-player server integration test. Syntax and whitespace checks passed. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 355 tests passed, including the existing four-player server integration test. Syntax and whitespace checks passed. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
 
 Implemented:
 
@@ -43,9 +43,15 @@ Merchant-road browser check: loaded the local fixture, walked to the caravan, co
 
 Monastery browser check: after reconnecting browser control, loaded the local cellar fixture with the quest at 0/3 and no scene. Explicitly inspected the passage, selected advance, and verified the game returned to exploration at 1/3. Walked through the cellar to the altar; arrival showed only the interaction prompt. Confirming opened the first-chamber scene with the journal DEX check and skeleton combat options. The fixture reported no fatal world-runtime error. The battle, deeper dungeon, and rendered courtyard return were not played in this batch; six tests cover the new boundaries, journal deduplication, withdrawal behavior, monk availability, older completed saves, and one-time reward.
 
+Lower chamber implementation (local): added `monastery_depths` as a separate registered interior using the existing dungeon assets. All three skeleton outcomes now lead to `monastery_altar_cleared`, unlocking the physical lower doorway instead of starting the Voice scene. Returning to the altar after victory does not offer another skeleton encounter. Existing saves with recorded deep-chamber progress remain eligible to enter. Entry/exit require the correct doorway context and range; local transitions do not roll road encounters. Returning from a child room no longer changes the cellar's outward exit into a door back to that child.
+
+The Voice and binding circle have distinct targets. The INT 15 rune check is offered at the circle, and willing binding also requires leaving the Voice and interacting there. Holy spending revalidates the circle and cannot repeat after completion; the willing bonus is one-time. Voice combat continuations and the courtyard-monk reward remain unchanged. Pending requests use the existing save/multiplayer allowlist, and the lower chamber points outward for a pending courtyard conversation.
+
+Lower chamber browser check: used the explicitly labeled post-skeleton local fixture (not a played skeleton victory). The registered interior loaded at its own spawn. Walked to the Voice, confirmed that arrival only offered an interaction prompt, explicitly opened its scene, selected the rune investigation, and walked to the separate circle. Only after confirming the circle did the INT 15 check appear. The fixture reported no fatal runtime error. This check did not play the binding/combat endings or rendered return route; those branches are covered by automated callback tests, not a full campaign or rendered multiplayer run.
+
 Still required:
 
-- Build and connect the monastery's distinct deep chamber, Voice and binding-circle targets, and verify post-skeleton navigation, encounter replay prevention, all binding/fighting branches, and return travel. The entry/altar work uses the existing cellar and is not a complete multi-room dungeon conversion.
+- Complete the rendered monastery run from skeleton combat through both Voice resolutions and the courtyard return, including reload and multiplayer. The separate lower chamber, Voice/rune targets, doorway unlock, revisiting the cleared altar, branch checks, and one-time binding costs/rewards now have automated coverage. This reuses the existing dungeon assets; it is not a visual upgrade or a full campaign QA pass.
 - Replace shared regional focus points with individually authored NPC, clue, door, room, and evidence targets.
 - Extend Mol sermon validation to saved mid-route checkpoints and guest-driven conversations; this batch does not complete every Mol quest or the campaign-wide NPC-fate policy.
 - Convert later scene-to-scene movement into physical exploration boundaries without exposing payoff scenes as shortcuts.

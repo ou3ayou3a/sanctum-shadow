@@ -290,10 +290,17 @@ const WORLD_LOCATIONS = {
     subtitle: 'Ancient Wine, No Monks',
     x: 575, y: 165,
     type: 'tavern', icon: '🍷', region: 'northern_highlands', danger: 3,
-    discovered: false, connections: ['monastery_aldric'],
+    discovered: false, connections: ['monastery_aldric', 'monastery_depths'],
     description: `The monastery's wine cellar is untouched — racks of bottles going back 200 years, all still sealed. The monks brewed something called "Black Vespers" that has no equivalent anywhere in the known world. It tastes like grief and smells like incense. Drinking enough of it produces visions. Whether those visions are divine or something else is a matter of current and urgent debate. No monk is present to ask.`,
     npcs: ['No Staff — Help Yourself', 'The Bottle That Keeps Refilling'],
-    quests: ['c1q7'], encounters: ['skeleton'], music: 'tavern_low', lightLevel: 'dark',
+    quests: ['c1q2'], encounters: ['skeleton'], music: 'tavern_low', lightLevel: 'dark',
+  },
+  monastery_depths: {
+    id:'monastery_depths',name:'The Binding Chamber',subtitle:'The Voice Below',
+    x:585,y:155,type:'dungeon',icon:'🕳',region:'northern_highlands',danger:4,
+    discovered:false,connections:['monastery_cellar'],parentLocation:'monastery_cellar',physicalEntrance:'entrance_monastery_depths',
+    description:'Below the cracked altar, a broken binding circle surrounds the presence the monks tried to contain.',
+    npcs:['The Voice Below'],quests:['c1q2'],encounters:[],music:'dungeon',lightLevel:'dark',
   },
 
   // Merchant Road — a roadside inn, nervous
@@ -421,7 +428,7 @@ window.WORLD_LOCATIONS = WORLD_LOCATIONS;
 window.travelToWorldLocation = function(id) {
   const location=window.WORLD_LOCATIONS?.[id];
   if(!location)return false;
-  if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the well’s rope to enter or leave the shaft.');return false;}
+  if(window.PhysicalQuestFlow?.canTravel(window,location)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. The lower monastery door opens after the skeletons are defeated.');return false;}
   if(location.locked){window.toast?.(location.lockHint||`${location.name} is locked.`,'error');return false;}
   window.world3dReturnLocation=window.mapState?.currentLocation||'vaelthar_city';
   window.travelToLocation?.(location);
@@ -901,7 +908,7 @@ function handleMapLocationClick(loc) {
 }
 
 function travelToLocation(loc) {
-  if(window.PhysicalQuestFlow?.canTravel(window,loc)===false){window.__world3d?.toast?.('Reach and use the well’s rope to enter or leave the shaft.');return false;}
+  if(window.PhysicalQuestFlow?.canTravel(window,loc)===false){window.__world3d?.toast?.('Reach and use the connecting doorway or rope. The lower monastery door opens after the skeletons are defeated.');return false;}
   // #16: no travel during combat
   if (window.combatState?.active) {
     if (window.toast) toast('⚔ Not during combat!', 'error');
