@@ -88,7 +88,7 @@ test('combat resolutions cannot strand the monastery or Harren quest',()=>{
   assert.match(source,/id: 'harren'.*victoryScene:'harren_fallen'/);
   assert.match(source,/harren_fallen: \(\) =>/);
   assert.match(source,/victoryScene:'harren_joins'/);
-  assert.ok(Quests.getObjectives('c1q6').find(objective=>objective.id==='resolve_harren').events.includes('scene:harren_fallen'));
+  assert.ok(Quests.getObjectives('c1q6').find(objective=>objective.id==='resolve_harren').events.includes('scene:harren_field_order'));
 });
 
 function freshOrigins(){

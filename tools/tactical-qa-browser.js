@@ -7,6 +7,7 @@ window.addEventListener('load',()=>{
  const roadOption=document.createElement('option');roadOption.value='merchant_road';roadOption.textContent='Merchant road investigation';panel.querySelector('select').append(roadOption);
  const cellarOption=document.createElement('option');cellarOption.value='monastery_cellar';cellarOption.textContent='Monastery cellar interactions';panel.querySelector('select').append(cellarOption);
  const depthsOption=document.createElement('option');depthsOption.value='monastery_depths';depthsOption.textContent='Monastery depths (post-skeleton fixture)';panel.querySelector('select').append(depthsOption);
+ const harrenOption=document.createElement('option');harrenOption.value='fortress_harren';harrenOption.textContent='Harren fortress interactions';panel.querySelector('select').append(harrenOption);
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
  let targetZone=null;const refreshTargets=()=>{const zone=window.__world3d?.zone;if(!zone||zone===targetZone)return;targetZone=zone;targetSelect.replaceChildren();for(const record of zone.interactables){const option=document.createElement('option');option.value=record.id;option.textContent=record.label||record.id;targetSelect.append(option);}};
  approach.onclick=()=>{const engine=window.__world3d,record=engine?.zone?.interactables.find(item=>item.id===targetSelect.value);if(record)engine.goToInteraction(record);};
@@ -19,6 +20,7 @@ window.addEventListener('load',()=>{
   initGameScreen();
   if(window.mapState.currentLocation==='thornwood_gate'){window.resetSceneState();window.activateQuest('c1q3',true);}
   if(window.mapState.currentLocation==='merchant_road'){window.resetSceneState();window.activateQuest('c1q4',true);}
+  if(window.mapState.currentLocation==='fortress_harren'){window.resetSceneState();window.activateQuest('c1q6',true);}
   if(window.mapState.currentLocation==='monastery_cellar'){window.resetSceneState();window.activateQuest('c1q2',true);}
   if(window.mapState.currentLocation==='monastery_depths'){window.resetSceneState();window.activateQuest('c1q2',true);window.sceneState.flags.monastery_first_chamber_cleared=true;window.sceneState.flags.entered_monastery_dungeon=true;}
   if(window.mapState.currentLocation==='mol_village'){

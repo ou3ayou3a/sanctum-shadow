@@ -2075,11 +2075,12 @@ const MISSING_SCENES = {
   },
 
   harren_opens_door: () => {
+    if(getFlag('harren_hostile'))return {location:'Fortress Harren — Broken Gate',narration:'The gate is already broken. Harren waits in the forecourt with his sword drawn. A signal knock will not undo what happened.',options:[{icon:'🚶',label:'Approach Harren',type:'move',action:()=>runScene('harren_forced_entry')}]};
     setFlag('harren_opened_door');
     return {
-      location: 'Fortress Harren — Interior',
+      location: 'Fortress Harren — Gate',
       locationIcon: '🏯',
-      narration: `A long silence. Then the sound of beams being moved. The gate opens enough for one person to pass. Sir Aldric Harren — once the most celebrated paladin of the age — looks like a man who has been awake for three days and has found the experience clarifying. He\'s in plain clothes, no armour, and he looks at you with the directness of someone who has stopped performing composure. "You're not Order." Not a question. "Good. Come in. There\'s something I need to tell someone before I decide whether to live or die."`,
+      narration: `A long silence. Then the sound of beams being moved. The gate opens. Harren steps out into the forecourt and waits away from the entrance. Approach him if you want to hear why he has barricaded himself here.`,
       sub: `He\'s in crisis. Listen first — the reason he renounced his vows may be crucial.`,
       options: [
         { icon: '💬', label: '"Tell me. I\'m listening."', type: 'talk',
@@ -2101,7 +2102,7 @@ const MISSING_SCENES = {
       options: [
         { icon: '💬', label: '"You made the right call. Help me bring Varek in cleanly — no more bloodshed."', type: 'talk',
           roll: { stat: 'CHA', dc: 12 },
-          onSuccess: () => { setFlag('harren_ally'); grantHolyPoints(10); addLog('📜 ALLY GAINED: Sir Harren will stand witness to the Order\'s intentions.', 'holy'); runScene('harren_joins'); },
+          onSuccess: () => runScene('harren_joins'),
           onFail: () => runScene('harren_hesitates') },
         { icon: '💬', label: '"The Grand Master needs to answer for this order."', type: 'talk',
           action: () => runScene('harren_joins') },
@@ -2121,11 +2122,11 @@ const MISSING_SCENES = {
     return {
       location: 'Fortress Harren',
       locationIcon: '🏯',
-      narration: `Harren stands. Reaches for his sword — then stops, and hangs it back on the wall. Takes a plain dagger instead. "I\'ll come. As a witness, not a soldier." He looks at the empty fortress. "I have been kneeling to nothing here. You're right about that." He opens the gate properly. Outside, the Order's scouts haven\'t arrived yet. You have time.`,
+      narration: `Harren lowers his sword. "I\'ll testify. As a witness, not a soldier." He looks back at the fortress. "I have been kneeling to nothing here. You're right about that." He nods toward the road. His testimony is yours; decide your onward route when you are ready.`,
       sub: `Harren will testify. Head back — the pieces are coming together.`,
       options: [
-        { icon: '🗺', label: 'Return to Vaelthar with Harren', type: 'move',
-          action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
+        { icon: '🚶', label: 'Step away and plan the return to Vaelthar', type: 'move',
+          action: () => window.__world3d?.toast?.('Harren has agreed to testify. Leave the conversation, then choose your onward route.') },
       ]
     };
   },
@@ -2156,19 +2157,19 @@ const MISSING_SCENES = {
 
   harren_forced_entry: () => {
     setFlag('harren_hostile');
-    grantHellPoints(5);
+    if(!getFlag('harren_forced_entry_cost')){setFlag('harren_forced_entry_cost');grantHellPoints(5);}
     return {
       location: 'Fortress Harren — Interior',
       locationIcon: '🏯',
       threat: '⚔ HOSTILE',
-      narration: `The gate splinters. Harren is waiting in the courtyard with a sword drawn and an expression of profound disappointment. "So you\'re with the Order after all." He\'s in full armour now — he had time to prepare. "I had hoped otherwise." He settles into a fighting stance. "I\'m not going back. And I\'m not going quietly."`,
+      narration: `Harren faces you in the forecourt, sword drawn, with an expression of profound disappointment. "So you\'re with the Order after all." He settles into a fighting stance. "I had hoped otherwise. I\'m not going back. And I\'m not going quietly."`,
       sub: `He\'s going to fight. This was avoidable.`,
       options: [
         { icon: '⚔', label: 'Fight Sir Harren', type: 'combat',
           action: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }], { victoryScene:'harren_fallen' }) },
         { icon: '✋', label: '"STOP. I\'m not Order. I forced the gate — that was wrong."', type: 'talk',
           roll: { stat: 'CHA', dc: 16 },
-          onSuccess: () => { addLog('He stops. Reassesses. "Explain yourself. Quickly."', 'system'); runScene('harren_opens_door'); },
+          onSuccess: () => { setFlag('harren_opened_door');setFlag('harren_hostile',false);addLog('He stops. Reassesses. "Explain yourself. Quickly."', 'system'); runScene('harren_confession'); },
           onFail: () => startCombat([{ name: 'Sir Harren', hp: 100, ac: 17, atk: 8, icon: '🛡', id: 'harren', xp: 400, boss: false }], { victoryScene:'harren_fallen' }) },
       ]
     };
@@ -2178,12 +2179,12 @@ const MISSING_SCENES = {
     location: 'Fortress Harren — Under Siege',
     locationIcon: '🏯',
     threat: '⚔ ORDER ATTACK',
-    narration: `You're barely inside when you hear them — hooves on the road, a lot of them. Commander Vael has apparently decided that waiting is over. Through the arrow-slit you count twelve riders in Order livery, Vael at the front. He calls to the gate: "Sir Harren. This is your final opportunity to come out honourably. After this, we come in." He pauses. "We have siege equipment."`,
-    sub: `Twelve Order soldiers. You're inside with Harren. Defend, negotiate, or escape.`,
+    narration: `At the fortress approach, Commander Vael waits at the head of the Order's advance party. The rest of his riders hold farther down the road. "Sir Harren," he calls. "This is your final opportunity to come out honourably. After this, we come in." He turns toward you, waiting for your answer.`,
+    sub: `The Order's advance party blocks the approach. Defend Harren or negotiate.`,
     options: [
       { icon: '🛡', label: 'Help Harren defend the fortress', type: 'combat',
         action: () => {
-          grantHellPoints(5);
+          if(!getFlag('harren_defence_cost')){setFlag('harren_defence_cost');grantHellPoints(5);}
           startCombat([
             { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok1', xp: 100 },
             { name: 'Order Knight', hp: 55, ac: 15, atk: 6, icon: '⚔', id: 'ok2', xp: 100 },
@@ -2202,17 +2203,27 @@ const MISSING_SCENES = {
 
   harren_fallen: () => {
     setFlag('harren_dead');
-    grantHellPoints(6);
+    if(!getFlag('harren_death_cost')){setFlag('harren_death_cost');grantHellPoints(6);}
     return {
       location: 'Fortress Harren — After the Duel',
       locationIcon: '🏯',
-      narration: `Sir Harren dies beside the gate he built to keep his former Order out. In his chamber the party finds the Grand Master's field order, signed and countersigned: Harren was commanded to march armed paladins into Church sanctuaries if the Covenant transfer met resistance. He refused, barricaded the fortress, and waited for someone willing to hear why. You learned the truth too late to spare him, but not too late to carry it back to Vaelthar.`,
-      sub: `Harren's standoff is over. His written confession survives him, and the party must live with the cost of forcing the gate.`,
+      narration: `Sir Harren falls beside the gate he built to keep his former Order out. The fortress is silent. His hall remains open; if an explanation survives him, you will have to search for it there.`,
+      sub: `Enter Harren Hall and search his field orders.`,
       options: [
-        { icon: '📜', label: 'Take Harren’s field order and return to Vaelthar', type: 'move',
-          action: () => { if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
+        { icon: '📜', label: 'Find Harren’s field orders in the hall', type: 'move',
+          action: () => runScene('harren_field_order') },
       ]
     };
+  },
+
+  harren_field_order: () => {
+    if(!getFlag('harren_dead'))return {location:'Harren Hall',narration:'These are Harren’s private papers. Speak with him about the Order.',options:[]};
+    if(!getFlag('harren_field_order_found')){
+      setFlag('harren_field_order_found');setFlag('harren_told_truth');
+      const inventory=gameState.character?.inventory;if(inventory&&!inventory.includes('Harren’s Field Order'))inventory.push('Harren’s Field Order');
+      addLog('📜 EVIDENCE: Harren’s signed field order commanded armed enforcement against Church sanctuaries. He refused.','holy');
+    }
+    return {location:'Harren Hall — Field Orders',narration:'Among Harren’s papers lies the Grand Master’s signed order: march armed paladins into Church sanctuaries if the Covenant transfer meets resistance. Harren refused. His written testimony survives him, but you have learned the truth too late to spare him.',options:[{icon:'🚶',label:'Keep the evidence and step away',type:'move',action:()=>window.__world3d?.toast?.('The field order is recorded. Use the hall exit when you are ready to leave.')}]};
   },
 
 };
