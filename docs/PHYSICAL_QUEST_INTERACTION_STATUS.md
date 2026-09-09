@@ -2,9 +2,18 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, and officer recruitment in `391b112`. The browser-discovered Tower exit recovery fix is local and not deployed.
+Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, and Tower exit recovery in `2a6ea67`. The combat initiative layout fix below is local and not deployed.
 
-Latest suite: 437 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 438 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Combat initiative QA follow-up:
+
+- Added a local-only 1-HP Shattered God final-blow fixture, explicitly labeled as a handoff test rather than boss balance testing. It uses the normal combat handlers and authored sword continuation. Start it after approaching the sealed stair, not at the entrance.
+- Rendered testing found the fixed initiative strip positioned inside the transformed HUD: its boss button was at y=839 under Smoke Bomb. A DOM hit test confirmed that clicking the intended boss target hit the ability button instead.
+- Removed the HUD centering transform and centered it through layout instead. After reloading, the initiative button was at y=18 and its center hit itself. Screenshot confirmed the strip at the top of the viewport.
+- Added a CSS regression for the containing-block cause. Full automated suite passes.
+- The final blow was NOT completed in this pass: melee ability attempts were out of range, while generic interior geometry/camera obstruction made battlefield targeting difficult. Shadow Step did resolve and change position. No sword-ending runtime success or full boss playthrough is claimed. Local fixture emitted expected Socket.IO connection warnings because its server does not host multiplayer.
+- Next: make the intended Tower battlefield reliably navigable/visible, finish the controlled victory handoff, then test normal boss balance and multiplayer/reconnect. This is outstanding work, not completed campaign QA.
 
 Tower rendered QA follow-up:
 

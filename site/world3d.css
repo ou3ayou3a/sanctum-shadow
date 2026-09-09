@@ -78,7 +78,7 @@ body.vt-3d-active .conv-panel.world3d-cinematic .cp-freeform{grid-area:freeform;
 
 /* Tactical combat: initiative across the top, target information to the left,
    and an ability deck centered along the bottom of the battlefield. */
-.world3d-combat-hud{right:auto;left:50%;bottom:17px;width:min(920px,calc(100vw - 38px));padding:0;transform:translateX(-50%);background:transparent;border:0;box-shadow:none}
+.world3d-combat-hud{right:auto;left:max(19px,calc((100% - 920px)/2));bottom:17px;width:min(920px,calc(100vw - 38px));padding:0;transform:none;background:transparent;border:0;box-shadow:none}
 .w3c-initiative{position:fixed;top:18px;left:50%;display:flex;gap:5px;transform:translateX(-50%);pointer-events:auto}
 .w3c-initiative-chip{display:grid!important;place-items:center;width:34px;height:34px;padding:0!important;color:#ded8cb!important;background:rgba(5,13,11,.9)!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:50%;font:700 8px Cinzel,serif!important;box-shadow:0 5px 18px rgba(0,0,0,.5);transition:transform .16s!important}.w3c-initiative-chip.ally{border-color:rgba(91,191,147,.62)!important}.w3c-initiative-chip.enemy{border-color:rgba(210,72,62,.66)!important}.w3c-initiative-chip.active{color:#111812!important;background:#e1c570!important;border-color:#ffe59a!important;transform:translateY(5px) scale(1.12);box-shadow:0 0 18px rgba(225,197,112,.48)}
 .w3c-summary{position:absolute;right:0;bottom:100%;gap:9px;width:auto;margin-bottom:8px;padding:7px 10px;background:rgba(3,9,8,.88);border:1px solid rgba(225,197,112,.2);box-shadow:0 8px 25px rgba(0,0,0,.45);backdrop-filter:blur(10px)}
