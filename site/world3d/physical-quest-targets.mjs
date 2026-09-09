@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 // Reuse the existing well and character assets. No new scenery style or models.
 export function preparePhysicalQuestTargets(zone){
+  if(zone.id==='merchant_road'){zone.npcs=zone.npcs||[];for(const [id,position]of [['merchant_cultist_left',[1,0,-3]],['merchant_cultist_right',[3,0,-5]]])if(!zone.npcs.some(npc=>npc.id===id))zone.npcs.push({id,name:'Covenant Cultist',title:'Awaiting the Elder’s Orders',race:'human',classId:'cleric',position,action:'ambient',ambientLine:'The cultist watches his leader. Speak to the leader to confront them.'});}
   if(['thornwood_gate','thornwood_passage'].includes(zone.id)){
     const entering=zone.id==='thornwood_gate',id=entering?'thornwood_forest_path':'thornwood_gate_path',destination=entering?'thornwood_passage':'thornwood_gate',label=entering?'Take the path into the Thornwood':'Return along the path to Thornwood Gate';
     const object=new THREE.Mesh(new THREE.BoxGeometry(.3,1.6,.3),new THREE.MeshStandardMaterial({color:0x55412d,roughness:1}));object.position.set(0,.8,entering?-12:12);object.userData.interactionId=id;zone.root.add(object);

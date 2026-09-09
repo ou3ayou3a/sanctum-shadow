@@ -1825,26 +1825,44 @@ const MISSING_SCENES = {
       location: 'The Merchant Road — Crime Scene',
       locationIcon: '🛤',
       threat: '☠ DANGEROUS',
-      narration: `The third caravan site. Three wagons, all intact — nothing was stolen. The bodies are arranged. Not fallen where they died, but placed: in a circle, hands folded, facing inward. Like a ritual. The lone survivor sits against a wheel, eyes fixed on nothing. When you crouch beside him he says, without looking at you: "They came from the ground. Not from the trees. The ground opened and they came out and they knew exactly who to kill first."`,
-      sub: `A ritual massacre. Coordinated. Underground origin. This isn\'t banditry.`,
+      narration: `The third caravan site. Three wagons, all intact — nothing was stolen. Beyond the wagons, bodies lie arranged in a circle, hands folded, facing inward. A lone survivor sits apart from them, staring at the road. You will need to approach him to hear what happened, or examine the remains yourself.`,
+      sub: `A ritual massacre. The bodies and the survivor may reveal who did this.`,
       options: [
-        { icon: '🔍', label: 'Examine the bodies — look for marks or symbols', type: 'explore',
-          roll: { stat: 'INT', dc: 12 },
-          onSuccess: () => { addLog('📜 CLUE: Each body has the same symbol burned on the left palm — identical to the children in Vaelthar. This is connected.', 'holy'); setFlag('merchant_road_symbol_found'); runScene('merchant_road_ambush'); },
-          onFail: () => runScene('merchant_road_ambush') },
-        { icon: '💬', label: 'Talk to the survivor — get every detail', type: 'talk',
-          roll: { stat: 'WIS', dc: 10 },
-          onSuccess: () => { addLog('📜 CLUE: The attackers spoke in a language the survivor didn\'t recognise. They weren\'t bandits — they were cultists.', 'holy'); runScene('merchant_road_ambush'); },
-          onFail: () => runScene('merchant_road_ambush') },
+        {icon:'🔍',label:'Approach the bodies and examine the markings',type:'move',action:()=>runScene('merchant_road_bodies')},
+        {icon:'💬',label:'Approach the survivor',type:'move',action:()=>runScene('merchant_road_survivor')},
       ]
     };
   },
+
+  merchant_road_bodies: () => ({
+      location:'The Merchant Road — The Ritual Circle',locationIcon:'🛤',
+      narration:'You kneel beside the arranged remains. Each victim’s left hand has been deliberately exposed. The scorched marks deserve a closer examination.',
+      options: [
+        { icon: '🔍', label: 'Examine the bodies — look for marks or symbols', type: 'explore',
+          roll: { stat: 'INT', dc: 12 },
+          onSuccess: () => { addLog('📜 CLUE: Each body has the same symbol burned on the left palm — identical to the children in Vaelthar. This is connected.', 'holy'); setFlag('merchant_road_symbol_found');setFlag('merchant_road_ambush_revealed'); runScene('merchant_road_ambush'); },
+          onFail: () => {setFlag('merchant_road_ambush_revealed');runScene('merchant_road_ambush');} },
+        {icon:'💬',label:'Leave the remains and approach the survivor',type:'move',action:()=>runScene('merchant_road_survivor')},
+      ]
+  }),
+
+  merchant_road_survivor: () => ({
+      location:'The Merchant Road — The Survivor',locationIcon:'🛤',
+      narration:'When you crouch beside the survivor, he speaks without looking at you: “They came from the ground. Not from the trees. The ground opened and they came out and they knew exactly who to kill first.”',
+      options:[
+        { icon: '💬', label: 'Talk to the survivor — get every detail', type: 'talk',
+          roll: { stat: 'WIS', dc: 10 },
+          onSuccess: () => { addLog('📜 CLUE: The attackers spoke in a language the survivor didn\'t recognise. They weren\'t bandits — they were cultists.', 'holy');setFlag('merchant_road_survivor_heard');setFlag('merchant_road_ambush_revealed'); runScene('merchant_road_ambush'); },
+          onFail: () => {setFlag('merchant_road_ambush_revealed');runScene('merchant_road_ambush');} },
+        {icon:'🔍',label:'Leave him to rest and approach the bodies',type:'move',action:()=>runScene('merchant_road_bodies')},
+      ]
+  }),
 
   merchant_road_ambush: () => ({
     location: 'The Merchant Road',
     locationIcon: '🛤',
     threat: '⚔ AMBUSH',
-    narration: `As you finish examining the site, you hear movement from both sides of the road simultaneously. Four cultists in grey robes emerge — not from the trees, but from shallow pits they were lying in. Concealed, waiting. The leader holds up one hand. "You carry the smell of the Archive," he says. "The Elder wants to know what you found there."`,
+    narration: `You approach the leader of three cultists who have emerged from shallow hiding pits beside the road. He holds up one hand. "You carry the smell of the Archive," he says. "The Elder wants to know what you found there." The other two spread out behind him.`,
     sub: `They were waiting for you specifically. Someone sent them.`,
     options: [
       { icon: '⚔', label: 'Fight — they\'re not getting anything from you', type: 'combat',

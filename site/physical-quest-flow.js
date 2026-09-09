@@ -3,6 +3,10 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    merchant_caravan:{location:'merchant_road',label:'Inspect the abandoned caravan',position:[3,0,-7],scene:'merchant_road_investigation',quest:'c1q4',kind:'chest'},
+    merchant_ritual_bodies:{location:'merchant_road',label:'Examine the ritual remains',position:[0,0,1],scene:'merchant_road_bodies',quest:'c1q4',requires:'merchant_road_quest_started',kind:'stone'},
+    'npc:merchant_road_survivor':{location:'merchant_road',label:'Speak with the caravan survivor',position:[-3,0,4],scene:'merchant_road_survivor',quest:'c1q4',requires:'merchant_road_quest_started',npc:{id:'merchant_road_survivor',name:'Caravan Survivor',title:'Witness to the Attack',race:'human',classId:'ranger',action:'quest'}},
+    'npc:merchant_cultist_leader':{location:'merchant_road',label:'Confront the cultist leader',position:[3,0,-3],scene:'merchant_road_ambush',quest:'c1q4',pendingOnly:true,npc:{id:'merchant_cultist_leader',name:'Cultist Leader',title:'The Elder’s Ambush',race:'human',classId:'cleric',action:'quest'}},
     'npc:mira_cartographer':{location:'thornwood_gate',label:'Speak with Mira',position:[-3,0,3],scene:'cartographer_missing',quest:'c1q3',entrance:'thornwood_gate_path',npc:{id:'mira_cartographer',name:'Mira',title:'Searching for Edden',race:'human',classId:'ranger',action:'quest'}},
     thornwood_satchel:{location:'thornwood_passage',label:'Inspect Edden’s fallen maps',position:[3,0,3],scene:'thornwood_search',quest:'c1q3',requires:'cartographer_quest_started',kind:'records',entrance:'thornwood_forest_path'},
     'npc:edden_cartographer':{location:'thornwood_passage',label:'Speak with Edden at his shelter',position:[-3,0,-5],scene:'cartographer_found',quest:'c1q3',requires:'cartographer_quest_started',entrance:'thornwood_forest_path',npc:{id:'edden_cartographer',name:'Edden',title:'The Missing Cartographer',race:'human',classId:'ranger',action:'quest'}},
@@ -24,6 +28,7 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    merchant_road_investigation:'merchant_caravan',merchant_road_bodies:'merchant_ritual_bodies',merchant_road_survivor:'npc:merchant_road_survivor',merchant_road_ambush:'npc:merchant_cultist_leader',
     cartographer_missing:'npc:mira_cartographer',thornwood_search:'thornwood_satchel',cartographer_found:'npc:edden_cartographer',cartographer_returned:'npc:mira_cartographer',
     well_that_screams_arrival:'mol_well',well_rope_descent:'mol_well',well_warden_tally:'npc:well_warden_hesk',well_villagers_dismiss:'npc:mol_well_witness',
     well_vigil_night:'mol_well_vigil',
@@ -39,6 +44,7 @@
   const LECT_ALLEY=Object.freeze([-4,0,-10]);
   function funeralActive(state,game){return !!state?.flags?.mol_true_sermon_started||state?.physicalSceneRequests?.mol_funeral_cart==='mol_true_sermon_arrival'||(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q15')||!!state?.flags?.mol_true_sermon_done;}
   function npcStage(id,location,state,game){
+    if(['merchant_cultist_leader','merchant_cultist_left','merchant_cultist_right'].includes(id)&&location==='merchant_road'){const done=(game?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q4'),active=!done&&(!!state?.flags?.merchant_road_ambush_revealed||state?.physicalSceneRequests?.['npc:merchant_cultist_leader']==='merchant_road_ambush'||state?.currentScene==='merchant_road_ambush');return {active,key:'merchant-ambush:'+active};}
     if(id==='edden_reunited'&&location==='thornwood_gate')return {active:!!state?.flags?.cartographer_escort_pending||!!state?.flags?.cartographer_escorted,key:'edden-returned:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
     if(id==='edden_cartographer'&&location==='thornwood_passage')return {active:!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted,key:'edden:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
     const funeral=funeralActive(state,game);
@@ -68,6 +74,7 @@
     return !!record&&engine.hasPhysicalInteraction?.(targetId)&&engine.physicalReach?.(record);
   }
   function requireScene(root,sceneId){
+    if(sceneId==='merchant_road_ambush'&&(root.gameState?.completedQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q4')){if(root.sceneState?.physicalSceneRequests)delete root.sceneState.physicalSceneRequests['npc:merchant_cultist_leader'];root.__world3d?.toast?.('The caravan cultists have already been defeated.');return false;}
     if(['well_vigil_night','well_dry_shaft','well_rope_descent'].includes(sceneId)&&root.sceneState?.flags?.well_capped){
       if(root.sceneState.physicalSceneRequests)for(const id of ['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'])delete root.sceneState.physicalSceneRequests[id];
       root.__world3d?.toast?.('The well is capped. The shaft and vigil are no longer accessible.');return false;
@@ -96,7 +103,7 @@
     engine?.chronicleAdapter?.refresh?.();
     root.mpBroadcastCampaignState?.('physical_quest_request');
     const place=root.WORLD_LOCATIONS?.[target.location]?.name||target.location.replaceAll('_',' ');
-    engine?.toast?.(`${target.location!==engine?.zone?.id?'Travel to '+place+' and find ': 'Find '}${target.label.replace(/^(Speak with|Inspect|Examine) /,'')}, then interact to continue.`,4800);
+    engine?.toast?.(`${target.location!==engine?.zone?.id?'Travel to '+place+' and find ': 'Find '}${target.label.replace(/^(Speak with|Inspect|Examine|Confront) /,'')}, then interact to continue.`,4800);
     return false;
   }
   return Object.freeze({TARGETS,SCENES,restoreRequests,available,nextScene,requireScene,sceneTarget,canTravel,npcStage,funeralActive,LECT_ALLEY});
