@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 448 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 450 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Epilogue presentation follow-up (local, not deployed):
+
+- Camera framing is deployed in `5d8dc47`.
+- Correction to the prior redirect diagnosis: local diagnostics showed valid stair context and reach, and the authored epilogue plus XP in the hidden Chronicle log. The old redirect toast could remain visible after successful resolution. This was insufficient evidence of a repeated failing proximity check.
+- All six ending epilogues now present their authored log text in a visible scene result, replace the stale toast, and offer a return to ending choices. Already-claimed reflections show an explicit message rather than silently closing. Existing physical-context/reach checks and one-time claims remain intact; remote return callbacks cannot reopen the ending.
+- Added a local-only earned Sword-ending fixture with explicit fresh epilogue claims and physical-context diagnostics. It does not simulate boss difficulty and is not served in production.
+- Two new regression tests exercise all six endings' visible result/return/repeat paths and rejection after physical context is lost. Full suite: 450 passed. Normal boss balance, rendered multiplayer finale, and complete campaign acceptance remain outstanding.
+- Browser verification after reload: physically approached and confirmed the stair, opened the earned Sword fixture, read the complete Chapter II reflection on screen, returned to the ending choices, and read the Stone VII reflection on screen. A separate already-claimed fixture displayed the no-repeat-reward notice and successfully returned to the choices.
 
 Combat camera framing (local, not deployed):
 

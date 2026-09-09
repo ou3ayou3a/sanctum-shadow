@@ -12,6 +12,8 @@
 
   function archiveReward(flag,xp=0,holy=0){if(getFlag(flag))return;setFlag(flag);if(xp)grantXP(xp);if(holy)grantHolyPoints(holy);}
   const towerEndings=['sword','charter','third_day','uprising','restoration','devour'];
+  let epilogueMessages=null;
+  function towerEpilogueLog(message,type){addLog(message,type);if(epilogueMessages)epilogueMessages.push(message);}
   function completedTowerEnding(){return towerEndings.find(ending=>getFlag('chapter1_ending_'+ending));}
   function canResolveTowerEnding(ending){
     if(window.mp?.sessionCode&&!window.mp.isHost)return false;
@@ -829,10 +831,10 @@
         setFlag('chapter1_complete');
         setFlag('shattered_god_defeated');
         grantXP(800);
-        addLog('⚡ QUEST COMPLETE: The Shattered God. It is down. Canon loot recovered: the Shattered God\'s Eye, and a Divine Remnant.', 'holy');
+        towerEpilogueLog('⚡ QUEST COMPLETE: The Shattered God. It is down. Canon loot recovered: the Shattered God\'s Eye, and a Divine Remnant.', 'holy');
         if (getFlag('used_unnaming_blade')) {
-          addLog('🗡 LOOT LOG — the blade you used, itemised, as forged: (1) metal that was already a promise — the seal matrix from the burned signing hall. (2) ash from something burned to hide it — the signing hall ash. (3) a name freely given, spoken over the quench — yours.', 'system');
-          addLog('📜 A promise, a burning, and a freely given name. That is the founders\' recipe. You have just done, with a sword and good intentions, precisely what they did with a plan and a liturgy: solved a man by killing him.', 'system');
+          towerEpilogueLog('🗡 LOOT LOG — the blade you used, itemised, as forged: (1) metal that was already a promise — the seal matrix from the burned signing hall. (2) ash from something burned to hide it — the signing hall ash. (3) a name freely given, spoken over the quench — yours.', 'system');
+          towerEpilogueLog('📜 A promise, a burning, and a freely given name. That is the founders\' recipe. You have just done, with a sword and good intentions, precisely what they did with a plan and a liturgy: solved a man by killing him.', 'system');
           grantHellPoints(5);
         }
       }
@@ -844,14 +846,14 @@
         options: [
           { icon: '📜', label: 'What happens now?', type: 'explore',
             action: () => {
-              addLog('📜 CHAPTER II: More wells. More children with nothing behind their eyes and a torch traced over a cross on their palms. More pieces going looking for each other, and now there are more pieces than there were. You are the fourth generation to try this and you did it exactly the way the other three did.', 'hell');
-              if (getFlag('pq_curse_network')) addLog('📜 Ysel\'s network wakes at dawn. Six carriers. Nobody sends word. Everybody knows.', 'hell');
+              towerEpilogueLog('📜 CHAPTER II: More wells. More children with nothing behind their eyes and a torch traced over a cross on their palms. More pieces going looking for each other, and now there are more pieces than there were. You are the fourth generation to try this and you did it exactly the way the other three did.', 'hell');
+              if (getFlag('pq_curse_network')) towerEpilogueLog('📜 Ysel\'s network wakes at dawn. Six carriers. Nobody sends word. Everybody knows.', 'hell');
               grantXP(100);
             }},
           { icon: '🗿', label: 'Look at Stone VII before you go', type: 'explore',
-            action: () => { addLog('☩ It is intact. It is the only marker the Church never dared move, and the Name is still cut into it, and it has outlasted the thing it was built to hold. It will outlast you too. That is not a threat. It is the point.', 'holy'); grantHolyPoints(5); } },
+            action: () => { towerEpilogueLog('☩ It is intact. It is the only marker the Church never dared move, and the Name is still cut into it, and it has outlasted the thing it was built to hold. It will outlast you too. That is not a threat. It is the point.', 'holy'); grantHolyPoints(5); } },
           { icon: '🗺', label: 'Go home. Report. Say it was necessary.', type: 'move',
-            action: () => { addLog('And it was. That is the thing about this ending. It was necessary and it was a killing and both of those go in the report, and only one of them gets read.', 'system'); goTo('vaelthar_city'); } },
+            action: () => { towerEpilogueLog('And it was. That is the thing about this ending. It was necessary and it was a killing and both of those go in the report, and only one of them gets read.', 'system'); goTo('vaelthar_city'); } },
         ]
       };
     },
@@ -866,11 +868,11 @@
         setFlag('covenant_resealed');
         grantXP(800);
         grantHolyPoints(15);
-        addLog('📜 QUEST COMPLETE: The Shattered God — THE CHARTER. The Tenth Period runs from tonight. Forty-nine years. The tithe must be paid forever, the Remnant house on the author\'s grave must be maintained forever, and the Church of the Eternal Flame must never become a department of the Crown — which means Elder Varek was right, and the whole obscene machine goes on, and that is what you bought the world with.', 'holy');
+        towerEpilogueLog('📜 QUEST COMPLETE: The Shattered God — THE CHARTER. The Tenth Period runs from tonight. Forty-nine years. The tithe must be paid forever, the Remnant house on the author\'s grave must be maintained forever, and the Church of the Eternal Flame must never become a department of the Crown — which means Elder Varek was right, and the whole obscene machine goes on, and that is what you bought the world with.', 'holy');
         if (officer === 'cael') {
-          addLog('🧎 Brother Cael is the Sayer of the Seventh Stone. The warrant is perpetual. He will go back to the monastery and stay there, alone, saying it, forever.', 'holy');
+          towerEpilogueLog('🧎 Brother Cael is the Sayer of the Seventh Stone. The warrant is perpetual. He will go back to the monastery and stay there, alone, saying it, forever.', 'holy');
         } else {
-          addLog('✝ YOU are the Sayer of the Seventh Stone. The warrant is perpetual. Warrants do not expire when you do.', 'holy');
+          towerEpilogueLog('✝ YOU are the Sayer of the Seventh Stone. The warrant is perpetual. Warrants do not expire when you do.', 'holy');
         }
       }
       return {
@@ -883,13 +885,13 @@
         options: [
           { icon: '📜', label: 'What happens now?', type: 'explore',
             action: () => {
-              addLog('📜 CHAPTER II: The Tenth Covenant needs writing. Now you know what page one is. So does the Crown. And the Crown has lawyers, and the lawyers have now been told that the operative clause of the instrument they have been negotiating for four centuries is a prayer that only works if the man saying it means it — and they are already asking who decides that, and by what test, and whether it can be certified.', 'hell');
+              towerEpilogueLog('📜 CHAPTER II: The Tenth Covenant needs writing. Now you know what page one is. So does the Crown. And the Crown has lawyers, and the lawyers have now been told that the operative clause of the instrument they have been negotiating for four centuries is a prayer that only works if the man saying it means it — and they are already asking who decides that, and by what test, and whether it can be certified.', 'hell');
               grantXP(100);
             }},
           { icon: '💬', label: 'Somebody redacted the capital\'s copies down to five clauses. When?', type: 'talk',
-            action: () => { addLog('📜 CHAPTER II: It was a chancery decision, and chancery decisions have dates, and Caelan Vey is still employed and still in his office. He drafted clause four for the Crown for ordinary reasons of state. There is no grey man. Nobody was driving. That is the horror.', 'hell'); setFlag('chapter2_vey_thread'); } },
+            action: () => { towerEpilogueLog('📜 CHAPTER II: It was a chancery decision, and chancery decisions have dates, and Caelan Vey is still employed and still in his office. He drafted clause four for the Crown for ordinary reasons of state. There is no grey man. Nobody was driving. That is the horror.', 'hell'); setFlag('chapter2_vey_thread'); } },
           { icon: '🗺', label: 'Ride back to Vaelthar. Tell them it holds.', type: 'move',
-            action: () => { addLog('It holds. They will be delighted. They will not ask what it cost, because the answer is a name and a person and neither of those goes in a schedule.', 'system'); goTo('vaelthar_city'); } },
+            action: () => { towerEpilogueLog('It holds. They will be delighted. They will not ask what it cost, because the answer is a name and a person and neither of those goes in a schedule.', 'system'); goTo('vaelthar_city'); } },
         ]
       };
     },
@@ -903,8 +905,8 @@
         setFlag('selvane_released');
         grantXP(1200);
         grantHolyPoints(40);
-        addLog('☩ QUEST COMPLETE: The Shattered God — THE THIRD DAY. He was not destroyed. He was not raised — only Christ rises, and that is the entire point, and nothing in this world will ever blur it. He was LET GO. +40 Holy Points.', 'holy');
-        addLog('📜 The stillness did not give him his third day. It told him the truth he had been sold a forgery of, and that it had happened, and that it was not him, and that it did not have to be him.', 'holy');
+        towerEpilogueLog('☩ QUEST COMPLETE: The Shattered God — THE THIRD DAY. He was not destroyed. He was not raised — only Christ rises, and that is the entire point, and nothing in this world will ever blur it. He was LET GO. +40 Holy Points.', 'holy');
+        towerEpilogueLog('📜 The stillness did not give him his third day. It told him the truth he had been sold a forgery of, and that it had happened, and that it was not him, and that it did not have to be him.', 'holy');
       }
       return {
         location: 'The Tower of Ash — The Thirty-Seventh Step',
@@ -914,23 +916,23 @@
         options: [
           { icon: '🗿', label: 'Stone VII', type: 'explore',
             action: () => {
-              addLog('☩ It is unsealed and the Name is still cut into it — the only marker the Church never dared move. And on the wall of the Church of the Eternal Flame in Vaelthar, on stone that predates the building by centuries, a carving that has been there since before there was a Church to carve it finally reads straight: "In the name of Jesus Christ — the Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Somebody knew there would be a breaking, and knew who would be standing here, four centuries before the Church existed. Chapter I was the breaking.', 'holy');
+              towerEpilogueLog('☩ It is unsealed and the Name is still cut into it — the only marker the Church never dared move. And on the wall of the Church of the Eternal Flame in Vaelthar, on stone that predates the building by centuries, a carving that has been there since before there was a Church to carve it finally reads straight: "In the name of Jesus Christ — the Chosen comes after the breaking. The Chosen does not know the task. The Chosen will not be given a choice." Somebody knew there would be a breaking, and knew who would be standing here, four centuries before the Church existed. Chapter I was the breaking.', 'holy');
               grantHolyPoints(10);
             }},
           { icon: '📜', label: 'What happens now?', type: 'explore',
             action: () => {
-              addLog('📜 CHAPTER II — THE ORPHANS: six fragments leaked into the bloodlines nearest their stones. The seventh never found a carrier and is still in the monastery chamber, which is what the Voice Below always was. Letting him go does not heal the six. It ORPHANS them. Six pieces, no centre, nothing left to converge toward, all awake by morning.', 'hell');
-              if (getFlag('pq_curse_network')) addLog('📜 Ysel wakes at dawn with her wrist burning and no idea why the pull has stopped. She will work it out by noon. She will not thank you.', 'hell');
+              towerEpilogueLog('📜 CHAPTER II — THE ORPHANS: six fragments leaked into the bloodlines nearest their stones. The seventh never found a carrier and is still in the monastery chamber, which is what the Voice Below always was. Letting him go does not heal the six. It ORPHANS them. Six pieces, no centre, nothing left to converge toward, all awake by morning.', 'hell');
+              if (getFlag('pq_curse_network')) towerEpilogueLog('📜 Ysel wakes at dawn with her wrist burning and no idea why the pull has stopped. She will work it out by noon. She will not thank you.', 'hell');
               grantXP(150);
             }},
           { icon: '☩', label: 'The arithmetic problem nobody has said out loud yet', type: 'explore',
             action: () => {
-              addLog('📜 CHAPTER III: If the Eternal Flame was Selvane, and Selvane is gone — then four hundred years of prayer, every dawn, from an entire realm, went SOMEWHERE. It did not go to him; he could not even hear a question asked in his own tower. Something has been receiving it. That is not a Chapter II problem.', 'hell');
+              towerEpilogueLog('📜 CHAPTER III: If the Eternal Flame was Selvane, and Selvane is gone — then four hundred years of prayer, every dawn, from an entire realm, went SOMEWHERE. It did not go to him; he could not even hear a question asked in his own tower. Something has been receiving it. That is not a Chapter II problem.', 'hell');
               setFlag('chapter3_thread_open');
               grantXP(150);
             }},
           { icon: '🗺', label: 'Walk out. The Fields are just a field now.', type: 'move',
-            action: () => { addLog('You walk out of the Ashen Fields in ordinary grey dirt under an ordinary sky, and behind you a tower that nobody could find is standing in plain sight with nothing in it, and the last mercy in the world turns out to be that a man can be given his name back, and a Name can be spoken over him that nobody owns, and neither of those costs anything at all except being willing to say them out loud.', 'holy'); goTo('vaelthar_city'); } },
+            action: () => { towerEpilogueLog('You walk out of the Ashen Fields in ordinary grey dirt under an ordinary sky, and behind you a tower that nobody could find is standing in plain sight with nothing in it, and the last mercy in the world turns out to be that a man can be given his name back, and a Name can be spoken over him that nobody owns, and neither of those costs anything at all except being willing to say them out loud.', 'holy'); goTo('vaelthar_city'); } },
         ]
       };
     },
@@ -949,9 +951,9 @@
         var leader = (window.getNPCFate && (window.getNPCFate('captain_rhael') === 'ally' || window.getNPCFate('captain_rhael') === 'spared')) ? 'rhael'
           : (window.getNPCFate && (window.getNPCFate('sister_mourne') === 'ally' || window.getNPCFate('sister_mourne') === 'spared')) ? 'mourne'
           : 'the crowd';
-        addLog('👥 QUEST COMPLETE: The Shattered God — THE UPRISING. Nobody warranted this. Seven hundred people from Mol and Cupside Lane and the Temple Quarter walked out to a tower they were told did not exist, because you told them the truth and they believed you, and a warrant is only a piece of paper that says a crowd is allowed to do what this crowd did anyway.', 'holy');
-        if (leader === 'rhael') addLog('🛡 Captain Rhael stands at the front, out of uniform, because the Watch would not sanction this and he came anyway. He spared you once. You spared him back. Tonight he leads.', 'holy');
-        else if (leader === 'mourne') addLog('🕯 Sister Mourne stands at the front. She never meant a word of the faith — but she means this, the first thing she has ever meant, and it turns out that is enough when there are seven hundred people meaning it with you.', 'holy');
+        towerEpilogueLog('👥 QUEST COMPLETE: The Shattered God — THE UPRISING. Nobody warranted this. Seven hundred people from Mol and Cupside Lane and the Temple Quarter walked out to a tower they were told did not exist, because you told them the truth and they believed you, and a warrant is only a piece of paper that says a crowd is allowed to do what this crowd did anyway.', 'holy');
+        if (leader === 'rhael') towerEpilogueLog('🛡 Captain Rhael stands at the front, out of uniform, because the Watch would not sanction this and he came anyway. He spared you once. You spared him back. Tonight he leads.', 'holy');
+        else if (leader === 'mourne') towerEpilogueLog('🕯 Sister Mourne stands at the front. She never meant a word of the faith — but she means this, the first thing she has ever meant, and it turns out that is enough when there are seven hundred people meaning it with you.', 'holy');
       }
       return {
         location: 'The Tower of Ash — The People at the Door',
@@ -960,9 +962,9 @@
         sub: `Not the state. Not the Church. The people you did not abandon, sealing him because you gave them the truth to do it with.`,
         options: [
           { icon: '📜', label: 'What happens now?', type: 'explore',
-            action: () => { addLog('📜 CHAPTER II: A seal held up by seven hundred people is only as strong as their memory of why they stood there. The Crown now knows the prayer needs no warrant — which means anyone can seal it, and anyone can choose not to. You did not restore the old order. You proved it was never necessary. Both sides will spend Chapter II deciding whether that was salvation or the most dangerous thing anyone has ever done.', 'hell'); grantXP(150); } },
+            action: () => { towerEpilogueLog('📜 CHAPTER II: A seal held up by seven hundred people is only as strong as their memory of why they stood there. The Crown now knows the prayer needs no warrant — which means anyone can seal it, and anyone can choose not to. You did not restore the old order. You proved it was never necessary. Both sides will spend Chapter II deciding whether that was salvation or the most dangerous thing anyone has ever done.', 'hell'); grantXP(150); } },
           { icon: '🗺', label: 'Walk back into the city that walked out for you.', type: 'move',
-            action: () => { addLog('They part to let you through and none of them cheer, because it was not that kind of night, but every one of them meets your eyes, which is a thing that has never once happened to a person who saved the world by signing something.', 'holy'); goTo('vaelthar_city'); } },
+            action: () => { towerEpilogueLog('They part to let you through and none of them cheer, because it was not that kind of night, but every one of them meets your eyes, which is a thing that has never once happened to a person who saved the world by signing something.', 'holy'); goTo('vaelthar_city'); } },
         ]
       };
     },
@@ -978,8 +980,8 @@
         grantXP(1000);
         grantHolyPoints(20);
         var mourneLeads = window.getNPCFate && window.getNPCFate('sister_mourne') === 'ally';
-        addLog('⛪ QUEST COMPLETE: The Shattered God — THE RESTORATION. The Church of the Eternal Flame does not fall. It is worse and better than that: it is told the truth about what it was built on, by someone it trusts, and it chooses to keep going anyway — this time knowing the name in the flame is a murdered man and not a god, and that the difference is the entire point.', 'holy');
-        addLog(mourneLeads
+        towerEpilogueLog('⛪ QUEST COMPLETE: The Shattered God — THE RESTORATION. The Church of the Eternal Flame does not fall. It is worse and better than that: it is told the truth about what it was built on, by someone it trusts, and it chooses to keep going anyway — this time knowing the name in the flame is a murdered man and not a god, and that the difference is the entire point.', 'holy');
+        towerEpilogueLog(mourneLeads
           ? '🕯 Sister Mourne takes Stone VII as the first Sayer of the reformed Church. The most learned reader of the buried texts now says the prayer she spent her life countering — and she means it, because you showed her the one thing worth meaning it for.'
           : '🕯 Sister Mourne carries the flame to the reformed altar. She is alive to do it because you did not cut her down when you could have, and a Church cannot be rebuilt true by people who murdered the last honest reader in it.', 'holy');
       }
@@ -990,9 +992,9 @@
         sub: `You did not tear it down and you did not prop up the lie. You made it true. That is rarer than either.`,
         options: [
           { icon: '📜', label: 'What happens now?', type: 'explore',
-            action: () => { addLog('📜 CHAPTER II: A Church that admits its founding was a forged resurrection is a Church at war with itself. Half the clergy will call the reformation a heresy and the old lie orthodoxy. You have not ended the conflict. You have moved it inside the Church walls, where it will be quieter, longer, and far harder to see coming.', 'hell'); grantXP(150); } },
+            action: () => { towerEpilogueLog('📜 CHAPTER II: A Church that admits its founding was a forged resurrection is a Church at war with itself. Half the clergy will call the reformation a heresy and the old lie orthodoxy. You have not ended the conflict. You have moved it inside the Church walls, where it will be quieter, longer, and far harder to see coming.', 'hell'); grantXP(150); } },
           { icon: '🗺', label: 'Ride home. The bells are ringing differently.', type: 'move',
-            action: () => { addLog('You cannot say how, but they are. The same bells, the same hours. Somebody who knows what the flame is has changed the way they pull the rope, and the whole city can hear it and none of them know why.', 'holy'); goTo('vaelthar_city'); } },
+            action: () => { towerEpilogueLog('You cannot say how, but they are. The same bells, the same hours. Somebody who knows what the flame is has changed the way they pull the rope, and the whole city can hear it and none of them know why.', 'holy'); goTo('vaelthar_city'); } },
         ]
       };
     },
@@ -1006,8 +1008,8 @@
         setFlag('became_the_flame');
         grantXP(900);
         grantHellPoints(30);
-        addLog('🌑 QUEST COMPLETE: The Shattered God — THE DEVOURING. He was built to be a vessel somebody else could fill. Four hundred years ago the founders filled him with a lie. Tonight you fill him with yourself. You do not seal him and you do not free him. You take the seven holes where seven pieces were subtracted and you put seven pieces of yourself into them, and the faces stop being tried on because they have finally found the one they fit.', 'hell');
-        addLog('☠ You murdered on the way here, and the city knows it, and a city that fears you is exactly the congregation this position requires. They will pray to you at dawn. You will be able to hear them. That is the part the founders never managed — you can hear them, and you will answer, and answering is how it starts.', 'hell');
+        towerEpilogueLog('🌑 QUEST COMPLETE: The Shattered God — THE DEVOURING. He was built to be a vessel somebody else could fill. Four hundred years ago the founders filled him with a lie. Tonight you fill him with yourself. You do not seal him and you do not free him. You take the seven holes where seven pieces were subtracted and you put seven pieces of yourself into them, and the faces stop being tried on because they have finally found the one they fit.', 'hell');
+        towerEpilogueLog('☠ You murdered on the way here, and the city knows it, and a city that fears you is exactly the congregation this position requires. They will pray to you at dawn. You will be able to hear them. That is the part the founders never managed — you can hear them, and you will answer, and answering is how it starts.', 'hell');
       }
       return {
         location: 'The Tower of Ash — The Thirty-Seventh Step',
@@ -1017,9 +1019,9 @@
         sub: `You did not break the cycle. You became the thing at the middle of it. Chapter II has a god now, and it is you.`,
         options: [
           { icon: '📜', label: 'What happens now?', type: 'explore',
-            action: () => { addLog('📜 CHAPTER II — THE NEW FLAME: the six fragments converge on you instead of scattering. You are not shattered; you are gathering. The Church prays to a flame that answers for the first time in living memory, and does not yet understand what it is answering. You do. That is the only advantage anyone will have against you, and it will not be enough.', 'hell'); setFlag('chapter2_dark_ascension'); grantXP(150); } },
+            action: () => { towerEpilogueLog('📜 CHAPTER II — THE NEW FLAME: the six fragments converge on you instead of scattering. You are not shattered; you are gathering. The Church prays to a flame that answers for the first time in living memory, and does not yet understand what it is answering. You do. That is the only advantage anyone will have against you, and it will not be enough.', 'hell'); setFlag('chapter2_dark_ascension'); grantXP(150); } },
           { icon: '🌑', label: 'Reach out to the first mind that prays at dawn.', type: 'explore',
-            action: () => { addLog('A child in Mol, at first light, says the morning hymn without knowing the capitals spell a name. You are the name now. You feel the child say you. You could answer. You have all the time in the world to decide how.', 'hell'); grantHellPoints(5); } },
+            action: () => { towerEpilogueLog('A child in Mol, at first light, says the morning hymn without knowing the capitals spell a name. You are the name now. You feel the child say you. You could answer. You have all the time in the world to decide how.', 'hell'); grantHellPoints(5); } },
         ]
       };
     },
@@ -1059,8 +1061,14 @@
           if(window.PhysicalQuestFlow?.requireScene(window,'tower_thirty_seventh_step')===false)return;
           if(option.type==='move'&&window.document?.body?.classList.contains('vt-3d-active')){window.__world3d?.toast?.('Use the exit to leave the Tower, then travel back to Vaelthar.');return;}
           const claim='tower_epilogue_'+ending+'_'+index;
-          if(getFlag(claim))return;
-          setFlag(claim);return action(...args);
+          const present=messages=>{if(window.document?.body?.classList.contains('vt-3d-active')&&window.showScene){
+            window.__world3d?.toast?.('Epilogue recorded.');
+            window.showScene({id:claim,location:scene.location,locationIcon:scene.locationIcon,narration:messages.join('\n\n'),options:[{label:'Return to the ending choices',type:'explore',action:()=>{if(canResolveTowerEnding(ending)&&window.PhysicalQuestFlow?.requireScene(window,'tower_thirty_seventh_step')!==false)runScene(id);}}]});
+          }};
+          if(getFlag(claim)){present(['This reflection has already been recorded. Its rewards cannot be claimed again.']);return;}
+          const messages=[];epilogueMessages=messages;setFlag(claim);
+          try{action(...args);}finally{epilogueMessages=null;}
+          present(messages.length?messages:['This chapter of your Chronicle is complete.']);
         };
       }
       return scene;
