@@ -98,8 +98,7 @@
     },
 
     ambassador_last_words: () => {
-      setFlag('ambassador_last_words_heard');
-      grantXP(80);
+      if(!getFlag('ambassador_last_words_heard')){setFlag('ambassador_last_words_heard');grantXP(80);}
       return {
         location: 'The Ostrene Legation — Upper Room',
         locationIcon: '🏛',
@@ -572,6 +571,16 @@
 
   };
 
+  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox']){
+    const factory=S[id];
+    const allowed=()=>{
+      if(window.mp?.sessionCode&&!window.mp.isHost)return false;
+      if(!getFlag('ambassador_quest_started'))return false;
+      if(id==='ambassador_strongbox'&&!getFlag('ambassador_last_words_heard')&&!getFlag('ambassador_died_before_answering'))return false;
+      return window.PhysicalQuestFlow?.requireScene(window,id)!==false;
+    };
+    S[id]=()=>{if(!allowed())return null;if(id==='ambassador_bedside'&&(getFlag('ambassador_last_words_heard')||getFlag('ambassador_died_before_answering'))){runScene('ambassador_strongbox');return null;}const scene=factory();for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const action=option[key];option[key]=(...args)=>{if(allowed())return action(...args);};}return scene;};
+  }
   if (typeof SCENES !== 'undefined') Object.assign(SCENES, S);
   if (typeof window !== 'undefined') { window.SCENES = window.SCENES || SCENES; Object.assign(window.SCENES, S); }
 })();

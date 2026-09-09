@@ -15,6 +15,7 @@ window.addEventListener('load',()=>{
  const voiceOption=document.createElement('option');voiceOption.value='archive_voice_hatch';voiceOption.textContent='Archive Voice (hatch fixture)';panel.querySelector('select').append(voiceOption);
  const chanceryOption=document.createElement('option');chanceryOption.value='archive_scriptorium';chanceryOption.textContent='Chancery records (admitted fixture)';panel.querySelector('select').append(chanceryOption);
  const towerOption=document.createElement('option');towerOption.value='tower_antechamber';towerOption.textContent='Tower officers (recruited fixture)';panel.querySelector('select').append(towerOption);
+ const legationOption=document.createElement('option');legationOption.value='ostrene_legation';legationOption.textContent='Ostrene legation (summons fixture)';panel.querySelector('select').append(legationOption);
  const towerFight=document.createElement('button');towerFight.textContent='Start Tower final-blow fixture (1 HP)';panel.insertBefore(towerFight,status);
  towerFight.onclick=()=>{try{if(window.__world3d?.zone?.id!=='tower_antechamber'){status.textContent='Load the Tower fixture first.';return;}window.sceneState.currentScene='tower_thirty_seventh_step';window.sceneState.flags.faced_the_shattered_god=true;startCombat([{...generateEnemy('shattered_god',10),id:'shattered_god',name:'Shattered God — final-blow QA',hp:1,maxHp:500,ac:1,dex:-20,boss:true,xp:2000,spells:[]}],{victoryScene:'tower_ending_sword'});report();}catch(e){status.textContent=e.stack;}};
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
@@ -29,6 +30,7 @@ window.addEventListener('load',()=>{
   const selection=panel.querySelector('select').value,sermon=selection==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':selection==='monastery_cael'?'monastery_aldric':selection==='archive_voice_hatch'?'archive_level_four':selection;
   initGameScreen();
   if(selection==='tower_antechamber'){window.resetSceneState();window.activateQuest('c1q20',true);Object.assign(window.sceneState.flags,{tower_door_answered:true,faced_the_shattered_god:true,met_cael_sayer:true,met_theones:true,theones_broke:true,tower_cael_invited:true,tower_theones_invited:true,clue_old_benediction_six_lines:true,clue_eron_inscription:true});}
+  if(selection==='ostrene_legation'){window.resetSceneState();window.activateQuest('c1q8',true);window.sceneState.flags.ambassador_quest_started=true;}
   if(selection==='monastery_cael'){window.resetSceneState();window.sceneState.flags.clue_aldric_exception=true;window.sceneState.flags.archive_breakin_done=true;window.gameState.completedQuests=[{id:'c1q17'}];}
   if(window.mapState.currentLocation==='thornwood_gate'){window.resetSceneState();window.activateQuest('c1q3',true);}
   if(window.mapState.currentLocation==='merchant_road'){window.resetSceneState();window.activateQuest('c1q4',true);}

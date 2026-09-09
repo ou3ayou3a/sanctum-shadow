@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 456 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 459 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — legation bedside and case (local, not deployed):
+
+- Rhael handoff is deployed in `3fb707a`.
+- Added the Ostrene Legation as a seventeenth playable interior, reusing the existing house asset/kit. Its city landmark offers entry, and the room has a physical return to Vaelthar. The map and regenerated collision catalog now contain 29 locations.
+- Halven and Rane are represented by existing character models, with a separate chancery-case target. Bedside, examination, final-words and silent-death scenes require confirmed Halven proximity. Moving to the case queues its own physical interaction; opening it requires one of the death/last-words milestones. Stale callbacks and multiplayer guest effect application are blocked at these boundaries. Last-words XP is now once-only using its existing flag.
+- Three new tests cover remote confession prevention, bedside-to-case separation, stale callbacks, case prerequisites, saved pending requests and repeated final-words XP. All target navigation checks and all 459 tests pass.
+- Local rendered fixture: loaded the room, walked to Halven, confirmed his conversation, heard the scheduled-Covenant/final-words branch, chose the case, walked across the room, and confirmed Rane's case to open its permission checks. This is not a city-door-to-ending campaign playthrough or rendered multiplayer test.
+- Still required: wool-gate fallback and timing, Brask's staged confrontation, all later reward replay guards, dying/dead Halven presentation, and end-to-end city entry/exit plus multiplayer QA. This pass reuses generic assets, not bespoke sickroom art or animation.
 
 Ambassador quest — Rhael handoff (local, not deployed):
 

@@ -3,6 +3,8 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    'npc:oret_halven':{location:'ostrene_legation',label:'Speak with Ambassador Halven',position:[-3,0,3.5],scene:'ambassador_bedside',quest:'c1q8',requires:'ambassador_quest_started',entrance:'ostrene_legation',npc:{id:'oret_halven',name:'Ambassador Oret Halven',title:'The Ostrene Legate',race:'human',classId:'mage',action:'quest'}},
+    ostrene_chancery_case:{location:'ostrene_legation',label:'Examine Rane’s chancery case',position:[3,0,-3.5],scene:'ambassador_strongbox',quest:'c1q8',pendingOnly:true,kind:'records',entrance:'ostrene_legation'},
     'npc:captain_rhael':{location:'vaelthar_city',label:'Show the Ostrene exemplar to Captain Rhael',position:[3,0,-4.5],scene:'ambassador_rhael_report',quest:'c1q8',pendingOnly:true,npc:{id:'captain_rhael',name:'Captain Rhael',title:'Captain of the Watch',race:'human',classId:'warrior',action:'dialogue'}},
     'npc:tower_cael':{location:'tower_antechamber',label:'Speak with Brother Cael',position:[-2,0,1],scene:'tower_cael_warrant',quest:'c1q20',requires:'tower_cael_invited',entrance:'entrance_tower_antechamber',npc:{id:'tower_cael',dialogueId:'brother_cael',name:'Brother Cael',title:'The Last Sayer',race:'human',classId:'cleric',action:'quest'}},
     'npc:tower_theones':{location:'tower_antechamber',label:'Speak with Head Archivist Theones',position:[2,0,1],scene:'tower_theones_attempt',quest:'c1q20',requires:'tower_theones_invited',entrance:'entrance_tower_antechamber',npc:{id:'tower_theones',dialogueId:'head_archivist_theones',name:'Head Archivist Theones',title:'Presiding Officer',race:'human',classId:'mage',action:'quest'}},
@@ -58,6 +60,7 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    ambassador_bedside:'npc:oret_halven',ambassador_poison_check:'npc:oret_halven',ambassador_last_words:'npc:oret_halven',ambassador_dies_silent:'npc:oret_halven',ambassador_strongbox:'ostrene_chancery_case',
     ambassador_rhael_report:'npc:captain_rhael',
     tower_invite_cael:'npc:brother_cael',tower_invite_theones:'npc:head_archivist_theones',tower_cael_warrant:'npc:tower_cael',tower_theones_attempt:'npc:tower_theones',tower_charter_seal:'tower_last_step',
     tower_ash_approach:'tower_sealed_door',tower_thirty_seventh_step:'tower_last_step',tower_speak_his_name:'tower_last_step',tower_name_without_name:'tower_last_step',tower_charter_officer:'tower_last_step',

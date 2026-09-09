@@ -1,6 +1,7 @@
 const emptyEffects=()=>({flags:{},facts:{},reputation:[],resources:{hp:0,holy:0,hell:0,xp:0},items:{add:[],remove:[]},questEvents:[]});
 
 const INTERIORS=Object.freeze({
+  ostrene_legation:{asset:'house_interior',size:[14,5.2,16],returnTo:'vaelthar_city',entrance:[-27,-17],variant:'ostrene_sickroom',accent:0xb99a54,npcs:[{id:'undersecretary_rane',name:'Undersecretary Rane',title:'Ostrene Chancery',position:[3,0,-2],race:'human',classId:'mage',action:'ambient',ambientLine:'The Ambassador wanted you to read the first page. His chancery case is beside me.'}]},
   archive_foundation:{asset:'dungeon_interior',size:[14,5.5,16],returnTo:'archive_level_four',entrance:[0,5.7],variant:'sixth_stone',accent:0x7c8eac,npcs:[]},
   archive_level_four:{asset:'shop_interior',size:[14,5.5,16],returnTo:'archive_scriptorium',entrance:[0,2.7],variant:'buried_series',accent:0x9971b0,npcs:[]},
   monastery_depths:{asset:'dungeon_interior',size:[16,6,20],returnTo:'monastery_cellar',entrance:[0,6],variant:'binding_chamber',accent:0x8d72bc,npcs:[]},

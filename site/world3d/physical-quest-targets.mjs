@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 // Reuse the existing well and character assets. No new scenery style or models.
 export function preparePhysicalQuestTargets(zone){
+  if(zone.id==='vaelthar_city'){const door=zone.interactables.find(record=>record.id==='ostrene_legation');if(door)door.actions=[{id:'enter_legation',label:'Enter the Ostrene Legation',direct:true,onSelect:()=>window.__world3d?.transitionToWorldLocation('ostrene_legation','The Ostrene Legation')},...(door.actions||[])];}
   if(zone.id==='merchant_road'){zone.npcs=zone.npcs||[];for(const [id,position]of [['merchant_cultist_left',[1,0,-3]],['merchant_cultist_right',[3,0,-5]]])if(!zone.npcs.some(npc=>npc.id===id))zone.npcs.push({id,name:'Covenant Cultist',title:'Awaiting the Elder’s Orders',race:'human',classId:'cleric',position,action:'ambient',ambientLine:'The cultist watches his leader. Speak to the leader to confront them.'});}
   if(['thornwood_gate','thornwood_passage'].includes(zone.id)){
     const entering=zone.id==='thornwood_gate',id=entering?'thornwood_forest_path':'thornwood_gate_path',destination=entering?'thornwood_passage':'thornwood_gate',label=entering?'Take the path into the Thornwood':'Return along the path to Thornwood Gate';

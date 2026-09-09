@@ -3,6 +3,7 @@
 // ============================================
 
 const WORLD_LOCATIONS = {
+  ostrene_legation:{id:'ostrene_legation',name:'The Ostrene Legation',subtitle:'Halven’s Upper Room',x:402,y:264,type:'building',icon:'🏛',region:'heartlands',danger:1,discovered:false,connections:['vaelthar_city'],parentLocation:'vaelthar_city',physicalEntrance:'ostrene_legation',description:'The legation’s sickroom and chancery case. Undersecretary Rane keeps watch beside Ambassador Halven.',quests:['c1q8'],npcs:['Ambassador Oret Halven','Undersecretary Rane'],encounters:[],music:'city_tense'},
   // ── STARTING REGION ──
   vaelthar_city: {
     id: 'vaelthar_city',
@@ -15,7 +16,7 @@ const WORLD_LOCATIONS = {
     danger: 1,
     discovered: true,
     current: true,
-    connections: ['thornwood_gate', 'monastery_aldric', 'merchant_road', 'temple_quarter', 'tarnished_cup'],
+    connections: ['thornwood_gate', 'monastery_aldric', 'merchant_road', 'temple_quarter', 'tarnished_cup', 'ostrene_legation'],
     description: `The great capital of Vaelthar stands wounded but defiant. Its spires still pierce the sky but the streets carry a new tension since the Covenant shattered. Royal guards stand at every corner, their eyes nervous. The Church's white banners have been torn from three major buildings. Something is very wrong here, and everyone knows it — but no one speaks of it aloud.`,
     quests: ['c1q1', 'c1q8', 'c1q9', 'c1q10', 'c1q11'],
     npcs: ['The Trembling Scribe', 'Captain Rhael of the Watch', 'Sister Mourne (Church Inquisitor)'],
