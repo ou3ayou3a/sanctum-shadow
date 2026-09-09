@@ -789,16 +789,11 @@
         var opts = [];
         if (theonesAlive() && getFlag('theones_broke') && !getFlag('theones_tried')) {
           opts.push({ icon: '📚', label: 'Head Archivist Theones. He is the presiding officer. It is literally his job.', type: 'talk',
-            action: () => {
-              setFlag('theones_tried');
-              addLog('☩ He says it. He says it correctly — four months of practice, and now he knows what it means, and he says it beautifully. And nothing happens. He stands at Stone VII in the ash with the card in his hand and nothing happens, and he knows exactly why, and he is a truthful man about records, so he says it out loud where you can hear: "Forty years. I destroyed seventeen collections about this name and read every one of them first. I do not mean it. I want to. Wanting is not meaning." He hands you the card.', 'holy');
-              grantXP(120);
-              runScene('tower_charter_officer');
-            }});
+            action: () => runScene(getFlag('tower_theones_invited')?'tower_theones_attempt':'tower_invite_theones') });
         }
-        if (caelAlive()) {
+        if (caelAlive()&&(getFlag('met_cael_sayer')||getFlag('clue_aldric_exception')||getFlag('tower_cael_invited'))) {
           opts.push({ icon: '🧎', label: 'Brother Cael. He never stopped. He has never once known what that made him.', type: 'talk',
-            action: () => { setFlag('officer_cael'); runScene('tower_ending_charter'); } });
+            action: () => runScene(getFlag('tower_cael_invited')?'tower_cael_warrant':'tower_invite_cael') });
         }
         if (!getFlag('player_tried_saying')) {
           opts.push({ icon: '✝', label: 'Say it yourself. Be the Sayer of the Seventh Stone.', type: 'talk',
@@ -819,6 +814,12 @@
         return opts;
       })(),
     }):null,
+
+    tower_invite_cael:()=>({location:'Saint Aldric’s — A Perpetual Warrant',locationIcon:'🧎',narration:'You explain what the seventh stone requires. Cael listens without interrupting. “Ask me there,” he says. “Where I can see what I am promising.”',options:[{label:'Ask Cael to meet the party at the Tower',type:'talk',action:()=>{if(!caelAlive())return;setFlag('tower_cael_invited');runScene('tower_cael_warrant');}},{label:'Not yet',type:'move',action:()=>window.__world3d?.toast?.('Cael remains at Saint Aldric’s.')}]}),
+    tower_invite_theones:()=>({location:'Archive Reception — The Officer’s Duty',locationIcon:'📚',narration:'Theones sets down his pen when you describe Stone VII. “If there is a warrant, I should see where it binds.” He closes the ledger.',options:[{label:'Ask Theones to meet the party at the Tower',type:'talk',action:()=>{if(!theonesAlive()||!getFlag('theones_broke'))return;setFlag('tower_theones_invited');runScene('tower_theones_attempt');}},{label:'Not yet',type:'move',action:()=>window.__world3d?.toast?.('Theones remains at his desk.')}]}),
+    tower_cael_warrant:()=>({location:'The Tower — Brother Cael',locationIcon:'🧎',narration:'Cael stands beside the sealed stair. You tell him the warrant is perpetual. He looks at the stone, then at you. “I understand. I will say it.”',options:[{label:'Accept his consent, then return to Stone VII',type:'talk',action:()=>{if(!caelAlive())return;setFlag('officer_cael');setFlag('officer_player',false);runScene('tower_charter_seal');}},{label:'No. This must be my choice instead.',type:'talk',action:()=>runScene('tower_charter_officer')}]}),
+    tower_theones_attempt:()=>({location:'The Tower — Head Archivist Theones',locationIcon:'📚',narration:'Theones holds the rubric card beside the stair. “I know every word. Let us find out whether that is enough.”',options:[{label:'Hear Theones speak the seventh clause',type:'talk',action:()=>{if(!theonesAlive())return;archiveReward('theones_tried',120);addLog('Theones speaks correctly. Nothing holds. “Forty years. I destroyed seventeen collections about this name and read every one of them first. I do not mean it. I want to. Wanting is not meaning.” He hands you the card.','holy');runScene('tower_charter_officer');}},{label:'Return to Stone VII',type:'move',action:()=>runScene('tower_charter_officer')}]}),
+    tower_charter_seal:()=>({location:'The Tower — Stone VII',locationIcon:'📜',narration:'Cael has understood the cost and consented. At the stone, the seventh clause waits to be spoken.',options:[{label:'Begin the sealing with Cael as the officer',type:'talk',action:()=>runScene('tower_ending_charter')},{label:'Reconsider the officer',type:'talk',action:()=>runScene('tower_charter_officer')}]}),
 
     // ══════════════ ENDING 1 — THE SWORD ══════════════
     // Always available. No puzzle. No flags. It works.
@@ -1028,6 +1029,19 @@
   // Revalidate stale option callbacks as well as the initial scene boundary.
   for(const id of ['tower_ash_approach','tower_thirty_seventh_step','tower_speak_his_name','tower_name_without_name','tower_charter_officer','archive_lowest_level','archive_voice_names','archive_voice_asks_name','archive_voice_the_name','archive_voice_told_name','archive_voice_ascent','chancery_records_room','chancery_vault_request','chancery_copying_desk','covenant_signature_block','chancery_rubric_rehearsal','mourne_page_one','mourne_page_one_absent','varek_first_page','covenant_author_closed']){
     const factory=S[id];S[id]=()=>{if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return null;if(id.startsWith('tower_')&&completedTowerEnding()){runScene('tower_ending_'+completedTowerEnding());return null;}const scene=factory();if(!scene)return null;for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){const callback=option[key];option[key]=(...args)=>{if(id.startsWith('tower_')&&getFlag('chapter1_complete'))return;if(window.PhysicalQuestFlow?.requireScene(window,id)===false)return;return callback(...args);};}return scene;};
+  }
+
+  for(const id of ['tower_invite_cael','tower_invite_theones','tower_cael_warrant','tower_theones_attempt','tower_charter_seal']){
+    const allowed=()=>{
+      if(getFlag('chapter1_complete')||!getFlag('faced_the_shattered_god')||!canReadTheCharter())return false;
+      if(id.includes('cael')&&(!caelAlive()||!(getFlag('met_cael_sayer')||getFlag('clue_aldric_exception'))))return false;
+      if(id.includes('theones')&&(!theonesAlive()||!getFlag('theones_broke')))return false;
+      if(id==='tower_cael_warrant'&&!getFlag('tower_cael_invited'))return false;
+      if(id==='tower_theones_attempt'&&!getFlag('tower_theones_invited'))return false;
+      if(id==='tower_charter_seal'&&(!getFlag('officer_cael')||!caelAlive()))return false;
+      return window.PhysicalQuestFlow?.requireScene(window,id)!==false;
+    };
+    const factory=S[id];S[id]=()=>{if(!allowed())return null;const scene=factory();for(const option of scene.options){const action=option.action;option.action=(...args)=>{if(allowed())return action(...args);};}return scene;};
   }
 
   // Guard before factories award completion, not just while offering choices.

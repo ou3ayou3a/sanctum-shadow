@@ -2,9 +2,19 @@
 
 Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch in `a8e627b`; the cartographer routing batch in `4479b3d`; the merchant-road batch in `bb1f8ee`; the monastery entry/altar/courtyard batch in `2826884`; the lower monastery chamber in `b95018e`; the Harren fortress batch in `a4b50e6`; archive reception in `663429a`; Level Four in `f8da1fc`; Brother Cael in `c8dee49`; archive foundation/Voice in `68bcc1a`. The Chancery batch is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Deployment update: the Chancery batch above is deployed in `183a402`, and the Tower entry batch in `be5dca2`. The finale validation batch below is local and not deployed.
+Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, and finale validation in `6562f6e`. Officer recruitment below is local and not deployed.
 
-Latest suite: 431 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 436 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Charter officer recruitment pass:
+
+- Charter choices queue a visit to Cael at Saint Aldric's or Theones at archive reception. They do not perform the ritual from their distant home locations.
+- Explicit recruitment stages the officer in the Tower's existing Waiting Room, hides their home staging while recruited, and retains the canonical dialogue identity. This uses existing character assets, not new models or simulated cross-region escort travel.
+- Cael must be known through his personal meeting or the Aldric clue. Consent requires interacting with his Tower actor; accepting it queues a separate return to Stone VII for sealing.
+- Theones' failed recitation occurs at his Tower actor and grants XP once. Returning to the officer decision requires interacting at the stone again.
+- Dead/arrested/fled officers cannot stage or consent. Stale consent rechecks reach. Pending recruitment and ritual handoffs use the saved scene/entity allowlist and quest 20 markers.
+- Five new automated tests cover the complete Cael handoff, Theones' attempt, actor staging, stale consent and pending-state restoration. Navigation tests use the actual interior spawn and collision catalog.
+- Not visually/browser verified in this batch. Mourne/Rhael and crowd staging for the other endings, officer travel presentation, boss-to-ending rendered QA, and multiplayer reconnect playthrough remain outstanding.
 
 Finale validation pass:
 
