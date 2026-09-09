@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 481 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 485 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — absent-clerk continuity (local, not deployed):
+
+- Combat rejection feedback is deployed in `5d921b0`.
+- Rane's canonical death/arrest/departure flags and NPC absence check now select alternate bedside, final-words, case, reading and kept-exemplar presentation. Her absence no longer invents dialogue, observation, trust or a physical handover.
+- An unattended locked case exposes a courier docket and preserves the existing physical wool-gate route. Careful independent collation provides the same 80 XP/clue/notes path without setting `rane_collated_it`. Existing host, proximity and reward-claim guards remain in place.
+- Captured choices recheck Rane's availability; if it changed, they refresh the scene instead of executing stale clerk-dependent effects.
+- Four new regression tests cover all three absence fates, physical exhibition requests, independent clue recovery, once-only XP, stale choice rejection and bedside/handover continuity. All 485 tests and syntax checks pass. This batch has automated verification, not a new rendered absent-Rane playthrough.
+- Remaining: rendered multiplayer/reconnect quest QA, dying Halven presentation and broader Step 5 quest conversions. The ambassador's normal solo combat handoff was verified in the preceding batch; this does not complete the campaign acceptance gate.
 
 Ambassador quest — combat-victory verification and visible rejection feedback (local, not deployed):
 

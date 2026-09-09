@@ -6,6 +6,18 @@ function fixture(){
   root.runScene=id=>{if(!Flow.requireScene(root,id))return false;return root.SCENES[id]();};
   return{root,flags,engine};
 }
+test('absent Rane leaves an actionable exhibition docket instead of blocking case access',()=>{
+  for(const fate of ['dead','arrested','fled']){const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_last_words_heard:true,npc_fate_undersecretary_rane:fate});engine.zone={id:'ostrene_legation',interactables:[{id:'ostrene_chancery_case'}]};engine.physicalContext='ostrene_chancery_case';const scene=root.runScene('ambassador_strongbox');assert.match(scene.narration,/courier docket/);assert.equal(scene.options.length,1);scene.options[0].action();assert.equal(flags.rane_refused_once,true);assert.equal(root.sceneState.physicalSceneRequests.ostrene_wool_exhibition,'ambassador_wool_exhibition');}
+});
+test('absent-clerk collation preserves the clue and reward without inventing her help',()=>{
+  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,rane_refused_once:true,ostrene_exhibition_attended:true,npc_dead_undersecretary_rane:true});engine.zone={id:'vaelthar_city',interactables:[{id:'ostrene_wool_exhibition'}]};engine.physicalContext='ostrene_wool_exhibition';let xp=0;root.grantXP=n=>xp+=n;const scene=root.runScene('ambassador_seven_clauses');assert.doesNotMatch(scene.options[1].label,/Rane/);scene.options[1].action();scene.options[1].action();assert.equal(xp,80);assert.equal(flags.clue_seventh_clause_exists,true);assert.equal(flags.rane_collated_it,undefined);assert.equal(flags.ambassador_seizure_pending,true);
+});
+test('stale Rane-dependent callbacks refresh when she becomes absent',()=>{
+  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_last_words_heard:true});engine.zone={id:'ostrene_legation',interactables:[{id:'ostrene_chancery_case'}]};engine.physicalContext='ostrene_chancery_case';const scene=root.runScene('ambassador_seven_clauses');flags.npc_dead_undersecretary_rane=true;scene.options[1].action();assert.equal(flags.rane_collated_it,undefined);assert.equal(flags.clue_seventh_clause_exists,undefined);assert.equal(flags.ambassador_seizure_pending,undefined);
+});
+test('absent Rane is not narrated at Halven bedside or the kept-exemplar handoff',()=>{
+  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,npc_dead_undersecretary_rane:true});engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'}]};engine.physicalContext='npc:oret_halven';const bedside=root.runScene('ambassador_bedside');assert.doesNotMatch(bedside.narration,/Rane/);bedside.options[3].action();assert.equal(flags.rane_trusts_you,undefined);const words=root.runScene('ambassador_last_words');assert.equal(words.options.length,1);assert.doesNotMatch(words.narration,/Rane/);flags.ambassador_seizure_pending=true;assert.doesNotMatch(root.SCENES.ambassador_exemplar_kept().narration,/Rane/);
+});
 test('outdoor exemplar outcomes retain wool-gate setting without a bedside scene',()=>{
   for(const kept of [false,true]){const {root,flags}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true,ambassador_seizure_at_wool:true});const scene=root.SCENES[kept?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered']();assert.match(scene.location,/Wool Gate/);assert.doesNotMatch(scene.narration,/in this room|looks at the bed|Rane puts/);}
 });

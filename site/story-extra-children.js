@@ -22,6 +22,7 @@
   const COLLATION_NOTES = 'Collation Notes: Page One, Eighth Covenant (seven clauses)';
   const HYMN_TRANSCRIPT = 'Transcript: The Sevenfold Benediction (as recited by the fourteen)';
   const PALM_RUBBING = 'Rubbing: The Overdrawn Palm Mark';
+  function raneAbsent(){return !!getFlag('npc_dead_undersecretary_rane')||['dead','arrested','fled'].includes(getFlag('npc_fate_undersecretary_rane'))||!!window.npcAbsent?.('undersecretary_rane');}
   function requestChancerySeizure(){setFlag('ambassador_seizure_pending');setFlag('ambassador_seizure_at_wool',!!getFlag('rane_refused_once'));runScene('ambassador_chancery_seizure');}
   function leaveAmbassadorConversation(){
     if(window.document?.body?.classList.contains('vt-3d-active')){
@@ -228,7 +229,7 @@
             requestChancerySeizure();
           },
           onFail: () => {
-            addLog('You lose count twice. Rane watches you lose count twice.', 'system');
+            addLog(raneAbsent()?'You lose count twice. The unfamiliar clause numbering defeats your first comparison.':'You lose count twice. Rane watches you lose count twice.', 'system');
             requestChancerySeizure();
           } },
         { icon: '📜', label: 'Let Rane collate it — Ostrene clerks count for a living', type: 'talk',
@@ -610,6 +611,41 @@
 
   };
 
+  // Preserve the physical route when its clerk is unavailable, without putting
+  // words or actions into an absent NPC's mouth. Recheck captured choices too.
+  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox','ambassador_rane_refuses','ambassador_seven_clauses','ambassador_exemplar_kept']){
+    const factory=S[id];
+    S[id]=()=>{
+      const scene=factory();if(!scene)return scene;
+      const absent=raneAbsent();
+      if(absent){
+        if(id==='ambassador_bedside'){
+          scene.narration='Halven lies propped upright in the silent sickroom. No clerk attends him. He spends his remaining breath on a correction: "It was not your Elder. Your Elder burned a copy of a copy. The Covenant broke on a schedule. And your Elder is why it will not be mended."';
+          scene.options[3].action=()=>{ambassadorRewardOnce('bedside_kindness',()=>grantHolyPoints(5));addLog('You sit quietly with Halven and let him breathe.','holy');runScene('ambassador_last_words');};
+        }
+        if(id==='ambassador_poison_check')scene.options[0].action=()=>{addLog('Halven laughs faintly. "You looked for a murderer in a sickroom. Your whole city does that."','system');runScene('ambassador_last_words');};
+        if(id==='ambassador_last_words'){
+          scene.narration='"You are all reading the wrong end of it," Halven whispers. He points to the chancery case. "Ostrene keeps counterparts. Take ours. Look at the first page. Not the fourth. Count the—" His breath stops before the sentence ends. The ledger lies unattended beside him.';
+          scene.options=scene.options.slice(0,1);
+        }
+        if(id==='ambassador_dies_silent'){
+          scene.narration='Halven tries to speak, then falls silent for the last time. No clerk is here to explain his unfinished words. Beside his bed, the chancery case and six days of unsent notes remain. The answer may still be on the page he could not name.';
+          scene.options[0].label='Examine the chancery case';
+        }
+        if(id==='ambassador_strongbox'||id==='ambassador_rane_refuses'){
+          scene.narration='The locked case is unattended. A courier docket lies beside it: on the death of a witnessing legate, the counterpart must be exhibited at the wool gate at fifth bell (17:00), before repatriation. The public exhibition offers a lawful way to read it without the clerk.';
+          scene.sub='The document is still recoverable. Follow the exhibition docket to the wool gate.';
+          scene.options=[{label:'Follow the docket to the wool-gate exhibition',type:'move',action:()=>{setFlag('rane_refused_once');runScene('ambassador_wool_exhibition');}}];
+        }
+        if(id==='ambassador_seven_clauses')scene.options[1]={label:'Compare the numbered clauses carefully, one line at a time',type:'explore',action:()=>{ambassadorRewardOnce('collation',()=>grantXP(80),!!getFlag('clue_seventh_clause_exists'));setFlag('clue_seventh_clause_exists');addItemOnce(COLLATION_NOTES);addLog('Your careful comparison confirms seven clauses in the Ostrene counterpart and five in the capital’s pamphlet.','holy');requestChancerySeizure();}};
+        if(id==='ambassador_exemplar_kept')scene.narration=getFlag('ambassador_seizure_at_wool')?'The unredacted counterpart remains on the exhibition table. You secure the stitched pages and leave the receipt docket behind. Seven clauses are now in your hands.':'The confrontation is over. You secure the unredacted counterpart from the chancery case. Halven’s ledger remains open beside it; no clerk is here to enter the transfer. Seven clauses are now in your hands.';
+      }
+      for(const option of scene.options||[])for(const key of ['action','onSuccess','onFail'])if(typeof option[key]==='function'){
+        const callback=option[key];option[key]=(...args)=>{if(raneAbsent()!==absent){runScene(id);return;}return callback(...args);};
+      }
+      return scene;
+    };
+  }
   for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox','ambassador_rane_refuses','ambassador_wool_exhibition','ambassador_seven_clauses','ambassador_chancery_seizure']){
     const factory=S[id];
     const allowed=()=>{
