@@ -43,6 +43,7 @@
     }
   }
   function agents(n, victoryScene){
+    if(victoryScene==='archive_reception_cleared'&&window.PhysicalQuestFlow?.archiveAdmitted(window.sceneState))return;
     var list = [];
     for (var i = 0; i < n; i++) list.push({ name:'Church Agent', hp:40, ac:13, atk:5, icon:'🗡', id:'archive_agent_' + (i+1), xp:80 });
     if (typeof startCombat === 'function') startCombat(list, { victoryScene:victoryScene });
@@ -304,6 +305,7 @@
 
     church_archive_breakin: () => {
       SF('archive_breakin_started');
+      if(window.PhysicalQuestFlow?.archiveAdmitted(window.sceneState))return {location:'The Church Archive — Admissions',narration:'Your access has already been settled. Theones is waiting at his desk.',options:[{icon:'🚶',label:'Find Theones at his desk',type:'move',action:()=>GO('archive_theones_desk')}]};
       const opts = [];
       if (F('mourne_allied') || F('mourne_arrested') || F('mourne_becomes_ally')) {
         opts.push({ icon: '📜', label: 'Use Sister Mourne\'s access codes', type: 'talk',
@@ -314,22 +316,15 @@
           } });
       }
       opts.push(
-        { icon: '🍷', label: 'The scriptorium — the archivists hollowed the shelves to hide wine', type: 'explore',
-          roll: { stat: 'DEX', dc: 13 },
-          onSuccess: () => {
-            SF('archive_entered_quietly');
-            LOG('📜 Four generations of archivists cut hollows between the presses to hide wine from four generations of Elders. A hollow is a hole. The hole runs from the scriptorium on Three to the stair on Two, and nobody has ever reported it, because reporting it would mean explaining how they knew.', 'holy');
-            GO('archive_theones_desk');
-          },
-          onFail: () => { LOG('A bottle goes over in the dark. In an archive. On stone. It is the loudest thing that has happened here since the Flame.', 'system'); agents(2, 'archive_theones_desk'); } },
+        { icon: '🍷', label: 'Find the hollow wine shelves in the scriptorium', type: 'move',action:()=>GO('archive_wine_passage') },
         { icon: '🎭', label: 'Forge a writ of access and walk in like you own it', type: 'talk',
           roll: { stat: 'CHA', dc: 15 },
           onSuccess: () => { SF('archive_entered_by_forgery'); LOG('The deacon reads it twice, which is once more than the real ones get, and stamps it. Nothing in this building is secured against a man in a hurry with a stamp. It is secured against people who know what to ask for.', 'narrator'); GO('archive_theones_desk'); },
-          onFail: () => { LOG('"The seal is right," the deacon says, pleasantly. "The series number is a scriptorium series. This writ says you are here to collect wine." He is already reaching for the bell.', 'narrator'); agents(2, 'archive_theones_desk'); } },
+          onFail: () => { LOG('"The seal is right," the deacon says, pleasantly. "The series number is a scriptorium series. This writ says you are here to collect wine." He is already reaching for the bell.', 'narrator'); agents(2, 'archive_reception_cleared'); } },
         { icon: '💬', label: 'Knock. Ask for Head Archivist Theones by name.', type: 'talk',
-          action: () => { SF('archive_asked_for_theones'); LOG('You ask for him by name and by title and by the correct one of his two titles, and the deacon\'s whole face changes, because nobody outside the building knows there are two. Theones comes up himself. He does not look surprised. He looks tired in a way that has a date on it.', 'narrator'); GO('archive_theones_desk'); } },
+          action: () => { SF('archive_asked_for_theones'); LOG('The deacon hears the name and title, then points you toward Theones’s desk. The archivist is waiting; go to him to ask your question.', 'narrator'); GO('archive_theones_desk'); } },
         { icon: '⚔', label: 'Four levels of paper and two men with swords. Force it.', type: 'combat',
-          action: () => { SF('archive_forced'); agents(3, 'archive_theones_desk'); } }
+          action: () => { SF('archive_forced'); agents(3, 'archive_reception_cleared'); } }
       );
       return {
         location: 'The Church Archive — Level One',
@@ -341,6 +336,19 @@
       };
     },
 
+    archive_wine_passage: () => ({
+      location:'The Church Archive — Scriptorium Shelves',locationIcon:'🍷',
+      narration:'Hollow shelves conceal bottles behind the presses. A narrow opening continues behind them. You must cross without sending the bottles crashing onto the stone.',
+      options:[{icon:'🍷',label:'Slip through the hollow shelves',type:'explore',roll:{stat:'DEX',dc:13},
+        onSuccess:()=>{SF('archive_entered_quietly');LOG('You cross the concealed passage. Return to the archive reception and find Theones at his desk.','holy');GO('archive_theones_desk');},
+        onFail:()=>{LOG('A bottle shatters. Two Church agents rush toward the shelves.','system');agents(2,'archive_reception_cleared');}}]
+    }),
+
+    archive_reception_cleared: () => {
+      SF('archive_access_granted');
+      return {location:'The Church Archive — The Way Is Clear',narration:'The agents can no longer block you. Theones remains at his desk in the reception room; go to him before continuing your search.',options:[{icon:'🚶',label:'Find Theones in reception',type:'move',action:()=>GO('archive_theones_desk')}]};
+    },
+
     archive_theones_desk: () => {
       SF('met_theones');
       const opts = [];
@@ -348,7 +356,8 @@
       if (knowsName()) {
         opts.push({ icon: '🗣', label: '"Say it: Selvane."', type: 'talk',
           action: () => {
-            SF('solved_early'); HOLY(15);
+            if(window.PhysicalQuestFlow?.requireScene(window,'archive_theones_desk')===false)return;
+            SF('solved_early'); if(!F('archive_early_solver_rewarded')){SF('archive_early_solver_rewarded');HOLY(15);}
             LOG('📜 He does not ask how you know. That is the tell — a man who has spent forty years being surprised by nothing has just been surprised, and his first act is not a question, it is a walk. He goes and gets the minutes himself.', 'holy');
             LOG('📜 ITEM GAINED: The Founders\' Minutes (unredacted) — the only copy. The only document in the world that proves a murder in chancery prose.', 'holy');
             ITEM('The Founders\' Minutes (unredacted)');
