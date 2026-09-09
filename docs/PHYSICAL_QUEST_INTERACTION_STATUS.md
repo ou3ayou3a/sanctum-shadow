@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 462 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 465 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — Brask confrontation (local, not deployed):
+
+- Wool-gate fallback is deployed in `6c3ab5f`.
+- Resolving the page-one reading now stages Brask and queues a confirmed NPC interaction instead of opening his confrontation at the case. The legation permission route and city exhibition route have distinct, mutually exclusive actor targets. The wool-gate version uses cobbles/exhibition narration instead of claiming the party is in a stairwell.
+- Brask's scene and every choice callback recheck host authority, quest state and physical reach/context. Staging hides him after either exemplar outcome, death, arrest or departure. Both pending routes survive strict restoration.
+- Three new tests cover both reading-to-NPC handoffs, remote combat rejection, local combat initiation, exclusive staging, absence/resolution and request restoration. Navigation confirms both NPC positions are reachable and outside scenery. All 465 tests pass.
+- This batch has automated checks, not a rendered Brask or multiplayer playthrough. His two agents still enter through the existing combat presentation rather than separately staged exploration actors. Remaining work includes outcome/reward replay guards and a complete rendered ambassador route, including the wool-gate fallback and combat victory.
 
 Ambassador quest — wool-gate fallback (local, not deployed):
 

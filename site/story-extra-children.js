@@ -22,6 +22,7 @@
   const COLLATION_NOTES = 'Collation Notes: Page One, Eighth Covenant (seven clauses)';
   const HYMN_TRANSCRIPT = 'Transcript: The Sevenfold Benediction (as recited by the fourteen)';
   const PALM_RUBBING = 'Rubbing: The Overdrawn Palm Mark';
+  function requestChancerySeizure(){setFlag('ambassador_seizure_pending');setFlag('ambassador_seizure_at_wool',!!getFlag('rane_refused_once'));runScene('ambassador_chancery_seizure');}
 
   const S = {
 
@@ -185,11 +186,11 @@
             addLog('📜 Vaelthar\'s marginal instruction, in a chancery hand: "cl. vi–vii omitted — notarial matter, not operative."', 'holy');
             addLog('📜 And it is numbered. The Eighth. The one that burned three days ago was the Ninth. There have been NINE of these.', 'holy');
             addItemOnce(COLLATION_NOTES);
-            runScene('ambassador_chancery_seizure');
+            requestChancerySeizure();
           },
           onFail: () => {
             addLog('You lose count twice. Rane watches you lose count twice.', 'system');
-            runScene('ambassador_chancery_seizure');
+            requestChancerySeizure();
           } },
         { icon: '📜', label: 'Let Rane collate it — Ostrene clerks count for a living', type: 'talk',
           action: () => {
@@ -200,7 +201,7 @@
             addLog('📜 CLUE: Page one of the Eighth Covenant carries SEVEN clauses. Vaelthar\'s copies carry FIVE — "cl. vi–vii omitted, notarial matter, not operative."', 'holy');
             addLog('📜 It is numbered THE EIGHTH. The one that burned was the NINTH. These have been happening, in order, for a very long time.', 'holy');
             addItemOnce(COLLATION_NOTES);
-            runScene('ambassador_chancery_seizure');
+            requestChancerySeizure();
           } },
         { icon: '👁', label: 'Skip page one. Go to page four — the clause everyone actually fights over.', type: 'explore',
           action: () => {
@@ -218,7 +219,7 @@
             addLog('📜 Aldran\'s secret copy. The one the Church would have burned him for. Five clauses. He risked his life for the redacted edition and never knew.', 'holy');
             addLog('📜 CLUE: Ostrene\'s exemplar carries SEVEN clauses on page one. Every copy in Vaelthar — including the heretic\'s — carries FIVE.', 'holy');
             addItemOnce(COLLATION_NOTES);
-            runScene('ambassador_chancery_seizure');
+            requestChancerySeizure();
           } });
       }
       return {
@@ -231,10 +232,10 @@
     },
 
     ambassador_chancery_seizure: () => ({
-      location: 'The Ostrene Legation — The Door',
+      location: getFlag('ambassador_seizure_at_wool')?'The Wool Gate — Church Chancery':'The Ostrene Legation — The Door',
       locationIcon: '🕯',
       threat: '⚔ Church Chancery',
-      narration: `Boots in the stairwell, unhurried — the tread of men who have paperwork. A Church chancery under-officer named Brask comes in first, and he is the worst kind: polite, bored, and correct. Two Flame agents behind him with their hands where you can see them, which is a courtesy and also a statement. "Repatriation of diplomatic material on the decease of a legate," Brask says, and produces a warrant that is, as far as you can tell, entirely genuine. "That includes the counterpart." He puts out a hand. He is not looking at you. He is looking at the case, the way a man looks at a chair he intends to sit in.`,
+      narration: `${getFlag('ambassador_seizure_at_wool')?'Boots on the cobbles beside the exhibition table, unhurried — the tread of men who have paperwork.':'Boots in the stairwell, unhurried — the tread of men who have paperwork.'} A Church chancery under-officer named Brask comes in first, and he is the worst kind: polite, bored, and correct. Two Flame agents behind him with their hands where you can see them, which is a courtesy and also a statement. "Repatriation of diplomatic material on the decease of a legate," Brask says, and produces a warrant that is, as far as you can tell, entirely genuine. "That includes the counterpart." He puts out a hand. He is not looking at you. He is looking at the case, the way a man looks at a chair he intends to sit in.`,
       sub: `Nobody sent him. This is just the form that gets filled in when a foreign ambassador dies. That is how it always happens.`,
       options: [
         { icon: '💬', label: '"The Watch has custody. Take it up with Captain Rhael."', type: 'talk',
@@ -573,11 +574,12 @@
 
   };
 
-  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox','ambassador_rane_refuses','ambassador_wool_exhibition','ambassador_seven_clauses']){
+  for(const id of ['ambassador_bedside','ambassador_poison_check','ambassador_last_words','ambassador_dies_silent','ambassador_strongbox','ambassador_rane_refuses','ambassador_wool_exhibition','ambassador_seven_clauses','ambassador_chancery_seizure']){
     const factory=S[id];
     const allowed=()=>{
       if(window.mp?.sessionCode&&!window.mp.isHost)return false;
       if(!getFlag('ambassador_quest_started'))return false;
+      if(id==='ambassador_chancery_seizure'&&(!getFlag('ambassador_seizure_pending')||getFlag('has_ostrene_exemplar')||getFlag('chancery_took_exemplar')))return false;
       if(id==='ambassador_wool_exhibition'&&!getFlag('rane_refused_once'))return false;
       if(id==='ambassador_seven_clauses'){
         if(getFlag('rane_refused_once')){if(!getFlag('ostrene_exhibition_attended')){runScene('ambassador_wool_exhibition');return false;}return window.PhysicalQuestFlow?.requireScene(window,'ambassador_wool_exhibition')!==false;}
