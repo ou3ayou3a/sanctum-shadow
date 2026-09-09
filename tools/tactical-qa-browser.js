@@ -3,6 +3,7 @@ window.addEventListener('load',()=>{
  const panel=document.createElement('div');panel.style.cssText='position:fixed;top:90px;left:320px;z-index:999999;background:#fff;color:#000;padding:8px';
  panel.innerHTML='<label>QA location <select><option value="vaelthar_city">City</option><option value="tarnished_cup">Tavern</option><option value="thornwood_gate">Wilderness</option><option value="mol_village">Mol quest interactions</option></select></label> <button>Load QA world</button> <button>Start QA combat</button><pre>Local fixture — not a campaign playthrough</pre>';
  document.body.append(panel);panel.style.width='370px';const [load,fight]=panel.querySelectorAll('button'),status=panel.querySelector('pre');status.style.cssText='max-height:120px;overflow:auto;white-space:pre-wrap;font-size:11px';
+ const sermonOption=document.createElement('option');sermonOption.value='mol_sermon';sermonOption.textContent='Mol funeral and sermon';panel.querySelector('select').append(sermonOption);
  const targetSelect=document.createElement('select'),approach=document.createElement('button');targetSelect.setAttribute('aria-label','QA physical target');approach.textContent='Approach QA target';panel.insertBefore(targetSelect,status);panel.insertBefore(approach,status);
  let targetZone=null;const refreshTargets=()=>{const zone=window.__world3d?.zone;if(!zone||zone===targetZone)return;targetZone=zone;targetSelect.replaceChildren();for(const record of zone.interactables){const option=document.createElement('option');option.value=record.id;option.textContent=record.label||record.id;targetSelect.append(option);}};
  approach.onclick=()=>{const engine=window.__world3d,record=engine?.zone?.interactables.find(item=>item.id===targetSelect.value);if(record)engine.goToInteraction(record);};
@@ -11,10 +12,11 @@ window.addEventListener('load',()=>{
  load.onclick=async()=>{try{
   if(window.combatState)window.combatState.active=false;window.unloadWorld3D?.();
   Object.assign(window.gameState,{character:{name:'Tactical QA',race:'human',class:'rogue',level:10,hp:300,maxHp:300,mp:300,maxMp:300,holyPoints:100,hellPoints:0,gold:100,xp:0,inventory:['Health Potion'],stats:{str:16,dex:30,con:16,int:16,wis:16,cha:16},skillTrees:['shadowblade'],origin:'war_orphan',revealChoice:'truth'},world3dPositions:{},activeQuests:[],completedQuests:[],questProgress:{}});
-  window.mapState.currentLocation=panel.querySelector('select').value;
+  const sermon=panel.querySelector('select').value==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':panel.querySelector('select').value;
   initGameScreen();
   if(window.mapState.currentLocation==='mol_village'){
     window.resetSceneState();window.activateQuest('c1q5',true);window.activateQuest('c1q7',true);window.activateQuest('c1q12',true);
+    if(sermon)window.activateQuest('c1q15',true);
   }
   showScreen('game');await window.loadWorld3D();report();
  }catch(e){status.dataset.error='true';status.textContent=e.stack;console.error(e);}};

@@ -22,9 +22,11 @@
   // dead end that silently strands the quest chain. Open the conversation, then hand
   // control back through runScene() (the only path that fires scene: events) once the
   // conversation — and any fight it turned into — is actually over.
-  function TALK_THEN(npcId, opener, nextSceneId){
-    if (typeof startNPCConversation !== 'function') { GO(nextSceneId); return; }
-    startNPCConversation(npcId, opener);
+  async function TALK_THEN(npcId, opener, nextSceneId){
+    if (typeof startNPCConversation !== 'function') return;
+    try { if (await startNPCConversation(npcId, opener) === false) return; }
+    catch (error) { return; }
+    if (!window.npcConvState?.active && !window.combatState?.active) return;
     var ticks = 0;
     var timer = setInterval(function(){
       ticks++;
@@ -202,13 +204,7 @@
             GO('lect_alley_confession');
           } },
         { icon: '🔍', label: 'Check another hymnal — someone else\'s, from the crowd', type: 'explore',
-          roll: { stat: 'INT', dc: 10 },
-          onSuccess: () => {
-            SF('clue_gloss_is_universal');
-            LOG('📜 CLUE: A farmer\'s hymnal, forty years newer, printed in a different city. Same seven capitals, illuminated in the same order, same gloss in the same margin, word for word. This is not one bad copy. This is the edition. Every hymnal in the realm says it.', 'holy');
-            GO('lect_alley_confession');
-          },
-          onFail: () => GO('lect_alley_confession') },
+          action: () => GO('mol_compare_hymnal') },
         { icon: '🚶', label: 'You have what you came for. Leave him with his book.', type: 'move',
           action: () => GO('mol_sermon_aftermath') }
       );
@@ -221,6 +217,15 @@
       };
     },
 
+    mol_compare_hymnal: () => ({
+      location:'Mol Village — The Congregation',locationIcon:'📖',
+      narration:'Beside Elder Mosswick, a farmer offers you his newer copy of the Sevenfold Benediction. Now you can compare its printing with Lect’s book.',
+      options:[{icon:'🔍',label:'Compare the capitals and printed margin',type:'explore',roll:{stat:'INT',dc:10},
+        onSuccess:()=>{SF('clue_gloss_is_universal');LOG('📜 CLUE: A farmer’s hymnal, printed in another city, has the same seven capitals and the same gloss. This is the edition, not one altered copy.','holy');GO('lect_alley_confession');},
+        onFail:()=>GO('lect_alley_confession')},
+        {icon:'🚶',label:'Return the book and seek Lect privately',type:'move',action:()=>GO('lect_alley_confession')}]
+    }),
+
     // ── CORROBORATOR (c1q15): the true sermon. Once. In an alley. In a whisper. ──
     lect_alley_confession: () => {
       SF('clue_lect_confession');
@@ -229,14 +234,14 @@
         { icon: '💬', label: '"Then preach that. Out loud. Once. That\'s all."', type: 'talk',
           roll: { stat: 'CHA', dc: 16 },
           onSuccess: () => {
-            SF('lect_said_it_twice'); HOLY(8);
+            if (!F('lect_said_it_twice')) HOLY(8); SF('lect_said_it_twice');
             LOG('He doesn\'t. Of course he doesn\'t — he is forty-four and the Church is the only architecture he has. But he says it again, to you, slower, looking at you the whole way through, and lets you hear him mean it. That is the entire sermon. It lasts nine seconds and it has an audience of one, and it is the truest thing said in Mol today, including everything the congregation got word-perfect.', 'holy');
             GO('mol_sermon_aftermath');
           },
           onFail: () => { LOG('"Preach what?" he says. "I have nothing to preach. I have a stumble." He is already turning. He is already louder.', 'narrator'); GO('mol_sermon_aftermath'); } },
         { icon: '✝', label: 'Say the Name. Quietly. Not as a weapon.', type: 'talk',
           action: () => {
-            SF('lect_heard_the_name'); HOLY(10);
+            if (!F('lect_heard_the_name')) HOLY(10); SF('lect_heard_the_name');
             LOG('You say it once, at speaking volume, in an alley in Mol, and it is not loud and nothing catches fire. The stillness arrives the way it always arrives — without argument, without asking, simply there, and there is nothing in Brother Lect\'s twenty years of rebuttals that touches it, because it is not making a claim. It is just true, and it is standing next to him.', 'holy');
             LOG('He was seventeen when he burned his family\'s copy. He memorised it first. He told himself that was to know the enemy. He recovers — he always recovers — and he walks back to the square and screams the forgery louder than he has ever screamed anything in his life. His hands are shaking. He knows you can see them shaking. He shouts anyway.', 'narrator');
             GO('mol_sermon_aftermath');
@@ -246,6 +251,7 @@
         { icon: '🚶', label: 'Say nothing. Let him go back.', type: 'move',
           action: () => { SF('lect_left_alone'); LOG('You let him go. He goes. Somewhere behind you the volume comes back up, and it is the same volume it was this morning, and that is the whole mercy you had to give.', 'narrator'); GO('mol_sermon_aftermath'); } },
       ];
+      if (!knowsName()) opts.splice(1,1);
       return {
         location: 'Mol Village — Behind the Alehouse',
         locationIcon: '🔥',
@@ -259,9 +265,10 @@
     mol_sermon_aftermath: () => {
       SF('mol_true_sermon_done');
       const opts = [];
-      if (F('knows_selvane') || F('knows_the_name_early')) {
+      if ((F('knows_selvane') || F('knows_the_name_early')) && !F('read_hymn_after_the_name')) {
         opts.push({ icon: '📖', label: 'Look at the seventh line again, now that you know', type: 'explore',
           action: () => {
+            if (F('read_hymn_after_the_name')) { GO('mol_sermon_aftermath'); return; }
             SF('read_hymn_after_the_name');
             LOG('📜 The first six lines are the six old petitions, re-cut so their first letters spell a man. The seventh petitions nothing — it is the patch over the hole where the Name used to be. And the realm has been chanting the seal\'s operating manual at dawn for four hundred years and calling it worship: the seventh light. The door that has no door. The hour of the breaking.', 'holy');
             HOLY(5);
@@ -275,7 +282,7 @@
           onFail: () => { LOG('They listen politely. It is letters. They have sung it since they were six and it has never been letters, it has been a shape their mouths make before breakfast. Mosswick pats your arm. It will take longer than an afternoon.', 'narrator'); GO('mol_sermon_aftermath'); } },
         { icon: '🕯', label: 'Watch the square one more time before you go', type: 'explore',
           action: () => {
-            LOG('Lect is back on the cart, over the body, at full volume, preaching the Flame to a congregation that is not listening and will not disperse. He will do this until his voice goes. Then he will do it hoarse. Nothing about the sermon has changed except the man giving it, and nobody in the square can tell, and that is the point of him.', 'narrator');
+            LOG('Lect is back beside the empty cart, at full volume, preaching the Flame to a congregation that is not listening and will not disperse. He will do this until his voice goes. Then he will do it hoarse. Nothing about the sermon has changed except the man giving it, and nobody in the square can tell, and that is the point of him.', 'narrator');
             GO('mol_sermon_aftermath');
           } },
         { icon: '🗺', label: 'Back to Vaelthar — take the hymnal with you', type: 'move',

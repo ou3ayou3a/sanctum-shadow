@@ -1,4 +1,4 @@
-import { WorldEngine } from './world-engine.js?v=231';
+import { WorldEngine } from './world-engine.js?v=232';
 import { buildZone } from './zone-registry.js?v=231';
 
 let engine=null;let loading=null;

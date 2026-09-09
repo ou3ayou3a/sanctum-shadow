@@ -16,6 +16,9 @@
     mol_parish_ledger:{location:'mol_village',label:'Read the parish ledger',position:[-5.2,0,3.5],scene:'mol_tithe_ledger',quest:'c1q12',requires:'tithe_quest_started',kind:'records'},
     'npc:mol_tithe_collector':{location:'mol_village',label:'Speak with the tithe collector',position:[3,0,7],scene:'mol_tithe_collector',quest:'c1q12',requires:'tithe_quest_started',npc:{id:'mol_tithe_collector',name:'Parish Collector',title:'Clerk of the Mol Levy',race:'human',classId:'rogue',action:'quest'}},
     mol_second_stone:{location:'mol_village',label:'Examine the Second Stone',position:[0,0,-9],scene:'mol_tithe_stone',quest:'c1q12',requires:'found_second_stone',kind:'stone'},
+    mol_funeral_cart:{location:'mol_village',label:'Inspect Aldran’s funeral bier',position:[0,0,-4],scene:'mol_true_sermon_arrival',quest:'c1q15',kind:'bier'},
+    'npc:elder_mosswick':{location:'mol_village',label:'Speak with Elder Mosswick and the congregation',position:[3,0,-3],scene:'mol_congregation_remains',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'elder_mosswick',name:'Elder Mosswick',title:'The Bereaved Congregation',race:'human',classId:'ranger',action:'quest'}},
+    'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
     well_that_screams_arrival:'mol_well',well_rope_descent:'mol_well',well_warden_tally:'npc:well_warden_hesk',well_villagers_dismiss:'npc:mol_well_witness',
@@ -26,7 +29,20 @@
     mol_tithe_hook:'mol_tithe_chest',berrick_forgotten_name:'npc:elder_berrick',mol_tithe_last_sayer:'npc:elder_berrick',
     mol_tithe_ledger:'mol_parish_ledger',mol_tithe_ledger_wrong_page:'mol_parish_ledger',mol_tithe_founding_page:'mol_parish_ledger',
     mol_tithe_collector:'npc:mol_tithe_collector',mol_tithe_stone:'mol_second_stone',
+    mol_true_sermon_arrival:'mol_funeral_cart',mol_congregation_remains:'npc:elder_mosswick',mol_compare_hymnal:'npc:elder_mosswick',mol_sermon_aftermath:'npc:elder_mosswick',
+    lect_preaches_over_body:'npc:screaming_preacher',lect_confronted:'npc:screaming_preacher',lect_hymnal:'npc:screaming_preacher',lect_alley_confession:'npc:screaming_preacher',
   });
+  const LECT_ALLEY=Object.freeze([-4,0,-10]);
+  function funeralActive(state,game){return !!state?.flags?.mol_true_sermon_started||state?.physicalSceneRequests?.mol_funeral_cart==='mol_true_sermon_arrival'||(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q15')||!!state?.flags?.mol_true_sermon_done;}
+  function npcStage(id,location,state,game){
+    const funeral=funeralActive(state,game);
+    if(id==='preacher_aldran'&&location==='mol_village')return {active:!funeral,key:'aldran:'+funeral};
+    if(id==='elder_mosswick'&&location==='mol_village')return {active:funeral,key:'mosswick:'+funeral};
+    if(id!=='screaming_preacher')return null;
+    if(location!=='mol_village')return {active:!funeral,key:'lect-away:'+funeral};
+    const requests=restoreRequests(state?.physicalSceneRequests),alley=requests['npc:screaming_preacher']==='lect_alley_confession'||(state?.flags?.lect_private_meeting&&!state?.flags?.mol_true_sermon_done&&requests['npc:elder_mosswick']!=='mol_sermon_aftermath');
+    return {active:funeral,key:'lect:'+funeral+':'+!!alley,position:alley?LECT_ALLEY:TARGETS['npc:screaming_preacher'].position};
+  }
   function sceneTarget(sceneId,locationId){if(sceneId==='well_vigil_night'&&locationId==='mol_well_shaft')return'mol_well_deep_vigil';return Object.hasOwn(SCENES,sceneId)?SCENES[sceneId]:null;}
   function restoreRequests(value){const result={};if(!value||typeof value!=='object')return result;for(const [id,scene]of Object.entries(value))if(Object.hasOwn(TARGETS,id)&&sceneTarget(scene,TARGETS[id].location)===id)result[id]=scene;return result;}
   function available(target,game,flags){return !!target&&!target.pendingOnly&&(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)===target.quest)&&(!target.requires||!!flags?.[target.requires])&&(target.scene!=='well_cabb_offer'||((Number(flags?.well_nights_failed)>=2||Number(flags?.well_nights_transcribed)>=2)&&!flags?.well_capped));}
@@ -52,7 +68,11 @@
     }
     const id=sceneTarget(sceneId,root.__world3d?.zone?.id);if(!id||!root.document?.body?.classList.contains('vt-3d-active'))return true;
     const target=TARGETS[id],engine=root.__world3d,record=engine?.zone?.interactables.find(item=>item.id===id);
-    if(engine?.zone?.id===target.location&&record&&engine.hasPhysicalInteraction?.(id)&&engine.physicalReach?.(record)){
+    const stage=target.npc?npcStage(target.npc.id,engine?.zone?.id,root.sceneState,root.gameState):null;
+    const requiredPosition=sceneId==='lect_alley_confession'?LECT_ALLEY:null;
+    const staged=!requiredPosition||(record?.position&&Math.hypot(record.position.x-requiredPosition[0],record.position.z-requiredPosition[2])<.7);
+    if(engine?.zone?.id===target.location&&stage?.active!==false&&staged&&record&&engine.hasPhysicalInteraction?.(id)&&engine.physicalReach?.(record)){
+      if(sceneId==='lect_alley_confession')root.sceneState.flags.lect_private_meeting=true;
       if(target.singleUseContext){
         root.sceneState.flags.well_vigil_in_shaft=target.location==='mol_well_shaft';
         // A second night is a new world interaction, never an automatic replay
@@ -66,11 +86,12 @@
     if(!root.sceneState)root.sceneState={flags:{}};
     const requests=restoreRequests(root.sceneState.physicalSceneRequests);delete requests[id];
     root.sceneState.physicalSceneRequests={...requests,[id]:sceneId};
+    if(sceneId==='lect_alley_confession')engine&&(engine.physicalContext=null);
     engine?.chronicleAdapter?.refresh?.();
     root.mpBroadcastCampaignState?.('physical_quest_request');
     const place=root.WORLD_LOCATIONS?.[target.location]?.name||target.location.replaceAll('_',' ');
     engine?.toast?.(`${target.location!==engine?.zone?.id?'Travel to '+place+' and find ': 'Find '}${target.label.replace(/^(Speak with|Inspect|Examine) /,'')}, then interact to continue.`,4800);
     return false;
   }
-  return Object.freeze({TARGETS,SCENES,restoreRequests,available,nextScene,requireScene,sceneTarget,canTravel});
+  return Object.freeze({TARGETS,SCENES,restoreRequests,available,nextScene,requireScene,sceneTarget,canTravel,npcStage,funeralActive,LECT_ALLEY});
 });

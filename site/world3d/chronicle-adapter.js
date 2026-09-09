@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=231';
+import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=232';
 
 const TARGET_RULES=[
   [/covenant_hall|signing/i,'signing_hall'],[/scribe/i,'npc:trembling_scribe'],[/rhael/i,'npc:captain_rhael'],[/mourne/i,'npc:sister_mourne'],[/temple/i,'temple_quarter'],[/cartographer/i,'npc:drunk_cartographer'],[/tarnished_cup/i,'tarnished_cup'],[/archive/i,'church_archive'],[/merchant_road|thornwood|monastery|fortress|mol_village/i,'north_gate'],

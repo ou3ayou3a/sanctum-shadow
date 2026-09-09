@@ -22,7 +22,7 @@ export class NPCManager{
     if(record.actor)return record.loading||record.actor;
     const {config}=record,actor=new CharacterActor({modelUrl:this.modelUrl,race:config.race||'human',characterClass:config.classId||'warrior',scale:.94});actor.position.copy(record.position);actor.rotation.y=config.facing||0;actor.userData.npcId=config.id;actor.showLoadingFallback();this.engine.scene.add(actor);record.actor=actor;
     record.loading=actor.load().then(()=>{actor.mixer?.setTime((record.index*.731)%2.8);actor.traverse(object=>{object.userData.npcId=config.id;if(object.isMesh){object.castShadow=false;object.frustumCulled=true;}});return actor;}).catch(error=>{console.warn('NPC actor could not load',config.name,error);return actor;}).finally(()=>{record.loading=null;this.applyActorVisibility(record);});
-    this.applyActorVisibility(record);return record.loading;
+    this.applySchedule(record,true);this.applyActorVisibility(record);return record.loading;
   }
 
   releaseActor(record){if(!record.actor||record.loading)return;record.position.copy(record.actor.position);this.engine.scene.remove(record.actor);record.actor.dispose();record.actor=null;record.label.style.display='none';}
@@ -42,7 +42,13 @@ export class NPCManager{
   activeAt(config,hour){if(!config.activeHours)return true;const[from,to]=config.activeHours;return from<=to?hour>=from&&hour<to:hour>=from||hour<to;}
 
   applySchedule(record,force=false){
-    const hour=window.worldClock?.hour??10,{config,actor,collider,label}=record,active=this.activeAt(config,hour),slot=(config.schedule||[]).find(item=>hour>=item.from&&hour<item.to),key=`${active}:${slot?.from??'base'}`;if(!force&&key===record.lastSchedule)return;record.lastSchedule=key;record.active=active;collider.visible=active;if(!active){label.style.display='none';actor?.stop();this.applyActorVisibility(record);return;}
+    const hour=window.worldClock?.hour??10,{config,actor,collider,label}=record,stage=window.PhysicalQuestFlow?.npcStage(config.id,this.engine.zone.id,window.sceneState,window.gameState),active=stage?stage.active:this.activeAt(config,hour),slot=stage?.position?{position:[stage.position[0],stage.position[2]],patrol:[]}:(config.schedule||[]).find(item=>hour>=item.from&&hour<item.to),key=`${active}:${stage?.key??slot?.from??'base'}`;
+    // Clicking an NPC label stops its actor. A quest relocation must resume
+    // after that interruption, otherwise its destination becomes unreachable.
+    const resume=active&&stage?.position&&actor&&!actor.path?.length&&Math.hypot(actor.position.x-stage.position[0],actor.position.z-stage.position[2])>.7;
+    if(!force&&!resume&&key===record.lastSchedule)return;
+    if(record.lastSchedule&&stage&&key!==record.lastSchedule&&this.engine.hasPhysicalInteraction?.(record.interaction.id))this.engine.physicalContext=null;
+    record.lastSchedule=key;record.active=active;collider.visible=active;if(!active){label.style.display='none';actor?.stop();this.applyActorVisibility(record);return;}
     if(slot?.position){const[x,z]=slot.position;if(actor){const path=this.engine.navigation.findPath(actor.position,{x,z});if(path.length)actor.moveAlong(path,{run:false});}else record.position.set(x,0,z);}
     record.activePatrol=slot?.patrol||config.patrol;record.nextPatrol=0;this.applyActorVisibility(record);
   }
@@ -54,7 +60,7 @@ export class NPCManager{
   update(dt,time){
     this.streamElapsed+=dt;if(this.streamElapsed>=.45){this.streamElapsed=0;this.refreshStreaming();}
     const rect=this.engine.canvas.getBoundingClientRect();
-    for(const record of this.records){this.applySchedule(record);const {actor,collider,config}=record;if(!actor||!actor.visible){record.label.style.display='none';continue;}const distanceToCamera=record.position.distanceTo(this.engine.camera.position);if(distanceToCamera<28||actor.path.length)actor.update(dt);record.position.copy(actor.position);collider.position.copy(record.position);collider.position.y=1.45;
+    for(const record of this.records){this.applySchedule(record);const {actor,collider,config}=record;if(!actor){collider.position.copy(record.position);collider.position.y=1.45;record.label.style.display='none';continue;}const distanceToCamera=record.position.distanceTo(this.engine.camera.position);if(record.active&&(actor.visible&&distanceToCamera<28||actor.path.length))actor.update(dt);record.position.copy(actor.position);collider.position.copy(record.position);collider.position.y=1.45;if(!actor.visible){record.label.style.display='none';continue;}
       const conversationActive=window.npcConvState?.active&&window.npcConvState?.npc?.id===(config.dialogueId||config.id);
       const patrol=record.activePatrol||config.patrol;if(!conversationActive&&!actor.path.length&&actor.oneShotTime<=0&&time>=record.nextAmbient){const gesture=ambientGesture(config,record.ambientCycle++);if(gesture==='turn_left'||gesture==='turn_right')actor.playLocomotionTransition(gesture);else actor.playOneShot(gesture);record.nextAmbient=time+ambientDelay(config,record.ambientCycle);}
       if(patrol?.length&&!conversationActive&&!actor.path.length&&actor.oneShotTime<=0&&time>=record.nextPatrol){record.patrolIndex=(record.patrolIndex+1)%patrol.length;const[x,z]=patrol[record.patrolIndex];const path=this.engine.navigation.findPath(actor.position,{x,z});if(path.length)actor.moveAlong(path,{run:false});record.nextPatrol=time+(config.patrolDelay||8);}

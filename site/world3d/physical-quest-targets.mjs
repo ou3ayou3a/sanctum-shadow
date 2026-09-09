@@ -13,9 +13,10 @@ export function preparePhysicalQuestTargets(zone){
       seat.name='well-vigil-seat';seat.position.set(target.position[0],.225,target.position[2]);zone.root.add(seat);
     }
     if(target.kind){
-      const stone=target.kind==='stone',model=new THREE.Mesh(stone?new THREE.BoxGeometry(.9,.9,.65):new THREE.BoxGeometry(1.1,.6,.75),new THREE.MeshStandardMaterial({color:stone?0x716c58:0x4c3422,roughness:1}));
+      const stone=target.kind==='stone',model=new THREE.Mesh(stone?new THREE.BoxGeometry(.9,.9,.65):target.kind==='bier'?new THREE.BoxGeometry(1,.6,2):new THREE.BoxGeometry(1.1,.6,.75),new THREE.MeshStandardMaterial({color:stone?0x716c58:0x4c3422,roughness:1}));
       model.name=id;model.position.set(target.position[0],stone?.45:.3,target.position[2]);model.castShadow=model.receiveShadow=true;model.userData.interactionId=id;zone.root.add(model);
       if(target.kind==='records'){const page=new THREE.Mesh(new THREE.BoxGeometry(.65,.035,.4),new THREE.MeshStandardMaterial({color:0xc7b785,roughness:1}));page.position.set(target.position[0],.63,target.position[2]);page.userData.interactionId=id;zone.root.add(page);}
+      if(target.kind==='bier'){const shroud=new THREE.Mesh(new THREE.BoxGeometry(.7,.25,1.7),new THREE.MeshStandardMaterial({color:0x9a9280,roughness:1}));shroud.name='aldran-funeral-shroud';shroud.position.set(target.position[0],.72,target.position[2]);shroud.userData.interactionId=id;zone.root.add(shroud);}
     }
     zone.interactables.push({id,label:target.label,position:new THREE.Vector3(...target.position),range:2.3,object});
   }
@@ -31,6 +32,7 @@ export function preparePhysicalQuestTargets(zone){
 
 export function refreshPhysicalQuestTargets(engine){
   const flow=window.PhysicalQuestFlow;if(!flow)return;
+  if(engine.zone.id==='mol_village')engine.zone.root.traverse(object=>{if(object.userData.interactionId==='mol_funeral_cart')object.visible=flow.funeralActive(window.sceneState,window.gameState)&&(object.name!=='aldran-funeral-shroud'||!window.sceneState?.flags?.mol_true_sermon_done);});
   for(const record of engine.zone.interactables){
     const target=flow.TARGETS[record.id];if(!target)continue;
     const scene=flow.nextScene(record.id,window.sceneState,window.gameState);
