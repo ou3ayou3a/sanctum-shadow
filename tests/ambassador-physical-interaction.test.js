@@ -6,6 +6,13 @@ function fixture(){
   root.runScene=id=>{if(!Flow.requireScene(root,id))return false;return root.SCENES[id]();};
   return{root,flags,engine};
 }
+test('ambassador departures end dialogue without remotely opening city scenes',()=>{
+  for(const kept of [false,true])for(const city of [false,true]){
+    const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});engine.zone.id=city?'vaelthar_city':'ostrene_legation';
+    const scene=root.SCENES[kept?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered']();let message='';engine.toast=text=>message=text;root.runScene=()=>assert.fail('remote city scene opened');scene.options.find(o=>o.label.startsWith('End the conversation')).action();assert.match(message,city?/Continue exploring/:/legation door/);assert.equal(engine.zone.id,city?'vaelthar_city':'ostrene_legation');
+  }
+});
+test('ambassador departure preserves the non-3D chronicle fallback',()=>{const {root,flags}=fixture();flags.chancery_took_exemplar=true;root.document.body.classList.contains=()=>false;let next;root.runScene=id=>next=id;root.SCENES.ambassador_exemplar_surrendered().options.find(o=>o.label.startsWith('End the conversation')).action();assert.equal(next,'vaelthar_main');});
 test('exemplar resolutions are exclusive and reward only once, including after reload',()=>{
   for(const kept of [false,true]){
     const {root,flags}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});

@@ -23,6 +23,13 @@
   const HYMN_TRANSCRIPT = 'Transcript: The Sevenfold Benediction (as recited by the fourteen)';
   const PALM_RUBBING = 'Rubbing: The Overdrawn Palm Mark';
   function requestChancerySeizure(){setFlag('ambassador_seizure_pending');setFlag('ambassador_seizure_at_wool',!!getFlag('rane_refused_once'));runScene('ambassador_chancery_seizure');}
+  function leaveAmbassadorConversation(){
+    if(window.document?.body?.classList.contains('vt-3d-active')){
+      window.__world3d?.toast(window.__world3d?.zone?.id==='ostrene_legation'?'Walk to the legation door and interact to return to the city.':'Conversation ended. Continue exploring the city.');
+      return;
+    }
+    runScene('vaelthar_main');
+  }
   function ambassadorRewardOnce(key, reward, legacyClaimed=false){
     if(window.mp?.sessionCode&&!window.mp.isHost)return false;
     const flag='ambassador_reward_'+key;
@@ -295,7 +302,7 @@
             action: () => runScene('ambassador_rhael_report') },
           { icon: '👶', label: 'Rane mentioned a consular file — fourteen children, seven villages', type: 'move',
             action: () => runScene('children_almshouse') },
-          { icon: '🗺', label: 'Back into the city', type: 'move', action: () => runScene('vaelthar_main') },
+          { icon: '🗺', label: 'End the conversation — return to exploration', type: 'explore', action: leaveAmbassadorConversation },
         ]
       };
     },
@@ -321,7 +328,7 @@
             onFail: () => { addLog('Rane shrugs. "A number. They all have numbers."', 'system'); runScene('vaelthar_main'); } },
           { icon: '👶', label: 'Rane mentioned a consular file — fourteen children, seven villages', type: 'move',
             action: () => runScene('children_almshouse') },
-          { icon: '🗺', label: 'Back into the city', type: 'move', action: () => runScene('vaelthar_main') },
+          { icon: '🗺', label: 'End the conversation — return to exploration', type: 'explore', action: leaveAmbassadorConversation },
         ]
       };
     },

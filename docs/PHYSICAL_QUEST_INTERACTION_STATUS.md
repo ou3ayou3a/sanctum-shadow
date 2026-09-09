@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 469 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 471 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — rendered surrender route and departure correction (local, not deployed):
+
+- Reward safeguards are deployed in `74b8235`.
+- Browser fixture run: loaded the summons-stage legation, walked to Halven, confirmed his conversation, heard the schedule testimony, walked to the case, passed its DEX check, let Rane collate page one, walked to Brask, confirmed his confrontation and surrendered the exemplar. This was a high-stat local fixture, not a fresh campaign, combat balance test or multiplayer playthrough.
+- Found a genuine departure bug: both exemplar outcomes' “Back into the city” choices opened `vaelthar_main` while the actor remained inside the legation. Replaced them with an explicit end-conversation action that restores exploration, points to the physical door in the legation, and preserves the old non-3D fallback. Two regression tests cover both outcomes in the city/interior and the non-3D fallback.
+- Added a local-only surrender-outcome QA button to reproduce departure without repeating the full quest. Verified the fixed choice closes the panel, restores the 3D HUD and displays the door instruction.
+- Outstanding runtime failure: confirming the actual legation exit changed the location to `vaelthar_city`, but world loading failed with “The 3D world could not be loaded. Retrying shortly.” The cause is not yet determined; do not count the city exit as passed. Multiple local QA tabs were open, but that is not established as the cause.
+- All 471 tests and syntax checks pass. Next: diagnose that city-load failure, then resume wool-gate and combat-victory browser routes. Full ambassador and multiplayer acceptance remains outstanding.
 
 Ambassador quest — reward safeguards (local, not deployed):
 
