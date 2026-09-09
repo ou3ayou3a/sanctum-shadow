@@ -1783,9 +1783,9 @@ const MISSING_SCENES = {
           startCombat([
             { name: 'Dire Wolf', hp: 35, ac: 12, atk: 5, icon: '🐺', id: 'wolf_1', xp: 70 },
             { name: 'Dire Wolf', hp: 35, ac: 12, atk: 5, icon: '🐺', id: 'wolf_2', xp: 70 },
-          ]); }},
+          ], {victoryScene:'cartographer_found'}); }},
       { icon: '📜', label: 'Collect his fallen maps — they\'re the whole point', type: 'explore',
-        action: () => { addLog('📜 ITEM GAINED: Edden\'s Partial Maps — the Thornwood passage routes, incomplete.', 'holy'); gameState.character?.inventory?.push("Edden\'s Partial Maps"); runScene('cartographer_found'); } },
+        action: () => { const inv=gameState.character?.inventory;if(inv&&!inv.includes("Edden's Partial Maps")){inv.push("Edden's Partial Maps");addLog('📜 ITEM GAINED: Edden\'s Partial Maps — the Thornwood passage routes, incomplete.', 'holy');} runScene('cartographer_found'); } },
     ]
   }),
 
@@ -1802,11 +1802,17 @@ const MISSING_SCENES = {
       sub: `Edden is alive. The Thornwood passage is mapped. The wolves behaved strangely.`,
       options: [
         { icon: '🏃', label: 'Get him out of the forest — back to the gate', type: 'move',
-          action: () => { addLog('📜 Edden returned safely to Mira. The Thornwood passage map is complete.', 'holy'); if (!getFlag('cartographer_escorted')) { setFlag('cartographer_escorted'); grantXP(150); } if (window.travelToLocation) travelToLocation(WORLD_LOCATIONS['thornwood_gate']); } },
+          action: () => { setFlag('cartographer_escort_pending');addLog('Edden accepts your help for the journey. Return to Thornwood Gate and speak with Mira to reunite them.', 'narrator');runScene('cartographer_returned'); } },
         { icon: '💬', label: '"The wolves were herding you? Tell me more."', type: 'talk',
           action: () => { addLog('📜 CLUE: The Thornwood wolves have become organized recently — possibly influenced by the same force disturbing the monastery.', 'holy'); runScene('cartographer_found'); } },
       ]
     };
+  },
+
+  cartographer_returned: () => {
+    if(!getFlag('cartographer_found')||!getFlag('cartographer_escort_pending'))return {location:'Thornwood Gate — Mira',narration:'Mira is still waiting for Edden. Find him in the forest and offer to help him home.',options:[]};
+    if(!getFlag('cartographer_escorted')){setFlag('cartographer_escorted');grantXP(150);addLog('📜 Edden returned safely to Mira. The Thornwood passage map is complete.','holy');}
+    return {location:'Thornwood Gate — Reunited',locationIcon:'🌲',narration:'Mira hurries to Edden as you reach the guardhouse. She steadies his injured ankle while he insists that the finished map was worth it. The journey home is over.',options:[{icon:'🚶',label:'Leave them together',type:'move',action:()=>{}}]};
   },
 
   // ══════════════════════════════════════════

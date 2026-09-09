@@ -14,6 +14,7 @@ window.addEventListener('load',()=>{
   Object.assign(window.gameState,{character:{name:'Tactical QA',race:'human',class:'rogue',level:10,hp:300,maxHp:300,mp:300,maxMp:300,holyPoints:100,hellPoints:0,gold:100,xp:0,inventory:['Health Potion'],stats:{str:16,dex:30,con:16,int:16,wis:16,cha:16},skillTrees:['shadowblade'],origin:'war_orphan',revealChoice:'truth'},world3dPositions:{},activeQuests:[],completedQuests:[],questProgress:{}});
   const sermon=panel.querySelector('select').value==='mol_sermon';window.mapState.currentLocation=sermon?'mol_village':panel.querySelector('select').value;
   initGameScreen();
+  if(window.mapState.currentLocation==='thornwood_gate'){window.resetSceneState();window.activateQuest('c1q3',true);}
   if(window.mapState.currentLocation==='mol_village'){
     window.resetSceneState();window.activateQuest('c1q5',true);window.activateQuest('c1q7',true);window.activateQuest('c1q12',true);
     if(sermon)window.activateQuest('c1q15',true);

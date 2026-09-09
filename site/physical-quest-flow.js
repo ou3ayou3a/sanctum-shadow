@@ -3,6 +3,9 @@
   // Only entry/conversation boundaries belong here. A reward scene must never
   // become an independently selectable interaction.
   const TARGETS=Object.freeze({
+    'npc:mira_cartographer':{location:'thornwood_gate',label:'Speak with Mira',position:[-3,0,3],scene:'cartographer_missing',quest:'c1q3',entrance:'thornwood_gate_path',npc:{id:'mira_cartographer',name:'Mira',title:'Searching for Edden',race:'human',classId:'ranger',action:'quest'}},
+    thornwood_satchel:{location:'thornwood_passage',label:'Inspect Edden’s fallen maps',position:[3,0,3],scene:'thornwood_search',quest:'c1q3',requires:'cartographer_quest_started',kind:'records',entrance:'thornwood_forest_path'},
+    'npc:edden_cartographer':{location:'thornwood_passage',label:'Speak with Edden at his shelter',position:[-3,0,-5],scene:'cartographer_found',quest:'c1q3',requires:'cartographer_quest_started',entrance:'thornwood_forest_path',npc:{id:'edden_cartographer',name:'Edden',title:'The Missing Cartographer',race:'human',classId:'ranger',action:'quest'}},
     mol_well:{location:'mol_village',label:'Inspect the old well',position:[0,0,1],scene:'well_that_screams_arrival',quest:'c1q7'},
     mol_well_vigil:{location:'mol_village',label:'Sit the night vigil beside the well',position:[0,0,4],scene:'well_vigil_night',quest:'c1q7',requires:'well_quest_started',singleUseContext:true},
     mol_well_stone:{location:'mol_well_shaft',label:'Examine the ancient sealing stone',position:[0,0,2.7],scene:'well_dry_shaft',quest:'c1q7',requires:'well_stone_seen',entrance:'mol_well'},
@@ -21,6 +24,7 @@
     'npc:screaming_preacher':{location:'mol_village',label:'Speak with Brother Lect',position:[0,0,-6],scene:'lect_preaches_over_body',quest:'c1q15',requires:'mol_true_sermon_started',npc:{id:'screaming_preacher',name:'Brother Lect',title:'The Second Sermon',race:'human',classId:'cleric',action:'quest'}},
   });
   const SCENES=Object.freeze({
+    cartographer_missing:'npc:mira_cartographer',thornwood_search:'thornwood_satchel',cartographer_found:'npc:edden_cartographer',cartographer_returned:'npc:mira_cartographer',
     well_that_screams_arrival:'mol_well',well_rope_descent:'mol_well',well_warden_tally:'npc:well_warden_hesk',well_villagers_dismiss:'npc:mol_well_witness',
     well_vigil_night:'mol_well_vigil',
     well_dry_shaft:'mol_well_stone',
@@ -35,6 +39,8 @@
   const LECT_ALLEY=Object.freeze([-4,0,-10]);
   function funeralActive(state,game){return !!state?.flags?.mol_true_sermon_started||state?.physicalSceneRequests?.mol_funeral_cart==='mol_true_sermon_arrival'||(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)==='c1q15')||!!state?.flags?.mol_true_sermon_done;}
   function npcStage(id,location,state,game){
+    if(id==='edden_reunited'&&location==='thornwood_gate')return {active:!!state?.flags?.cartographer_escort_pending||!!state?.flags?.cartographer_escorted,key:'edden-returned:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
+    if(id==='edden_cartographer'&&location==='thornwood_passage')return {active:!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted,key:'edden:'+!!state?.flags?.cartographer_escort_pending+':'+!!state?.flags?.cartographer_escorted};
     const funeral=funeralActive(state,game);
     if(id==='preacher_aldran'&&location==='mol_village')return {active:!funeral,key:'aldran:'+funeral};
     if(id==='elder_mosswick'&&location==='mol_village')return {active:funeral,key:'mosswick:'+funeral};
@@ -46,7 +52,7 @@
   function sceneTarget(sceneId,locationId){if(sceneId==='well_vigil_night'&&locationId==='mol_well_shaft')return'mol_well_deep_vigil';return Object.hasOwn(SCENES,sceneId)?SCENES[sceneId]:null;}
   function restoreRequests(value){const result={};if(!value||typeof value!=='object')return result;for(const [id,scene]of Object.entries(value))if(Object.hasOwn(TARGETS,id)&&sceneTarget(scene,TARGETS[id].location)===id)result[id]=scene;return result;}
   function available(target,game,flags){return !!target&&!target.pendingOnly&&(game?.activeQuests||[]).some(q=>(typeof q==='string'?q:q.id)===target.quest)&&(!target.requires||!!flags?.[target.requires])&&(target.scene!=='well_cabb_offer'||((Number(flags?.well_nights_failed)>=2||Number(flags?.well_nights_transcribed)>=2)&&!flags?.well_capped));}
-  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;return available(target,game,state?.flags)?target.scene:null;}
+  function nextScene(id,state,game){const target=Object.hasOwn(TARGETS,id)?TARGETS[id]:null;if(!target||(['mol_well_vigil','mol_well_deep_vigil','mol_well_stone'].includes(id)&&state?.flags?.well_capped))return null;const pending=restoreRequests(state?.physicalSceneRequests)[id];if(pending)return pending;if(id==='npc:edden_cartographer'&&state?.flags?.cartographer_found&&!state?.flags?.cartographer_escort_pending&&!state?.flags?.cartographer_escorted)return 'cartographer_found';return available(target,game,state?.flags)?target.scene:null;}
   function canTravel(root,location){
     if(!root.document?.body?.classList.contains('vt-3d-active'))return true;
     const engine=root.__world3d;if(!engine)return location?.id!=='mol_well_shaft';

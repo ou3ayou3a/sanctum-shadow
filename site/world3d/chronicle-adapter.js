@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=232';
+import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=233';
 
 const TARGET_RULES=[
   [/covenant_hall|signing/i,'signing_hall'],[/scribe/i,'npc:trembling_scribe'],[/rhael/i,'npc:captain_rhael'],[/mourne/i,'npc:sister_mourne'],[/temple/i,'temple_quarter'],[/cartographer/i,'npc:drunk_cartographer'],[/tarnished_cup/i,'tarnished_cup'],[/archive/i,'church_archive'],[/merchant_road|thornwood|monastery|fortress|mol_village/i,'north_gate'],
 ];
 
-function activeQuests(){return window.gameState?.activeQuests||[];}
+function activeQuests(){const quests=window.gameState?.activeQuests||[],flags=window.sceneState?.flags;if(flags?.cartographer_escort_pending&&!flags.cartographer_escorted&&!quests.some(q=>q.id==='c1q3'))return [...quests,{id:'c1q3',title:'Bring Edden Home',physicalFollowup:true}];return quests;}
 function objectiveState(questId){return window.gameState?.questProgress?.[questId]?.objectives||{};}
 function objectives(questId){return window.SanctumQuests?.getObjectives?.(questId)||[];}
-function currentObjective(quest){const done=objectiveState(quest.id);return objectives(quest.id).find(objective=>!done[objective.id])||null;}
+function currentObjective(quest){if(quest.physicalFollowup)return {label:'Return to Thornwood Gate and speak with Mira.',events:['scene:cartographer_returned']};const done=objectiveState(quest.id);return objectives(quest.id).find(objective=>!done[objective.id])||null;}
 function questSignature(){return JSON.stringify({active:activeQuests().map(quest=>quest.id),progress:window.gameState?.questProgress||{},completed:(window.gameState?.completedQuests||[]).map(quest=>quest.id)});}
 
 export class Chronicle3DAdapter{

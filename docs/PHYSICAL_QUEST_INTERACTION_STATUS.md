@@ -1,8 +1,8 @@
 # Step 5 — physical quest interactions
 
-Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`. The sermon routing/staging batch below is local and not deployed. This is not the completed Step 5 acceptance gate.
+Status: in progress. The well-shaft, tithe, origin-site, and pending-state work was deployed in `2fc81ac`; the sermon routing/staging batch was deployed in `a8e627b`. The cartographer routing batch below is local and not deployed. This is not the completed Step 5 acceptance gate.
 
-Latest suite: 329 tests passed, including the existing four-player server integration test. Syntax and whitespace checks passed. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 337 tests passed, including the existing four-player server integration test. Syntax and whitespace checks passed. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
 
 Implemented:
 
@@ -27,10 +27,14 @@ Implemented:
 - The Preacher's True Sermon now has a physical funeral bier, Elder Mosswick/congregation, and Brother Lect. The body inspection is performed at the bier. Comparing another hymnal waits for the congregation before offering its check. The confession waits until Lect reaches the private meeting position behind the alehouse and the player explicitly interacts again. The ending requires returning to Mosswick.
 - Story staging hides the living Aldran during his funeral and removes Lect from Vaelthar while he is in Mol. One Lect actor relocates through navigation between the cart and private meeting; interrupted moves resume, and model streaming preserves the destination. These are narrow quest staging rules, not the complete canonical NPC-fate registry planned in Step 8.
 - Rejected/failed freeform conversations no longer schedule the next sermon/archive scene. Hymn rereading and the private sermon's Holy rewards are one-time, including stale callback attempts; saying the Name is offered only when the character knows it.
+- The Missing Cartographer now requires speaking to Mira at Thornwood Gate, investigating the fallen maps in the actual Thornwood zone, and approaching Edden separately. Physical path interactions connect the gate and forest. A failed tracking check's wolf combat now has a victory continuation to Edden, still gated by his physical interaction. Repeated collection cannot duplicate the partial maps.
+- The optional return awards its 150 XP only after reaching the gate and speaking with Mira, not when offering help in the forest. A world-tracker follow-up persists after the existing core quest completion at Edden; the core quest's completion semantics are unchanged. Edden stages at the gate once the return is agreed. This is an abstract travel/reunion sequence, not a fully animated escort follower or escort combat/defeat system.
 
 Latest targeted browser check: used the local fixture to approach the well through game pathfinding, explicitly inspected it, resolved the real descent check, selected the rope action, loaded the shaft, walked to the sealing stone, and explicitly examined it. Arrival alone left the well quest at 1/4; stone interaction advanced it to 2/4. The climb-out choice returned to exploration, requiring movement to and confirmation of the return rope. This is a targeted fixture, not a full campaign playthrough. The random-travel exclusion was added after the browser exposed the lockbox and is covered by a regression test.
 
 Sermon browser check: loaded the local Mol funeral fixture and walked through the actual bier → Lect sermon → hymnal check → private alley conversation → Mosswick ending route. Each cross-target transition returned to exploration; entering the alley did not open the confession until confirmation. The quest remained at 3/4 while returning to Mosswick; interacting with him opened the authored ending. Nearby labels showed Lect and Mosswick, not the living Aldran. The fixture reported no fatal world-runtime error. This was one local route, not a full campaign or rendered multiplayer test. The interrupted-relocation recovery added during review has a separate regression test.
+
+Cartographer browser check: loaded the local gate fixture, approached Mira, explicitly opened her scene, chose to enter the forest, walked to the new path interaction, and confirmed travel. The actual Thornwood zone loaded with the quest still at 1/3 and physical targets for Edden and the fallen maps; arrival did not search automatically. A normal travel-bandit encounter then appeared. The remainder of this route was not browser-played in this batch. The real authored callbacks, failed-tracking victory handoff, optional reunion, duplicate rewards, save allowlist, navigation, and tracker are covered by eight targeted automated tests. No full playthrough is claimed.
 
 Still required:
 

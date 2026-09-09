@@ -2,6 +2,12 @@ import * as THREE from 'three';
 
 // Reuse the existing well and character assets. No new scenery style or models.
 export function preparePhysicalQuestTargets(zone){
+  if(['thornwood_gate','thornwood_passage'].includes(zone.id)){
+    const entering=zone.id==='thornwood_gate',id=entering?'thornwood_forest_path':'thornwood_gate_path',destination=entering?'thornwood_passage':'thornwood_gate',label=entering?'Take the path into the Thornwood':'Return along the path to Thornwood Gate';
+    const object=new THREE.Mesh(new THREE.BoxGeometry(.3,1.6,.3),new THREE.MeshStandardMaterial({color:0x55412d,roughness:1}));object.position.set(0,.8,entering?-12:12);object.userData.interactionId=id;zone.root.add(object);
+    zone.interactables.push({id,label,position:new THREE.Vector3(0,0,object.position.z),range:2.3,object,actions:[{id:'follow_path',label,direct:true,onSelect:()=>window.__world3d?.transitionToWorldLocation(destination,entering?'The Thornwood':'Thornwood Gate')}]});
+  }
+  if(zone.id==='thornwood_gate'){zone.npcs=zone.npcs||[];if(!zone.npcs.some(npc=>npc.id==='edden_reunited'))zone.npcs.push({id:'edden_reunited',name:'Edden',title:'Home at Last',race:'human',classId:'ranger',position:[-1,0,3],action:'ambient',ambientLine:'Mira has me from here. Thank you for bringing me home.'});}
   const definitions=window.PhysicalQuestFlow?.TARGETS||{};
   for(const [id,target]of Object.entries(definitions)){
     if(target.location!==zone.id)continue;
