@@ -24,7 +24,14 @@
       if (inv.indexOf(item) === -1) inv.push(item);
     } catch (e) { /* inventory is a nicety, never a hard failure */ }
   }
-  function night(hours){ if (window.advanceTime) window.advanceTime(hours || 24); }
+  function night(hours){
+    if (!window.advanceTime) return;
+    if(window.document?.body?.classList.contains('vt-3d-active')&&window.worldClock){
+      // Finish the vigil at dawn; the next physical interaction waits for night.
+      const hour=Number(window.worldClock.hour);
+      window.advanceTime(Number.isFinite(hour)?((6-hour+24)%24||24):(hours||24));
+    }else window.advanceTime(hours||24);
+  }
 
   const S = {
 
@@ -226,7 +233,24 @@
     };
   },
 
+  well_cabb_offer: () => {
+    const ready=num('well_nights_failed')>=2||num('well_nights_transcribed')>=2||flags().clue_well_syllable;
+    return {
+      location:'Mol — Cabb’s Lime Cart',locationIcon:'🧱',
+      narration:ready?'Cabb rests a hand on the lime barrel. "Rubble first. Then lime. Then rubble. I can close it properly, if that is what Mol wants. Once it is done, there is no going back down."':'Cabb checks the cart’s axle. "Hear it for yourself before you ask me to bury it. Find out what you can."',
+      options:ready?[{icon:'🧱',label:'Authorize Cabb to cap the well',type:'talk',action:()=>runScene('well_that_screams_capped')},{icon:'🌙',label:'Keep investigating the well',type:'move',action:()=>runScene('well_vigil_night')}]:[{icon:'🌙',label:'Return to the vigil',type:'move',action:()=>runScene('well_vigil_night')}],
+    };
+  },
+
+  well_hesk_tally_gift: () => {
+    if(!flags().well_capped)return null;
+    once('well_stick_taken', () => { give("The Well Warden's Tally-Stick"); addLog('📜 ITEM GAINED: The Well Warden\'s Tally-Stick — seven notches a night, forty years of them. Never six. Never eight.', 'holy'); setFlag('clue_seven_count'); grantXP(60); });
+    return {location:'Mol — Warden Hesk',locationIcon:'🕳',narration:'Hesk holds the tally-stick across his knees. After a long silence, he puts it in your hands. There are no new notches to cut.',options:[{icon:'🗺',label:'Leave Mol',type:'move',action:()=>{if(window.travelToLocation&&window.WORLD_LOCATIONS)travelToLocation(WORLD_LOCATIONS.vaelthar_city);}}]};
+  },
+
   well_that_screams_capped: () => {
+    if(!flags().well_capped&&num('well_nights_failed')<2&&num('well_nights_transcribed')<2&&!flags().clue_well_syllable)return null;
+    if(window.sceneState?.physicalSceneRequests)delete window.sceneState.physicalSceneRequests.mol_well_vigil;
     once('well_capped_once', () => {
       setFlag('well_capped');
       addLog('🧱 Mol\'s well is capped: rubble, lime, sixty feet of it. The screaming stops. So does the counting.', 'narrator');
@@ -240,7 +264,7 @@
       sub: `The village can sleep. Sixty feet down, under the lime, something is still failing at the same letter.`,
       options: [
         { icon: '💬', label: 'Take the tally-stick from him', type: 'talk',
-          action: () => { once('well_stick_taken', () => { give("The Well Warden's Tally-Stick"); addLog('📜 ITEM GAINED: The Well Warden\'s Tally-Stick — seven notches a night, forty years of them. Never six. Never eight.', 'holy'); setFlag('clue_seven_count'); grantXP(60); }); runScene('well_that_screams_capped'); } },
+          action: () => runScene('well_hesk_tally_gift') },
         { icon: '🍺', label: 'Drink with the village. They earned it.', type: 'talk',
           action: () => { addLog('You drink with Mol. They toast you. A grandmother hushes a child at the edge of the firelight — "quiet now, or Sel hears" — and pours you another, and it does not occur to a single person present that they have just named the thing they buried.', 'holy'); grantXP(60); if (window.travelToLocation && window.WORLD_LOCATIONS) travelToLocation(WORLD_LOCATIONS['vaelthar_city']); } },
         { icon: '🗺', label: 'Leave Mol', type: 'move',

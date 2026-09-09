@@ -1,8 +1,8 @@
 # Step 5 — physical quest interactions
 
-Status: in progress, local only. This is not the completed Step 5 acceptance gate.
+Status: in progress. The foundation and Mol NPC pass were deployed in `d8bba24`. The subsequent night-vigil changes are local only. This is not the completed Step 5 acceptance gate.
 
-Latest regression run: 303 tests passed, including the four-player server integration test. Syntax and whitespace checks passed.
+Latest suite: 310 tests passed, including the four-player server integration test. Syntax and whitespace checks passed. Automated coverage includes three-night completion, failure/retry, clock transitions, invalid route keys, capping prerequisites, and the physical post-capping reward handoff.
 
 Implemented:
 
@@ -16,6 +16,10 @@ Implemented:
 - Mol now has physical targets for the existing well, Warden Hesk, the well witness, and Preacher Aldran, using the existing world/character assets.
 - Seven Mol scene boundaries now validate the correct target before their factories can mutate story state. Cross-target choices queue a conversation and return to exploration rather than talking remotely.
 - Pending physical scene requests are restored from saves using a strict scene/entity allowlist. Success/reward branches are not exposed as independent world menu options.
+- The night vigil has a separate reachable seat beside the well. Each night consumes its interaction context, waits for darkness when needed, and ends at dawn. Continuing requires another explicit interaction; three successful transcriptions still grant the authored reward. Failure still lowers the next check DC without granting a successful transcription.
+- Cabb is a reachable world NPC. The capping ending waits for interaction with him, requires the existing two-night threshold or resolved syllable, and cancels pending vigils. The post-capping tally-stick now requires returning to Hesk; its reward remains one-time.
+
+Latest targeted browser check: approached the well, selected the night vigil, walked to its seat, confirmed Night 1, and resolved a real failed WIS check. The clock displayed Dawn, Day 2, 06:00. Selecting “Sit again tonight” closed the scene and returned to exploration with a pending vigil rather than automatically opening Night 2. Cabb’s new ending handoff is covered by automated tests but has not yet been browser-playtested.
 
 Still required:
 
