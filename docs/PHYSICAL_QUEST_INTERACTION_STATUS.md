@@ -4,7 +4,16 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 465 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 469 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — reward safeguards (local, not deployed):
+
+- Brask staging is deployed in `548e3b2`.
+- Saved, once-only claims cover bedside kindness, patience with Rane, case theft, the shared collation reward and the exemplar resolution. Existing clue, trust, theft and outcome flags conservatively prevent repayment of legacy rewards. The original route-specific XP amounts are preserved.
+- Keeping and surrendering the exemplar are mutually exclusive. Resolution requires an existing outcome or a started quest with a pending seizure, rejects multiplayer guests, and clears the pending confrontation. Reopening a resolved scene cannot recreate an original exemplar that was sold or transferred.
+- Earlier ambassador factories and captured callbacks stop once the confrontation is pending or the exemplar is resolved; alternate collation options cannot stack XP or reopen Brask after completion.
+- Four additional automated tests cover both outcome paths, save/reload, legacy claims, guest/unstarted rejection, collation replay and alignment rewards. All 469 tests and syntax checks pass.
+- These are client-side progression/replay safeguards, not server-authoritative narrative authorization. Direct outcome calls during a pending encounter are not independently proof of a successful roll or combat victory. Full rendered normal/combat/wool-gate routes and multiplayer quest QA remain outstanding, as do Halven's dying presentation and the two agents' exploration staging. Step 5 remains in progress.
 
 Ambassador quest — Brask confrontation (local, not deployed):
 

@@ -6,8 +6,42 @@ function fixture(){
   root.runScene=id=>{if(!Flow.requireScene(root,id))return false;return root.SCENES[id]();};
   return{root,flags,engine};
 }
+test('exemplar resolutions are exclusive and reward only once, including after reload',()=>{
+  for(const kept of [false,true]){
+    const {root,flags}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});
+    let xp=0;root.grantXP=n=>xp+=n;
+    const scene=kept?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered',other=kept?'ambassador_exemplar_surrendered':'ambassador_exemplar_kept';
+    assert.ok(root.SCENES[scene]());assert.ok(root.SCENES[scene]());assert.equal(root.SCENES[other](),null);
+    assert.equal(xp,kept?150:120);assert.equal(flags.ambassador_seizure_pending,false);
+    const reload=fixture();Object.assign(reload.flags,JSON.parse(JSON.stringify(flags)));reload.root.grantXP=()=>assert.fail('reward repeated after reload');
+    assert.ok(reload.root.SCENES[scene]());assert.equal(reload.root.gameState.character.inventory.length,0,'reopening does not recreate a sold or transferred item');
+  }
+});
+test('legacy exemplar rewards are not repaid and guests or unstarted quests cannot resolve',()=>{
+  for(const flag of ['has_ostrene_exemplar','chancery_took_exemplar']){
+    const {root,flags}=fixture();flags[flag]=true;root.grantXP=()=>assert.fail('legacy reward repeated');
+    assert.ok(root.SCENES[flag==='has_ostrene_exemplar'?'ambassador_exemplar_kept':'ambassador_exemplar_surrendered']());
+    assert.equal(flags.ambassador_reward_exemplar,true);
+  }
+  for(const guest of [false,true]){const {root,flags}=fixture();if(guest){Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});root.mp={sessionCode:'party',isHost:false};}assert.equal(root.SCENES.ambassador_exemplar_kept(),null);assert.equal(root.SCENES.ambassador_exemplar_surrendered(),null);assert.equal(flags.ambassador_reward_exemplar,undefined);}
+});
+test('page-one choices cannot stack collation rewards or restart after resolution',()=>{
+  for(const legacy of [false,true]){
+    const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_last_words_heard:true,aldran_intel:true,clue_seventh_clause_exists:legacy});
+    engine.zone={id:'ostrene_legation',interactables:[{id:'ostrene_chancery_case'}]};engine.physicalContext='ostrene_chancery_case';let xp=0;root.grantXP=n=>xp+=n;
+    const scene=root.runScene('ambassador_seven_clauses');scene.options[0].onSuccess();scene.options[1].action();scene.options[3].action();
+    assert.equal(xp,legacy?0:120);assert.equal(root.SCENES.ambassador_seven_clauses(),null);
+    root.SCENES.ambassador_exemplar_surrendered();scene.options[0].onSuccess();assert.equal(xp,(legacy?0:120)+120);assert.equal(flags.ambassador_seizure_pending,false);
+  }
+});
+test('bedside patience and case theft grant alignment once per choice',()=>{
+  const {root,flags,engine}=fixture();flags.ambassador_quest_started=true;engine.zone={id:'ostrene_legation',interactables:[{id:'npc:oret_halven'},{id:'ostrene_chancery_case'}]};engine.physicalContext='npc:oret_halven';let holy=0,hell=0;root.grantHolyPoints=n=>holy+=n;root.grantHellPoints=n=>hell+=n;
+  const bedside=root.runScene('ambassador_bedside');const sit=bedside.options.find(o=>o.label.startsWith('Sit down'));sit.action();sit.action();assert.equal(holy,5);
+  const words=root.runScene('ambassador_last_words');const wait=words.options.find(o=>o.label.includes('Rane'));assert.ok(wait);wait.action();wait.action();assert.equal(holy,8);
+  engine.physicalContext='ostrene_chancery_case';const box=root.runScene('ambassador_strongbox');const steal=box.options.find(o=>o.roll?.stat==='DEX');steal.onSuccess();steal.onSuccess();assert.equal(hell,4);
+});
 test('the exemplar handoff queues Rhael instead of narrating a remote conversation',()=>{
-  const {root,flags,engine}=fixture();const scene=root.SCENES.ambassador_exemplar_kept();scene.options[0].action();
+  const {root,flags,engine}=fixture();Object.assign(flags,{ambassador_quest_started:true,ambassador_seizure_pending:true});const scene=root.SCENES.ambassador_exemplar_kept();scene.options[0].action();
   assert.equal(flags.rhael_shown_exemplar,undefined);assert.equal(root.sceneState.physicalSceneRequests['npc:captain_rhael'],'ambassador_rhael_report');
   assert.equal(Flow.nextScene('npc:captain_rhael',root.sceneState,{activeQuests:[]}), 'ambassador_rhael_report');
   engine.physicalContext='npc:captain_rhael';const report=root.runScene('ambassador_rhael_report');assert.match(report.narration,/printing decision/);assert.equal(flags.rhael_shown_exemplar,true);

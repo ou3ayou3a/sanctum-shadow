@@ -23,6 +23,30 @@
   const HYMN_TRANSCRIPT = 'Transcript: The Sevenfold Benediction (as recited by the fourteen)';
   const PALM_RUBBING = 'Rubbing: The Overdrawn Palm Mark';
   function requestChancerySeizure(){setFlag('ambassador_seizure_pending');setFlag('ambassador_seizure_at_wool',!!getFlag('rane_refused_once'));runScene('ambassador_chancery_seizure');}
+  function ambassadorRewardOnce(key, reward, legacyClaimed=false){
+    if(window.mp?.sessionCode&&!window.mp.isHost)return false;
+    const flag='ambassador_reward_'+key;
+    if(getFlag(flag))return false;
+    setFlag(flag);
+    if(legacyClaimed)return false;
+    reward();
+    return true;
+  }
+  function resolveExemplar(kept){
+    if(window.mp?.sessionCode&&!window.mp.isHost)return false;
+    const own=kept?'has_ostrene_exemplar':'chancery_took_exemplar';
+    const opposite=kept?'chancery_took_exemplar':'has_ostrene_exemplar';
+    if(getFlag(opposite))return false;
+    if(!getFlag(own)&&(!getFlag('ambassador_quest_started')||!getFlag('ambassador_seizure_pending')))return false;
+    const alreadyResolved=!!getFlag(own);
+    setFlag(own);
+    setFlag('ambassador_seizure_pending',false);
+    ambassadorRewardOnce('exemplar',()=>{
+      grantXP(kept?150:120);
+      if(kept)addItemOnce('Ostrene Counterpart Exemplar (Eighth Covenant, FY 355)');
+    },alreadyResolved);
+    return true;
+  }
 
   const S = {
 
@@ -77,7 +101,7 @@
             onSuccess: () => runScene('ambassador_poison_check'),
             onFail: () => { addLog('You cannot tell. Dying looks like dying.', 'system'); runScene('ambassador_dies_silent'); } },
           { icon: '🕯', label: 'Sit down. Stop interrogating a dying man.', type: 'talk',
-            action: () => { setFlag('rane_trusts_you'); grantHolyPoints(5); addLog('📜 You sit. Halven stops performing and just breathes. Undersecretary Rane watches you do it and writes nothing down. +5 Holy Points.', 'holy'); runScene('ambassador_last_words'); } },
+            action: () => { ambassadorRewardOnce('bedside_kindness',()=>grantHolyPoints(5),!!getFlag('rane_trusts_you')); setFlag('rane_trusts_you'); addLog('📜 You sit. Halven stops performing and just breathes. Undersecretary Rane watches you do it and writes nothing down. +5 Holy Points.', 'holy'); runScene('ambassador_last_words'); } },
         ]
       };
     },
@@ -109,7 +133,7 @@
           { icon: '📜', label: 'The case. He was pointing at the case.', type: 'explore',
             action: () => runScene('ambassador_strongbox') },
           { icon: '💬', label: 'Give Rane a moment before you touch anything of his', type: 'talk',
-            action: () => { setFlag('rane_trusts_you'); grantHolyPoints(3); addLog('📜 You wait. Rane finishes what she has to finish. When she looks up, she has decided about you. +3 Holy Points.', 'holy'); runScene('ambassador_strongbox'); } },
+            action: () => { ambassadorRewardOnce('rane_patience',()=>grantHolyPoints(3),!!getFlag('rane_trusts_you')&&!getFlag('ambassador_reward_bedside_kindness')); setFlag('rane_trusts_you'); addLog('📜 You wait. Rane finishes what she has to finish. When she looks up, she has decided about you. +3 Holy Points.', 'holy'); runScene('ambassador_strongbox'); } },
         ]
       };
     },
@@ -149,7 +173,7 @@
           onFail: () => runScene('ambassador_rane_refuses') },
         { icon: '🔓', label: 'Take it. She is one exhausted clerk and this is bigger than her.', type: 'explore',
           roll: { stat: 'DEX', dc: 14 },
-          onSuccess: () => { setFlag('stole_ostrene_exemplar'); grantHellPoints(4); addLog('📜 You take a dead man\'s document out of a foreign house while his secretary is writing down the hour of his death. It works. +4 Hell Points.', 'hell'); runScene('ambassador_seven_clauses'); },
+          onSuccess: () => { ambassadorRewardOnce('case_theft',()=>grantHellPoints(4),!!getFlag('stole_ostrene_exemplar')); setFlag('stole_ostrene_exemplar'); addLog('📜 You take a dead man\'s document out of a foreign house while his secretary is writing down the hour of his death. It works. +4 Hell Points.', 'hell'); runScene('ambassador_seven_clauses'); },
           onFail: () => runScene('ambassador_rane_refuses') },
       ]
     }),
@@ -180,8 +204,8 @@
         { icon: '🔍', label: 'Collate it against the Church\'s free pamphlet in your pocket', type: 'explore',
           roll: { stat: 'INT', dc: 12 },
           onSuccess: () => {
+            ambassadorRewardOnce('collation',()=>grantXP(120),!!getFlag('clue_seventh_clause_exists'));
             setFlag('clue_seventh_clause_exists');
-            grantXP(120);
             addLog('📜 CLUE: Ostrene\'s exemplar of the EIGHTH Covenant carries SEVEN clauses on page one. Every copy in Vaelthar carries FIVE.', 'holy');
             addLog('📜 Vaelthar\'s marginal instruction, in a chancery hand: "cl. vi–vii omitted — notarial matter, not operative."', 'holy');
             addLog('📜 And it is numbered. The Eighth. The one that burned three days ago was the Ninth. There have been NINE of these.', 'holy');
@@ -194,9 +218,9 @@
           } },
         { icon: '📜', label: 'Let Rane collate it — Ostrene clerks count for a living', type: 'talk',
           action: () => {
+            ambassadorRewardOnce('collation',()=>grantXP(80),!!getFlag('clue_seventh_clause_exists'));
             setFlag('clue_seventh_clause_exists');
             setFlag('rane_collated_it');
-            grantXP(80);
             addLog('📜 Rane runs a finger down both. It takes her nine seconds. "Ours has seven. Yours has five." A pause. "Yours has always had five. Did you not know that?"', 'holy');
             addLog('📜 CLUE: Page one of the Eighth Covenant carries SEVEN clauses. Vaelthar\'s copies carry FIVE — "cl. vi–vii omitted, notarial matter, not operative."', 'holy');
             addLog('📜 It is numbered THE EIGHTH. The one that burned was the NINTH. These have been happening, in order, for a very long time.', 'holy');
@@ -214,8 +238,8 @@
       if (getFlag('aldran_intel')) {
         opts.push({ icon: '💬', label: 'Compare it to Aldran\'s copy — the one he nearly died holding', type: 'talk',
           action: () => {
+            ambassadorRewardOnce('collation',()=>grantXP(80),!!getFlag('clue_seventh_clause_exists'));
             setFlag('clue_seventh_clause_exists');
-            grantXP(80);
             addLog('📜 Aldran\'s secret copy. The one the Church would have burned him for. Five clauses. He risked his life for the redacted edition and never knew.', 'holy');
             addLog('📜 CLUE: Ostrene\'s exemplar carries SEVEN clauses on page one. Every copy in Vaelthar — including the heretic\'s — carries FIVE.', 'holy');
             addItemOnce(COLLATION_NOTES);
@@ -258,9 +282,7 @@
     }),
 
     ambassador_exemplar_kept: () => {
-      setFlag('has_ostrene_exemplar');
-      grantXP(150);
-      addItemOnce('Ostrene Counterpart Exemplar (Eighth Covenant, FY 355)');
+      if(!resolveExemplar(true))return null;
       addLog('📜 ITEM GAINED: Ostrene Counterpart Exemplar — the Eighth Covenant, FY 355, unredacted.', 'holy');
       addLog('📜 You hold the only unredacted Covenant text in Vaelthar. It is the eighth of nine. Nobody in this city has read its first page in forty-nine years.', 'holy');
       return {
@@ -286,8 +308,7 @@
     },
 
     ambassador_exemplar_surrendered: () => {
-      setFlag('chancery_took_exemplar');
-      grantXP(120);
+      if(!resolveExemplar(false))return null;
       return {
         location: 'The Ostrene Legation — Afterwards',
         locationIcon: '🕯',
@@ -579,6 +600,8 @@
     const allowed=()=>{
       if(window.mp?.sessionCode&&!window.mp.isHost)return false;
       if(!getFlag('ambassador_quest_started'))return false;
+      if(getFlag('has_ostrene_exemplar')||getFlag('chancery_took_exemplar'))return false;
+      if(id!=='ambassador_chancery_seizure'&&getFlag('ambassador_seizure_pending'))return false;
       if(id==='ambassador_chancery_seizure'&&(!getFlag('ambassador_seizure_pending')||getFlag('has_ostrene_exemplar')||getFlag('chancery_took_exemplar')))return false;
       if(id==='ambassador_wool_exhibition'&&!getFlag('rane_refused_once'))return false;
       if(id==='ambassador_seven_clauses'){
