@@ -4,7 +4,15 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 452 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 456 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Ambassador quest — Rhael handoff (local, not deployed):
+
+- Tower revisit handling is deployed in `d58bc5b`.
+- The kept-exemplar option previously set `rhael_shown_exemplar` and narrated Rhael remotely. It now requests a physical interaction with his existing city actor. The report requires the kept exemplar, no surrender, a present Rhael, confirmed context, and current reach before marking it shown. His response appears in the scene UI rather than only the hidden log.
+- Pending handoffs survive strict request restoration after the ambassador quest completes. With no pending report, Rhael retains his ordinary conversation instead of a dead-end quest action.
+- Four new tests cover remote handoff, confirmed reporting, missing/surrendered evidence, absent target, lost reach, request restoration, and normal dialogue fallback. All 456 tests pass. This batch has automated verification, not a rendered ambassador playthrough.
+- This is only the Rhael report boundary. Halven's bedside, Rane's case, the wool-gate refusal route, Brask's seizure, reward replay protection throughout the arc, and normal/multiplayer quest QA remain unfinished.
 
 Tower revisit follow-up (local, not deployed):
 

@@ -268,12 +268,19 @@
         sub: `Seven clauses on page one. Five in every copy in the capital. And there have been nine Covenants.`,
         options: [
           { icon: '💬', label: 'Take it to Captain Rhael — the Watch needs to see this', type: 'move',
-            action: () => { setFlag('rhael_shown_exemplar'); addLog('📜 Rhael reads page one, then reads it again, then says: "Five and seven. That is not a conspiracy, that is a printing decision. Somebody made a printing decision." He is right, and he does not know how right.', 'holy'); runScene('vaelthar_main'); } },
+            action: () => runScene('ambassador_rhael_report') },
           { icon: '👶', label: 'Rane mentioned a consular file — fourteen children, seven villages', type: 'move',
             action: () => runScene('children_almshouse') },
           { icon: '🗺', label: 'Back into the city', type: 'move', action: () => runScene('vaelthar_main') },
         ]
       };
+    },
+
+    ambassador_rhael_report: () => {
+      if(!getFlag('has_ostrene_exemplar')||getFlag('chancery_took_exemplar')||window.npcAbsent?.('captain_rhael'))return null;
+      if(window.PhysicalQuestFlow?.requireScene(window,'ambassador_rhael_report')===false)return null;
+      setFlag('rhael_shown_exemplar');
+      return {location:'Vaelthar — Captain Rhael',locationIcon:'🛡',narration:'Rhael reads page one, then reads it again, then says: "Five and seven. That is not a conspiracy, that is a printing decision. Somebody made a printing decision." He is right, and he does not know how right.',options:[{label:'Leave Rhael to examine the evidence',type:'explore',action:()=>{}}]};
     },
 
     ambassador_exemplar_surrendered: () => {

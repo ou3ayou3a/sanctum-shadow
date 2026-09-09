@@ -43,6 +43,7 @@ export function refreshPhysicalQuestTargets(engine){
   for(const record of engine.zone.interactables){
     const target=flow.TARGETS[record.id];if(!target)continue;
     const scene=flow.nextScene(record.id,window.sceneState,window.gameState);
+    if(record.id==='npc:captain_rhael'&&!scene){record.actions=[];continue;}
     record.actions=[{id:'quest_conversation',direct:true,label:scene?target.label:'Ask about local troubles',onSelect:()=>{
       // Resolve at click time: a stale menu cannot replay a superseded request.
       const next=flow.nextScene(record.id,window.sceneState,window.gameState);
