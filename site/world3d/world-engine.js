@@ -13,6 +13,7 @@ import { CinematicDirector } from './cinematic-director.js?v=145';
 import { CityAtmosphere } from './city-atmosphere.mjs?v=221';
 import { RuntimeHealth } from './runtime-health.mjs?v=221';
 import { CameraObstruction } from './camera-obstruction.mjs?v=248';
+import { CombatCamera } from './combat-camera.mjs?v=249';
 import { WorldPerformanceManager } from './world-performance.mjs?v=181';
 import { environmentAssetLoadStats } from './environment-asset-loader.js?v=144';
 import { mergeZoneStatics } from './static-merge.mjs?v=2';
@@ -186,8 +187,10 @@ export class WorldEngine extends EventTarget {
       if(this.classActionText)this.classActionText.textContent=this.combatController?.active?'Attack Target':this.actor.classProfile.action;
       if(this.cinematicDirector?.active)this.cinematicDirector.update(dt);
       else{
+        this.combatCamera??=new CombatCamera(this);
+        const combatFocus=this.combatCamera.update();
         this.updateCameraPan(dt);
-        if(this.actor){const focusActor=this.cinematicFocus||this.actor;this.cameraFocus.copy(focusActor.position).y+=1.25;this.cameraFocus.add(this.cameraPanOffset);this.cameraTargetBefore.copy(this.controls.target);const followSpeed=this.cameraKeys.size?12:6.5;this.controls.target.lerp(this.cameraFocus,1-Math.exp(-dt*followSpeed));this.cameraFollowDelta.copy(this.controls.target).sub(this.cameraTargetBefore);this.camera.position.add(this.cameraFollowDelta);}
+        if(this.actor){const focusActor=this.cinematicFocus||this.actor;if(combatFocus)this.cameraFocus.copy(combatFocus);else this.cameraFocus.copy(focusActor.position).y+=1.25;this.cameraFocus.add(this.cameraPanOffset);this.cameraTargetBefore.copy(this.controls.target);const followSpeed=this.cameraKeys.size?12:6.5;this.controls.target.lerp(this.cameraFocus,1-Math.exp(-dt*followSpeed));this.cameraFollowDelta.copy(this.controls.target).sub(this.cameraTargetBefore);this.camera.position.add(this.cameraFollowDelta);}
         this.controls.update();
       }
       this.health.optional('camera-obstruction',()=>this.cameraObstruction?.update(dt));

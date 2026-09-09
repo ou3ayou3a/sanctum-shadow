@@ -4,7 +4,14 @@ Status: in progress. The well-shaft, tithe, origin-site, and pending-state work 
 
 Deployment update: the Chancery batch above is deployed in `183a402`, the Tower entry batch in `be5dca2`, finale validation in `6562f6e`, officer recruitment in `391b112`, Tower exit recovery in `2a6ea67`, and combat initiative layout in `0d764a7`. The combat obstruction follow-up below is local and not deployed.
 
-Latest suite: 443 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+Latest suite: 448 tests passed, including the existing four-player server integration test. The new multiplayer physical handoff has serialization/application tests, not a rendered multi-client playthrough or server proximity enforcement.
+
+Combat camera framing (local, not deployed):
+
+- Combat obstruction was deployed in `60eae42`. The new camera framing centers living visible participants, fits their feet/headroom after the combat intro and aspect-ratio changes, and preserves subsequent manual zoom and WASD. Exploration zoom limits and prior pan are restored afterward.
+- Five projection/lifecycle tests cover narrow, ordinary, and wide viewports, manual control preservation, restoration, and empty/dead/hidden participants. Full suite: 448 passed.
+- Browser Tower fixture: walked to the sealed stair, started the 1-HP encounter, confirmed both rendered characters were visible, moved toward the boss using the ground, selected it through initiative, and used the normal Attack action. Victory opened `The Tower of Ash — After` with Sword-ending options and removed the completed Tower quest from active quests. This verifies the controlled boss-to-ending entry, not normal boss balance or a full campaign.
+- Remaining browser defect: choosing `What happens now?` sends the player back to the sealed stair. Walking back and explicitly confirming that interaction opens the ending again, but choosing the option repeats the redirect. Investigate the epilogue physical-context lifecycle before claiming the full ending interaction is complete. Multiplayer finale, other ending branches, and normal boss difficulty still require rendered QA.
 
 Combat obstruction follow-up (local):
 
