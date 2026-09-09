@@ -67,7 +67,15 @@ test('an origin arc advances reunion, world investigation, and reckoning for the
   global.SCENES[sceneId]().options[0].action();
   const second=global.gameState.activeQuests.find(quest=>quest.type==='origin');
   assert.equal(second.stage,2);
-  OriginQuests.onLocationEntered(second.targetLocation);
+  global.document.body={classList:{contains:()=>true}};
+  let interacted=false;
+  global.__world3d={zone:{id:second.targetLocation,interactables:[{id:'location_focus'}]},
+    hasPhysicalInteraction:()=>interacted,physicalReach:()=>true};
+  assert.equal(OriginQuests.onLocationEntered(second.targetLocation),false);
+  assert.match(sceneId,/reunion$/,'arrival must not begin the origin investigation');
+  const investigation=OriginQuests.investigationAction(second.targetLocation);
+  assert.ok(investigation.label.includes(second.ownerName));
+  interacted=true;investigation.onSelect();
   assert.match(sceneId,/trail$/);
   global.SCENES[sceneId]().options[0].onSuccess();
   const third=global.gameState.activeQuests.find(quest=>quest.type==='origin');
@@ -77,6 +85,7 @@ test('an origin arc advances reunion, world investigation, and reckoning for the
   global.SCENES[sceneId]().options[1].action();
   assert.equal(global.gameState.activeQuests.some(quest=>quest.type==='origin'),false);
   assert.equal(global.gameState.completedQuests.filter(quest=>quest.type==='origin').length,3);
+  delete global.document.body;delete global.__world3d;
 });
 
 test('origin quest runtime is wired into creation, travel, dialogue, saves, multiplayer, and 3D NPCs',()=>{

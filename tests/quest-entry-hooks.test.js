@@ -65,6 +65,41 @@ function fakeBrowser(gameState,location){
   return{window,opened,flush};
 }
 
+test('3D arrival reveals quests without opening scenes; explicit interaction is required',()=>{
+  const browser=fakeBrowser(state(['c1q7']),'mol_village');
+  browser.window.document.body={classList:{contains:()=>true}};
+  let nearby=false;
+  browser.window.__world3d={requireQuestEntry:entry=>nearby&&entry.entityId==='location_focus'};
+  QuestEntries.install(browser.window);
+  assert.equal(browser.window.resumeQuestEntries(),false);browser.flush();assert.deepEqual(browser.opened,[]);
+  assert.equal(browser.window.openQuestEntry('c1q7'),false);
+  assert.equal(browser.window.requirePhysicalQuestScene('well_that_screams_arrival'),false);
+  nearby=true;
+  const actions=browser.window.questEntryActions('mol_village','location_focus');
+  assert.equal(actions.length,1);actions[0].onSelect();browser.flush();
+  assert.deepEqual(browser.opened,['well_that_screams_arrival']);
+});
+
+test('queued quest entries recheck location and physical permission before running',()=>{
+  for(const change of ['location','reach']){
+    const browser=fakeBrowser(state(['c1q7']),'mol_village');let nearby=true;
+    browser.window.document.body={classList:{contains:()=>true}};
+    browser.window.__world3d={requireQuestEntry:()=>nearby};QuestEntries.install(browser.window);
+    assert.equal(browser.window.openQuestEntry('c1q7'),true);
+    if(change==='location')browser.window.mapState.currentLocation='vaelthar_city';else nearby=false;
+    browser.flush();assert.deepEqual(browser.opened,[]);
+  }
+});
+
+test('dedicated quest entities replace the regional entry without duplicating menu options',()=>{
+  const browser=fakeBrowser(state(['c1q7']),'mol_village');
+  browser.window.PhysicalQuestFlow=require('../site/physical-quest-flow.js');
+  QuestEntries.install(browser.window);
+  assert.equal(browser.window.questEntryEntityId(QuestEntries.ENTRY.c1q7),'mol_well');
+  assert.deepEqual(browser.window.questEntryActions('mol_village','mol_well'),[]);
+  assert.deepEqual(browser.window.questEntryActions('mol_village','location_focus'),[]);
+});
+
 test('the correct physical landmark opens a Vaelthar quest exactly once',()=>{
   const browser=fakeBrowser(state(['c1q9']),'vaelthar_city');
   QuestEntries.install(browser.window);

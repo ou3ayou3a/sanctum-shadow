@@ -233,12 +233,23 @@
   }
   function resumePending(){
     const pending=state.pending;if(!pending)return false;
+    if(globalThis.document?.body?.classList.contains('vt-3d-active')){
+      const engine=globalThis.__world3d,record=engine?.zone?.interactables.find(item=>item.id==='location_focus');
+      if(engine?.zone?.id!==pending.locationId||!record||!engine.hasPhysicalInteraction?.(record.id)||!engine.physicalReach?.(record))return false;
+    }
     const blocked=globalThis._travelEncounterScheduled || globalThis.combatState?.active || globalThis.npcConvState?.active
       || globalThis.document?.getElementById?.('ambush-panel') || globalThis.document?.getElementById?.('travel-encounter-panel')
       || globalThis.document?.getElementById?.('scene-panel');
     if(blocked)return false;
     const quest=getQuest(pending.questId);state.pending=null;if(!quest)return false;
     runQuestScene(quest,'trail');return true;
+  }
+
+  function investigationAction(locationId){
+    const quest=activeStageAtLocation(locationId);if(!quest)return null;
+    return{id:`origin_investigate_${quest.id}`,questEntry:true,direct:true,icon:'!',
+      label:`Investigate ${quest.ownerName}’s past at ${quest.targetLabel}`,
+      onSelect:()=>onLocationEntered(locationId)};
   }
 
   function bestPartyCharacter(ability) {
@@ -313,6 +324,6 @@
   if(typeof window!=='undefined')window.addEventListener('DOMContentLoaded',()=>{registerScenes();if(!installResumeHook())setTimeout(installResumeHook,500);});
 
   return Object.freeze({ORIGIN_LINES,npcRegistry,ownerKey,questsForCharacter,buildPartyHistory,buildManifest,getQuest,
-    initialize,hydrate,serialize,syncLocalCharacter,beginNpcQuest,onLocationEntered,resumePending,registerScenes,
+    initialize,hydrate,serialize,syncLocalCharacter,beginNpcQuest,onLocationEntered,resumePending,registerScenes,investigationAction,
     isQuestNpc:id=>Object.values(ORIGIN_LINES).some(line=>line.npc.id===id)});
 });

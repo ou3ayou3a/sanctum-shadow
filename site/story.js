@@ -566,6 +566,8 @@ function requirePhysicalNpcForScene(sceneId) {
 }
 
 function runScene(sceneId) {
+  if (window.PhysicalQuestFlow?.requireScene(window, sceneId) === false) return false;
+  if (window.requirePhysicalQuestScene?.(sceneId) === false) return false;
   if (!requirePhysicalNpcForScene(sceneId)) return false;
   const scene = SCENES[sceneId];
   const isPersonalScene = sceneId.startsWith('pq_');

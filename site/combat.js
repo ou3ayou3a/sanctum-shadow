@@ -472,6 +472,7 @@ function startCombat(enemies, encounter = {}) {
     : null;
   const encounterId=encounter?.id==='cupside_checkpoint'?'cupside_checkpoint':'standard';
   combatState.tactical={encounterId,cover:encounterId==='cupside_checkpoint'?[{id:'cupside_barricade',x:0,z:-3.1,radius:.82,type:'half'}]:[],bounds:12,moveRange:window.TacticalCombat?.DEFAULT_MOVE_RANGE||4.5};
+  Object.assign(combatState.tactical,window.TacticalCombat.worldSnapshot(window.__world3d)||{});
 
   const wisMod = COMBAT_RULES.abilityModifier(char.stats?.wis || 10);
   const strMod = COMBAT_RULES.abilityModifier(char.stats?.str || 10);
@@ -560,6 +561,7 @@ function startCombat(enemies, encounter = {}) {
     }
   });
 
+  window.TacticalCombat.placeCombatants(combatState);
   renderCombatUI();
   processTurn();
 }
@@ -782,9 +784,9 @@ function combatAttack() {
   if(combatState.active&&combatState.apRemaining<=0)combatState.pendingEndTurnTimer=setTimeout(endPlayerTurn,600);
 }
 
-function castSelectedSpell() {
+function castSelectedSpell(position) {
   const spell=combatState.selectedSpell;if(!spell)return;
-  const result=resolveSoloCommand('spell',{spellId:spell.id,targetId:combatState.selectedTarget});
+  const result=resolveSoloCommand('spell',{spellId:spell.id,targetId:combatState.selectedTarget,position});
   if(!result)return;
   for(const event of result.events)addLog(`${spell.icon} ${spell.name}: ${combatState.combatants[event.targetId]?.name||''} ${event.damage!==undefined?event.damage+' damage':event.healing!==undefined?event.healing+' healing':event.text||event.type}`,'combat');
   combatState.selectedSpell=null;syncPlayerHP();checkCombatEnd();updateCombatUI();
@@ -879,12 +881,12 @@ function enemyAI(id) {
   if(!target){checkCombatEnd();return;}
   const spellId=(enemy.spells||[]).map(s=>typeof s==='string'?s:s.id).find(s=>window.CombatMechanics.enemyIds.includes(s));
   let resolution;
-  if(spellId&&(enemy.mp||0)>=20&&!window.CombatMechanics.has(combatState,id,'garrote_silence')&&Math.random()<.3){
+  if(spellId&&(enemy.mp||0)>=20&&!window.CombatMechanics.has(combatState,id,'garrote_silence')&&Math.random()<.3&&window.TacticalCombat.lineOfSight(enemy,target,combatState.tactical)&&window.TacticalCombat.distance(enemy.position,target.position)<=12){
     resolution=window.CombatMechanics.resolve(combatState,id,{id:spellId},{enemy:true,targetId:target.id});
     resolution.combatants[id].mp-=20;
   }else{
-    let legal=window.TacticalCombat.validateAttack(enemy,target,{cover:combatState.tactical?.cover||[]});
-    if(!legal.ok&&!window.CombatMechanics.has(combatState,id,'vine_trap')){enemy.position=window.TacticalCombat.moveToward(enemy.position,target.position,combatState.tactical?.moveRange||4.5);legal=window.TacticalCombat.validateAttack(enemy,target);}
+    let legal=window.TacticalCombat.validateAttack(enemy,target,combatState.tactical);
+    if(!legal.ok&&!window.CombatMechanics.has(combatState,id,'vine_trap')){window.TacticalCombat.advanceEnemy(combatState,enemy,target);legal=window.TacticalCombat.validateAttack(enemy,target,combatState.tactical);}
     if(legal.ok)resolution=window.CombatMechanics.attack(combatState,id,target.id,{coverBonus:legal.coverBonus});
   }
   if(resolution){combatState.combatants=resolution.combatants;combatState.statusEffects=resolution.statusEffects;for(const e of resolution.events)addLog(`${enemy.name}: ${e.damage??e.healing??''} ${e.type} ${e.text||''}`,'combat');}

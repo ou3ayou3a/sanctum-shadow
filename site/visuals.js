@@ -196,7 +196,7 @@ window.screenFlash = screenFlash;
 
 // Hook into castSelectedSpell to trigger VFX
 const _origCastForVFX = window.castSelectedSpell;
-window.castSelectedSpell = function() {
+window.castSelectedSpell = function(...args) {
   const spell = window.combatState?.selectedSpell;
   if (spell) {
     setTimeout(() => playVFX(spell.id), 100);
@@ -205,7 +205,7 @@ window.castSelectedSpell = function() {
       setTimeout(() => screenFlash('#ff4400', 400), 200);
     }
   }
-  if (_origCastForVFX) _origCastForVFX();
+  if (_origCastForVFX) return _origCastForVFX.apply(this,args);
 };
 
 // Hook into combatAttack for hit/miss flash

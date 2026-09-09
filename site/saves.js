@@ -162,6 +162,7 @@ function buildSaveSlot(slotName, type) {
     },
     partyOrigins: window.PartyOriginQuests?.serialize?.() || null,
     sceneFlags: window.sceneState?.flags || {},
+    physicalSceneRequests: window.PhysicalQuestFlow?.restoreRequests(window.sceneState?.physicalSceneRequests) || {},
     sceneHistory: window.sceneState?.history || [],
     knownFacts: window.sceneState?.knownFacts || {},
     // Live continuity so a resumed run keeps NPC moods, last narration & threats (#23)
@@ -346,6 +347,7 @@ function loadSaveSlot(slotId, options = {}) {
   // Restore scene flags — this is what determines story progress
   if (window.sceneState) {
     window.sceneState.flags = slot.sceneFlags || {};
+    window.sceneState.physicalSceneRequests = window.PhysicalQuestFlow?.restoreRequests(slot.physicalSceneRequests) || {};
     window.sceneState.history = slot.sceneHistory || [];
     window.sceneState.knownFacts = slot.knownFacts || {};
     // Live continuity (#23): NPC moods, last narration, threats, personal-quest context.

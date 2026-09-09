@@ -31,7 +31,7 @@
     }
     if(cmd.type==='attack'){
       if(!target||target.isPlayer===actor.isPlayer||!(target.hp>0))return reject('invalid_target');
-      tactical=Tactical.validateAttack(actor,target,{cover:state.tactical?.cover||[]});
+      tactical=Tactical.validateAttack(actor,target,state.tactical||{});
       if(!tactical.ok)return reject(tactical.reason);
     }
     if(cmd.type==='spell'){
@@ -39,6 +39,16 @@
       if(!spell)return reject('unknown_ability');
       const invalid=Mechanics.validate(state,actor,spell,cmd.targetId);if(invalid)return reject(invalid);
       target=Mechanics.targetFor(state,actor,spell.id,cmd.targetId);
+      if(spell.id==='shadow_step'){
+        const destination=Tactical.point(cmd.position);
+        if(!destination)return reject('choose_destination');
+        const options={...state.tactical,occupied:Object.values(state.combatants).filter(c=>c.id!==actor.id&&c.hp>0&&c.position).map(c=>({...c.position,radius:.45}))};
+        if((Tactical.distance(actor.position,destination)??Infinity)>18.288)return reject('out_of_range');
+        if(Tactical.navigation(options).isPointBlocked(destination))return reject('occupied_or_blocked');
+        if(!Tactical.lineOfSight(actor.position,destination,state.tactical||{}))return reject('blocked_line_of_sight');
+        tactical={position:destination};
+      }
+      if(target.id!==actor.id&&!Tactical.lineOfSight(actor,target,state.tactical||{}))return reject('blocked_line_of_sight');
       cost=spell.ap;mp=spell.mp;
       if(!(actor.mp>=mp))return reject('insufficient_mp');
       if((spell.holy_cost||0)>(context.character?.holyPoints||0))return reject('insufficient_holy_points');
@@ -54,7 +64,7 @@
     }
     if(cmd.type==='move'){
       if(Mechanics.has(state,actor.id,'vine_trap'))return reject('rooted');
-      tactical=Tactical.validateMove(actor.position,cmd.position,{maxDistance:state.tactical?.moveRange||Tactical.DEFAULT_MOVE_RANGE,bounds:state.tactical?.bounds||12});
+      tactical=Tactical.validateMove(actor.position,cmd.position,{...state.tactical,maxDistance:state.tactical?.moveRange||Tactical.DEFAULT_MOVE_RANGE,occupied:Object.values(state.combatants).filter(c=>c.id!==actor.id&&c.hp>0&&c.position).map(c=>({...c.position,radius:.45}))});
       if(!tactical.ok)return reject(tactical.reason);
     }
     if(cmd.type==='item'){
@@ -67,7 +77,7 @@
   }
   function accept(state,prepared){
     const cmd=prepared.command;
-    if(!prepared.ok||cmd.revision!==state.commandRevision||state.commandReceipts.includes(cmd.id))return false;
+    if(!state.active||!prepared.ok||cmd.encounterId!==state.encounterId||cmd.revision!==state.commandRevision||state.turnOrder[state.currentTurnIndex]!==cmd.actorId||state.commandReceipts.includes(cmd.id))return false;
     state.commandReceipts.push(cmd.id);if(state.commandReceipts.length>256)state.commandReceipts.shift();
     state.commandRevision++;return true;
   }
@@ -84,6 +94,12 @@
     if(cmd.type==='spell'){
       const resolution=Mechanics.resolve(state,actor.id,prepared.spell,{targetId:prepared.target.id,seed:context.seed});
       resolution.combatants[actor.id].mp=actor.mp-prepared.mp;
+      if(prepared.spell.id==='shadow_step'){
+        resolution.combatants[actor.id].position=prepared.tactical.position;
+        resolution.combatants[actor.id].movementPath=[];
+        resolution.combatants[actor.id].teleportRevision=state.commandRevision+1;
+        resolution.events.push({type:'teleport',actorId:actor.id,position:prepared.tactical.position});
+      }
       effects.push({type:'combat',value:resolution},{type:'holyPoints',value:(context.character.holyPoints||0)-(prepared.spell.holy_cost||0)});
       events.push(...resolution.events);
     }else if(cmd.type==='attack'){
@@ -92,6 +108,7 @@
       if(actor.characterClass==='paladin'&&resolution.events[0].hit)effects.push({type:'holyPoints',value:Math.min(100,(context.character?.holyPoints||0)+5)});
     }else if(cmd.type==='move'){
       effects.push({type:'position',actorId:cmd.actorId,value:prepared.tactical.position});
+      effects.push({type:'movementPath',actorId:cmd.actorId,value:prepared.tactical.path});
       if(actor.characterClass==='ranger')effects.push({type:'resource',actorId:actor.id,value:Math.min(3,(actor.resource||0)+1)});
       events.push({type:'move',actorId:cmd.actorId,distance:prepared.tactical.distance});
     }else if(cmd.type==='item'){

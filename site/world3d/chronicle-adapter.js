@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {refreshPhysicalQuestTargets} from './physical-quest-targets.mjs?v=229';
 
 const TARGET_RULES=[
   [/covenant_hall|signing/i,'signing_hall'],[/scribe/i,'npc:trembling_scribe'],[/rhael/i,'npc:captain_rhael'],[/mourne/i,'npc:sister_mourne'],[/temple/i,'temple_quarter'],[/cartographer/i,'npc:drunk_cartographer'],[/tarnished_cup/i,'tarnished_cup'],[/archive/i,'church_archive'],[/merchant_road|thornwood|monastery|fortress|mol_village/i,'north_gate'],
@@ -15,10 +16,28 @@ export class Chronicle3DAdapter{
   initialize(){this.buildTracker();this.refresh();this.syncCinematic();return this;}
   buildTracker(){const panel=document.createElement('aside');panel.className='world3d-quest-tracker';panel.innerHTML='<div class="w3q-header"><span>ACTIVE QUESTS</span><button type="button" aria-label="Open quest journal">J</button></div><div class="w3q-list"></div>';panel.querySelector('button').addEventListener('click',()=>window.showQuestLog?.());this.engine.overlay.appendChild(panel);this.panel=panel;this.list=panel.querySelector('.w3q-list');}
   refresh(){
+    refreshPhysicalQuestTargets(this.engine);
+    for(const record of this.engine.zone.interactables){
+      const authored=(record.actions||[]).filter(action=>!action.questEntry);
+      record.actions=[...authored,...(window.questEntryActions?.(this.engine.zone.id,record.id)||[])];
+      const origin=record.id==='location_focus'&&window.PartyOriginQuests?.investigationAction?.(this.engine.zone.id);
+      if(origin)record.actions.push(origin);
+    }
     this.signature=questSignature();this.list.replaceChildren();const quests=activeQuests().slice(0,5);if(!quests.length){const empty=document.createElement('div');empty.className='w3q-empty';empty.textContent='No active objectives';this.list.appendChild(empty);}for(const quest of quests){const item=document.createElement('article'),objective=currentObjective(quest),done=Object.keys(objectiveState(quest.id)).length,total=objectives(quest.id).length;item.className=`w3q-item ${quest.type==='origin'||String(quest.id).startsWith('pq_')?'personal':''}`;const title=document.createElement('strong');title.textContent=quest.title||'Untitled Quest';const text=document.createElement('span');text.textContent=objective?.label||quest.desc||'Continue the Chronicle.';const count=document.createElement('small');count.textContent=total?`${done}/${total}`:'ACTIVE';item.append(title,text,count);this.list.appendChild(item);}this.rebuildMarkers(quests);
     const completedNow=new Set((window.gameState?.completedQuests||[]).map(quest=>quest.id));for(const id of completedNow)if(!this.completed.has(id)){const quest=(window.gameState.completedQuests||[]).find(entry=>entry.id===id);this.showCompletion(quest);}this.completed=completedNow;
   }
   targetFor(objective,quest){
+    const requests=window.PhysicalQuestFlow?.restoreRequests(window.sceneState?.physicalSceneRequests)||{};
+    const pendingId=Object.keys(requests).find(id=>window.PhysicalQuestFlow.TARGETS[id].quest===quest?.id);
+    if(pendingId){const record=this.engine.zone.interactables.find(item=>item.id===pendingId);if(record)return{position:record.position,interaction:record};}
+    const physicalScene=(objective?.events||[]).map(event=>event.replace(/^scene:/,'')).find(scene=>window.PhysicalQuestFlow?.SCENES?.[scene]);
+    const physicalId=window.PhysicalQuestFlow?.SCENES?.[physicalScene];
+    if(physicalId){const record=this.engine.zone.interactables.find(item=>item.id===physicalId);if(record)return{position:record.position,interaction:record};}
+    const entry=window.QUEST_ENTRY_POINTS?.[quest?.id];
+    if(entry&&entry.objective===objective?.id&&entry.location===this.engine.zone.id){
+      const record=this.engine.zone.interactables.find(item=>item.id===window.questEntryEntityId?.(entry));
+      if(record)return{position:record.position,interaction:record};
+    }
     if(quest?.type==='origin'&&(quest.stage===1||quest.stage===3)){
       const record=this.engine.npcManager?.records.find(entry=>entry.config.id===quest.npcId);
       if(record)return{position:record.position||record.actor?.position,interaction:record.interaction,actor:record.actor};

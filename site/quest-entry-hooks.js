@@ -79,6 +79,16 @@
       return window.mapState?.currentLocation || window.__world3d?.location?.id || '';
     }
 
+    function physicalWorld() {
+      return !!window.document.body?.classList.contains('vt-3d-active');
+    }
+    function entityId(entry) {
+      return window.PhysicalQuestFlow?.SCENES?.[entry.scene] || entry.landmark || (entry.location === 'tarnished_cup' ? 'tarnished_room' : 'location_focus');
+    }
+    function physicalPermission(entry) {
+      return !physicalWorld() || !!window.__world3d?.requireQuestEntry?.({...entry, entityId:entityId(entry)});
+    }
+
     function openEntry(questId, options = {}) {
       const entry = ENTRY[questId];
       if (!entry || pending.has(questId) || !authoritative()) return false;
@@ -86,11 +96,12 @@
       if (!options.force && currentLocation() !== entry.location) return false;
       if (!options.force && entry.landmark && options.landmark !== entry.landmark) return false;
       if (!window.SCENES?.[entry.scene] || typeof window.runScene !== 'function') return false;
+      if (!physicalPermission(entry)) return false;
 
       pending.add(questId);
       let waited = 0;
       const go = function () {
-        if (!options.force && !isEntryEligible(game(), questId)) {
+        if ((!options.force && (!isEntryEligible(game(), questId) || currentLocation() !== entry.location)) || !physicalPermission(entry)) {
           pending.delete(questId);
           return;
         }
@@ -109,6 +120,11 @@
 
     function triggerQuestEntriesForLocation(locationId) {
       if (!authoritative()) return false;
+      // Arrival reveals objectives; explicit world interaction opens them.
+      if (physicalWorld()) {
+        window.__world3d?.chronicleAdapter?.refresh?.();
+        return false;
+      }
       const questId = entriesForLocation(game(), locationId)[0];
       return questId ? openEntry(questId) : false;
     }
@@ -135,6 +151,20 @@
     window.tryQuestEntryAtLandmark = tryQuestEntryAtLandmark;
     window.resumeQuestEntries = resumeQuestEntries;
     window.QUEST_ENTRY_POINTS = ENTRY;
+    window.questEntryEntityId = entityId;
+    window.requirePhysicalQuestScene = function(sceneId) {
+      const entry = Object.values(ENTRY).find(item => item.scene === sceneId);
+      return !entry || physicalPermission(entry);
+    };
+    window.questEntryActions = function(locationId, targetId) {
+      // Dedicated targets already provide their authored entry action.
+      if (window.PhysicalQuestFlow?.TARGETS?.[targetId]) return [];
+      return entriesForLocation(game(), locationId, {includeLandmarks:true})
+        .filter(id => entityId(ENTRY[id]) === targetId)
+        .map(id => ({id:`quest_entry_${id}`, questEntry:true, direct:true, icon:'!',
+          label:`Investigate ${ENTRY[id].destination}`,
+          onSelect:() => openEntry(id, {landmark:ENTRY[id].landmark, immediate:true})}));
+    };
 
     function hookActivation() {
       if (window.__questEntryActivationHooked) return true;
@@ -147,7 +177,7 @@
           window.addLog?.(`📍 Quest destination: ${entry.destination}.`, 'system');
           // If a quest continues deeper inside the place the party already
           // reached, wait for the current scene to close and then continue.
-          if (!entry.landmark && currentLocation() === entry.location) openEntry(questId);
+          if (!entry.landmark && currentLocation() === entry.location && !physicalWorld()) openEntry(questId);
         }
         return result;
       };

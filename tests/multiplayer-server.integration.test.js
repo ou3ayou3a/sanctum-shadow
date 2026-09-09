@@ -228,7 +228,7 @@ test('real server supports a four-player campaign, synchronized dialogue, combat
     host.emit('combat_action',{code,action:'attack',targetId:Object.values(ended.combatState.combatants).find(c=>!c.isPlayer).id,commandId:'after-victory',encounterId:ended.combatState.encounterId,revision:ended.combatState.commandRevision});
     assert.match((await rejectedAfterEnd).msg,/inactive_encounter/);
     // Exercise authored spell effects through the actual transport, not only the reducer.
-    for(const [classId,spellId] of [['cleric','cure_wounds'],['paladin','divine_shield']]){
+    for(const [classId,spellId] of [['cleric','cure_wounds'],['paladin','divine_shield'],['rogue','shadow_step']]){
       const ready=host.once('session_update',s=>s.players[host.id]?.character?.class===classId);
       host.emit('character_ready',{code,character:{...character(1),class:classId,level:10,hp:50,mp:300,maxMp:300,holyPoints:100}});await ready;
       const started=host.once('combat_started',cs=>cs.encounterId!==ended.combatState.encounterId&&cs.victoryScene==='qa_continuation');
@@ -242,11 +242,26 @@ test('real server supports a four-player campaign, synchronized dialogue, combat
       }
       assert.equal(cs.turnOrder[cs.currentTurnIndex],host.id);
       const beforeHp=cs.combatants[host.id].hp,beforeMp=cs.combatants[host.id].mp;
+      let position;
+      if(classId==='rogue'){
+        const tactical=require('../site/tactical-combat.js'),actor=cs.combatants[host.id];
+        const occupied=Object.values(cs.combatants).filter(c=>c.id!==host.id&&c.hp>0).map(c=>({...c.position,radius:.45})),grid=tactical.navigation({...cs.tactical,occupied});
+        for(const [x,z] of [[0,-2],[-2,0],[2,0],[0,2]]){const p={x:actor.position.x+x,z:actor.position.z+z};if(!grid.isPointBlocked(p)&&tactical.lineOfSight(actor.position,p,cs.tactical)){position=p;break;}}
+        assert.ok(position,'fixture needs a legal teleport destination');
+      }
       const cast=host.once('combat_update',m=>m.combatState.encounterId===cs.encounterId&&m.combatState.commandRevision>cs.commandRevision);
-      host.emit('combat_action',{code,action:'spell',spellId,targetId:host.id,commandId:`support-${classId}`,encounterId:cs.encounterId,revision:cs.commandRevision});
+      host.emit('combat_action',{code,action:'spell',spellId,targetId:host.id,position,commandId:`support-${classId}`,encounterId:cs.encounterId,revision:cs.commandRevision});
       cs=(await cast).combatState;
-      assert.equal(cs.combatants[host.id].mp,beforeMp-(classId==='cleric'?20:50));
-      if(classId==='cleric')assert.ok(cs.combatants[host.id].hp>beforeHp);else assert.equal(cs.statusEffects[host.id].find(s=>s.id==='divine_shield').shieldHp,30);
+      assert.equal(cs.combatants[host.id].mp,beforeMp-({cleric:20,paladin:50,rogue:25}[classId]));
+      if(classId==='cleric')assert.ok(cs.combatants[host.id].hp>beforeHp);
+      else if(classId==='paladin')assert.equal(cs.statusEffects[host.id].find(s=>s.id==='divine_shield').shieldHp,30);
+      else{
+        assert.deepEqual(cs.combatants[host.id].position,position);
+        clients[1].close();const restored=await socketClient(port);clients[1]=restored;
+        const snapshot=restored.once('combat_started');restored.emit('rejoin_session',{code,playerName:'Player 2',character:character(2)});
+        const resumed=await snapshot;assert.deepEqual(resumed.combatants[host.id].position,position);assert.equal(resumed.combatants[host.id].mp,beforeMp-25);
+        cs=resumed;
+      }
       const left=host.once('combat_ended',m=>m.combatState.encounterId===cs.encounterId);
       host.emit('combat_action',{code,action:'retreat',commandId:`leave-${classId}`,encounterId:cs.encounterId,revision:cs.commandRevision});
       const outcome=await left;assert.equal(outcome.outcome,'retreat');assert.equal(outcome.xp,0);assert.equal(outcome.victory,false);

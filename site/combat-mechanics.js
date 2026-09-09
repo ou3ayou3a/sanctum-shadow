@@ -36,7 +36,7 @@
     const buff=(id,name,turns,extra={})=>status(actorId,{id,name,icon:spell.icon||'✨',turnsLeft:turns,...extra});
     const target=options.enemy?state.combatants[options.targetId]:targetFor(state,actor,spell.id,options.targetId);
     const allies=Object.values(state.combatants).filter(c=>c.isPlayer===actor.isPlayer&&c.hp>0);
-    const area=(center,radius)=>Object.values(state.combatants).filter(c=>c.hp>0&&(Tactical.distance(c.position,center.position)??Infinity)<=radius);
+    const area=(center,radius)=>Object.values(state.combatants).filter(c=>c.hp>0&&(Tactical.distance(c.position,center.position)??Infinity)<=radius&&Tactical.lineOfSight(center,c,input.tactical||{}));
     if(options.enemy){
       if(!enemyIds.includes(spell.id)||!target||target.hp<=0||target.isPlayer===actor.isPlayer)throw new Error('Invalid enemy ability or target');
       const level=Math.max(1,Math.min(20,actor.level||1));

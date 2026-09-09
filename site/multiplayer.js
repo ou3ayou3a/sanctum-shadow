@@ -685,7 +685,7 @@ function mpStartCombat(enemies, encounter = {}) {
   if (!window.mp.socket || !window.mp.sessionCode) return;
   const initiatorName = gameState.character?.name || 'Unknown';
   addLog(`⚔ ${initiatorName} initiates combat!`, 'combat');
-  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, encounter:{id:encounter?.id||'standard',victoryScene:encounter?.victoryScene,surrenderScene:encounter?.surrenderScene}, initiatorId: window.mp.playerId });
+  window.mp.socket.emit('start_combat', { code: window.mp.sessionCode, enemies, encounter:{id:encounter?.id||'standard',victoryScene:encounter?.victoryScene,surrenderScene:encounter?.surrenderScene,tactical:window.TacticalCombat.worldSnapshot(window.__world3d)}, initiatorId: window.mp.playerId });
 }
 
 function mpCombatAction(action, targetId, spellId, position) {
@@ -977,16 +977,16 @@ window.endPlayerTurn = function() {
 
 // ─── PATCH castSelectedSpell ─────────────────
 const _origCastSpell = window.castSelectedSpell;
-window.castSelectedSpell = function() {
+window.castSelectedSpell = function(position) {
   if (window.mp.sessionCode && window.mp.combatState) {
     if (!isMyTurnMP()) { addLog('Not your turn!', 'system'); return; }
     const spell = combatState.selectedSpell;
     const target = getTarget();
     if (!spell) return;
-    mpCombatAction('spell', target?.id, spell.id);
+    mpCombatAction('spell', target?.id, spell.id, position);
     combatState.selectedSpell = null;
   } else {
-    if (_origCastSpell) _origCastSpell();
+    if (_origCastSpell) _origCastSpell(position);
   }
 };
 

@@ -638,6 +638,8 @@ io.on('connection', (socket) => {
       _presentationSeq: 0,
     };
     s.state = 'combat';
+    Object.assign(s.combatState.tactical,TacticalCombat.sanitizeSnapshot(encounter?.tactical)||TacticalCombat.sanitizeSnapshot({locationId:'vaelthar_city',origin:{x:0,z:20}}));
+    TacticalCombat.placeCombatants(s.combatState);
     ActionPipeline.begin(s.combatState, require('crypto').randomUUID());
 
     io.to(code).emit('combat_started', s.combatState);
@@ -993,12 +995,12 @@ function processEnemyTurn(s,seq){
   if(!target){settleCombat(s);return;}
   const spellId=(enemy.spells||[]).map(sp=>typeof sp==='string'?sp:sp.id).filter(id=>CombatMechanics.enemyIds.includes(id));
   let result,spell=null;
-  if(spellId.length&&(enemy.mp||0)>=20&&!CombatMechanics.has(cs,id,'garrote_silence')&&Math.random()<.3){
+  if(spellId.length&&(enemy.mp||0)>=20&&!CombatMechanics.has(cs,id,'garrote_silence')&&Math.random()<.3&&TacticalCombat.lineOfSight(enemy,target,cs.tactical)&&TacticalCombat.distance(enemy.position,target.position)<=12){
     spell={id:spellId[Math.floor(Math.random()*spellId.length)],name:'Enemy ability'};
     result=CombatMechanics.resolve(cs,id,spell,{enemy:true,targetId:target.id});result.combatants[id].mp-=20;
   }else{
-    let legal=TacticalCombat.validateAttack(enemy,target,{cover:cs.tactical?.cover||[]});
-    if(!legal.ok&&!CombatMechanics.has(cs,id,'vine_trap')){enemy.position=TacticalCombat.moveToward(enemy.position,target.position,cs.tactical?.moveRange||4.5);legal=TacticalCombat.validateAttack(enemy,target);}
+    let legal=TacticalCombat.validateAttack(enemy,target,cs.tactical);
+    if(!legal.ok&&!CombatMechanics.has(cs,id,'vine_trap')){TacticalCombat.advanceEnemy(cs,enemy,target);legal=TacticalCombat.validateAttack(enemy,target,cs.tactical);}
     if(legal.ok)result=CombatMechanics.attack(cs,id,target.id,{coverBonus:legal.coverBonus});
   }
   if(result){cs.combatants=result.combatants;cs.statusEffects=result.statusEffects;}
