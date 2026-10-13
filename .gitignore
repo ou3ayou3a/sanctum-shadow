@@ -23,3 +23,6 @@ sessions.json.tmp
 # Blender backups and Python caches
 *.blend1
 **/__pycache__/
+# Already excluded from deploys in .railwayignore; keep them out of git too
+/bg3-prototype/
+/portrait-previews/
