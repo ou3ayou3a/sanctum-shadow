@@ -3,18 +3,26 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getRaceProfile } from './race-profiles.mjs';
 import { getClassProfile } from './class-profiles.mjs';
-import { equipClass,applyClassPose,rigBone } from './class-equipment.js?v=163';
-import { productionRaceModel } from './production-assets.mjs?v=147';
+import { equipClass,applyClassPose,rigBone } from './class-equipment.js?v=164';
+import { productionRaceModel,heroModel,heroScaleForRace } from './production-assets.mjs?v=165';
 import {WALK_SPEED,RUN_SPEED,advanceSpeed,angleDelta,locomotionBlend,normalizePresenceState,normalizeNetworkSpeed,turnState} from './locomotion.mjs';
 import {blendDuration,equipmentSwapFraction,isCombatGesture,normalizeGesture} from './animation-policy.mjs?v=163';
 
 const MODEL_CACHE=new Map();
+// Fallen Paladin hero cape drape (tools/hero/cape-drape.mjs): a corrective morph target computed in the Death end pose
+// that lays the skinned cape onto the falling body. Driven only in the 'death' state, by the Death clip's progress
+// (0 before 15 %, smoothstep to 1 at 65 %, held while the clip clamps) so the cape settles during the fall; every
+// other state renders it at 0.
+export const CAPE_DRAPE_TARGET='FP_CapeDrape';
+export const CAPE_DRAPE_RAMP=Object.freeze([.15,.65]);
+function findCapeDrape(model){let found=null;model.traverse(o=>{if(!found&&o.isMesh&&o.morphTargetDictionary&&o.morphTargetDictionary[CAPE_DRAPE_TARGET]!==undefined&&o.morphTargetInfluences)found={mesh:o,index:o.morphTargetDictionary[CAPE_DRAPE_TARGET]};});return found;}
+export function capeDrapeInfluence(state,deathAction){if(state!=='death'||!deathAction)return 0;const duration=deathAction.getClip().duration||1,progress=Math.min(1,Math.max(0,deathAction.time/duration)),u=Math.min(1,Math.max(0,(progress-CAPE_DRAPE_RAMP[0])/(CAPE_DRAPE_RAMP[1]-CAPE_DRAPE_RAMP[0])));return u*u*(3-2*u);}
 async function loadModelTemplate(url){if(!MODEL_CACHE.has(url))MODEL_CACHE.set(url,new GLTFLoader().loadAsync(url).catch(error=>{MODEL_CACHE.delete(url);throw error;}));return MODEL_CACHE.get(url);}
 
 export class CharacterActor extends THREE.Group {
-  constructor({ modelUrl, race = 'human', characterClass = 'warrior', scale = 1, rotationOffset = Math.PI } = {}) {
+  constructor({ modelUrl, race = 'human', characterClass = 'warrior', scale = 1, rotationOffset = Math.PI, hero = null } = {}) {
     super();
-    this.profile=getRaceProfile(race);this.race=this.profile.id;this.modelUrl=productionRaceModel(this.race,modelUrl);this.productionModel=this.modelUrl.includes('/assets/production/characters/');this.modelScale = scale; this.rotationOffset = rotationOffset;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.actionTime=0;this.actionDuration=.72;
+    this.profile=getRaceProfile(race);this.race=this.profile.id;this.hero=heroModel(hero);this.heroScale=this.hero?heroScaleForRace(this.hero,this.race):1;this.modelUrl=this.hero?.url||productionRaceModel(this.race,modelUrl);this.productionModel=!!this.hero||this.modelUrl.includes('/assets/production/characters/');this.modelScale = scale; this.rotationOffset = rotationOffset;this.classProfile=getClassProfile(characterClass);this.characterClass=this.classProfile.id;this.actionTime=0;this.actionDuration=.72;
     this.mixer = null; this.actions = {}; this.activeAction = null; this.state = 'loading';
     this.path=[];this.speed=WALK_SPEED;this.targetSpeed=0;this.currentSpeed=0;this.arrivalRadius=.12;this.onArrive=null;this.movementIntent='walk';this.transitionTime=0;this.lastRemoteState='idle';this.gestureSequence=0;this.currentGesture=null;this.gestureUntil=0;this.reactionTime=0;this.reactionDuration=.32;this.reactionVector=new THREE.Vector3();
   }
@@ -37,10 +45,10 @@ export class CharacterActor extends THREE.Group {
     try{
     const template=await loadModelTemplate(this.modelUrl);const gltf={scene:cloneSkeleton(template.scene),animations:template.animations};
     this.clearLoadingFallback();
-    this.model = gltf.scene;const [width,height,depth]=this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
-    const tint=new THREE.Color(this.profile.materialTint);
+    this.model = gltf.scene;const [width,height,depth]=this.hero?[this.heroScale,this.heroScale,this.heroScale]:this.productionModel?[1,1,1]:this.profile.proportions;this.model.scale.set(width*this.modelScale,height*this.modelScale,depth*this.modelScale);this.model.rotation.y = this.rotationOffset;
+    const tint=new THREE.Color(this.hero&&this.hero.tint===false?0xffffff:this.profile.materialTint);
     this.model.traverse(o => { if (o.isMesh) {o.userData.sharedActorGeometry=true;o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];for(const material of materials){if(material.color)material.color.multiply(tint);material.envMapIntensity=1.15;material.needsUpdate=true;}o.castShadow = true; o.receiveShadow = true; } });
-    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();if(!this.selectionRing)this.addSelectionRing();if(!this.weaponTrail)this.addWeaponTrail();await equipClass(this,this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);
+    this.add(this.model);if(!this.productionModel)this.applyRaceDetails();if(!this.selectionRing)this.addSelectionRing();if(!this.weaponTrail)this.addWeaponTrail();await equipClass(this,this.hero?{...this.classProfile,weapon:this.hero.weapon}:this.classProfile);this.mixer = new THREE.AnimationMixer(this.model);this.capeDrape=this.hero?findCapeDrape(this.model):null;
     for (const clip of gltf.animations) {
       const name = clip.name.toLowerCase();
       if (name.includes('combat_idle')) this.actions.combat_idle = this.mixer.clipAction(clip);
@@ -71,6 +79,14 @@ export class CharacterActor extends THREE.Group {
     }
     this.setState('idle', true);
     }catch(error){
+      if(this.hero&&!this.heroFallbackTried){
+        // A player hero that fails to load falls back to its race's production model, never straight to the capsule.
+        this.heroFallbackTried=true;console.warn(`Hero model ${this.hero.id} failed; using the ${this.race} production model.`,error);
+        if(this.model&&!this.model.userData?.actorFallback){this.remove(this.model);this.model=null;}
+        this.classGear?.removeFromParent();this.classGear=null;this.heldEquipment=[];this.stowedEquipment=[];this.mixer?.stopAllAction();this.mixer=null;this.actions={};this.activeAction=null;
+        this.heroLoadError=error;this.hero=null;this.heroScale=1;this.modelUrl=productionRaceModel(this.race);this.productionModel=true;
+        return this.load();
+      }
       this.loadError=error;this.showLoadingFallback();this.state='idle';this.dispatchEvent({type:'statechange',state:'idle'});console.warn(`Character model failed for ${this.race}; using the lightweight fallback.`,error);
     }
     return this;
@@ -152,8 +168,10 @@ export class CharacterActor extends THREE.Group {
   }
   playPrimaryAction(){return!!this.playCombatAction();}
 
+  updateCapeDrape(){const drape=this.capeDrape;if(!drape)return 0;const value=capeDrapeInfluence(this.state,this.actions.death);drape.mesh.morphTargetInfluences[drape.index]=value;return value;}
   update(dt) {
     if (this.mixer) this.mixer.update(dt);
+    if(this.capeDrape)this.updateCapeDrape();
     if(this.currentGesture&&performance.now()>=this.gestureUntil)this.currentGesture=null;
     if(this.desiredFacing!==null&&this.desiredFacing!==undefined&&!this.path.length){const difference=angleDelta(this.rotation.y,this.desiredFacing);this.rotation.y+=difference*Math.min(1,dt*8.5);if(Math.abs(difference)<.015)this.desiredFacing=null;}
     if(this.reactionTime>0&&this.model){this.reactionTime=Math.max(0,this.reactionTime-dt);const progress=1-this.reactionTime/this.reactionDuration,ease=Math.sin(progress*Math.PI);this.model.position.copy(this.reactionVector).multiplyScalar(ease);if(this.reactionTime===0)this.model.position.set(0,0,0);}

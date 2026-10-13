@@ -1,5 +1,7 @@
 import {placeEnvironmentAsset} from './environment-asset-loader.js?v=144';
 import {interiorDefinitionFor} from './interior-registry.mjs';
+import {normalizeClassId} from './class-profiles.mjs';
+import {normalizeRaceId} from './race-profiles.mjs';
 
 const ROOT='world3d/assets/production';
 
@@ -33,6 +35,30 @@ export const RACE_MODEL_URLS=Object.freeze({
 
 export function productionRaceModel(race,fallback='prototype/assets/elf-ranger.glb'){
   return RACE_MODEL_URLS[race]||fallback;
+}
+
+// Standing height (metres, rest pose) of each race's production model. A hero model is
+// uniformly scaled by raceHeight/hero.height, so its standing height matches the race's
+// own model and a dwarf or goblin paladin is not a 2 m knight. hero.height is the
+// authored standing height of the hero GLB (helmet included).
+export const RACE_MODEL_HEIGHTS=Object.freeze({human:1.8322,dwarf:1.5021,elf:1.9421,high_elf:1.9971,dark_elf:1.9238,orc:2.0517,goblin:1.2273});
+
+// Player-character hero models. Only player-controlled characters (the local player,
+// remote party members and their combat stand-ins) may use these; NPCs and enemies never do.
+export const HERO_MODEL_PATH=`${ROOT}/characters/heroes/fallen_paladin.glb`;
+export const HERO_MODELS=Object.freeze({
+  fallen_paladin:Object.freeze({id:'fallen_paladin',name:'Fallen Paladin',url:`${HERO_MODEL_PATH}?v=1`,weapon:'fallen_longsword',tint:false,height:2.05})
+});
+const CLASS_HEROES=Object.freeze({paladin:'fallen_paladin'});
+export function heroModel(id){return Object.hasOwn(HERO_MODELS,String(id))?HERO_MODELS[id]:null;}
+export function heroIdForCharacter(character){
+  if(!character||typeof character!=='object'||typeof character.class!=='string')return null;
+  const id=normalizeClassId(character.class);
+  return Object.hasOwn(CLASS_HEROES,id)?CLASS_HEROES[id]:null;
+}
+export function heroScaleForRace(hero,race){
+  const model=typeof hero==='string'?heroModel(hero):hero,height=RACE_MODEL_HEIGHTS[normalizeRaceId(race)];
+  return model?.height>0&&height>0?height/model.height:1;
 }
 
 export function interiorAssetFor(location){return interiorDefinitionFor(location)?.asset||null;}

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CharacterActor } from './character-actor.js?v=179';
+import { CharacterActor } from './character-actor.js?v=180';
 import { NavigationGrid } from './navigation-grid.mjs?v=226';
-import { NPCManager } from './npc-manager.js?v=232';
-import { Combat3DController } from './combat-controller.js?v=226';
+import { NPCManager } from './npc-manager.js?v=233';
+import { Combat3DController } from './combat-controller.js?v=227';
 import { AbilityEffects } from './ability-effects.js?v=170';
-import { Party3DManager } from './party-manager.js?v=179';
+import { Party3DManager } from './party-manager.js?v=180';
 import { Chronicle3DAdapter } from './chronicle-adapter.js?v=260';
 import { preparePhysicalQuestTargets } from './physical-quest-targets.mjs?v=260';
 import { WorldPolish } from './world-polish.js?v=220';

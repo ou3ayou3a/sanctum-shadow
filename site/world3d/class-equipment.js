@@ -20,6 +20,24 @@ function shield(profile){const group=new THREE.Group(),face=new THREE.Mesh(new T
 function staff(profile,arcane=false){const group=new THREE.Group(),shaft=cylinder(1.8,82,material(0x5b3e27,{metalness:.05,roughness:.86}));shaft.position.y=28;group.add(shaft);const head=new THREE.Mesh(arcane?new THREE.OctahedronGeometry(7):new THREE.TorusGeometry(7,1.6,8,20),material(profile.accent,{metalness:.3,roughness:.25,emissive:profile.accent,emissiveIntensity:1.5}));head.position.y=72;if(!arcane)head.rotation.x=Math.PI/2;group.add(head);const light=new THREE.PointLight(profile.accent,3,2.4);light.position.y=72;group.add(light);return group;}
 function mace(profile){const group=new THREE.Group(),handle=cylinder(1.8,52,material(0x4a3424,{metalness:.1,roughness:.8}));handle.position.y=18;group.add(handle);const head=new THREE.Mesh(new THREE.DodecahedronGeometry(8),material(profile.accent,{metalness:.75,roughness:.3}));head.position.y=48;group.add(head);return group;}
 function bow(profile){const group=new THREE.Group(),arc=new THREE.Mesh(new THREE.TorusGeometry(30,1.7,8,34,Math.PI*1.55),material(0x7b4f2d,{metalness:.05,roughness:.85}));arc.rotation.z=.72;group.add(arc);const points=[new THREE.Vector3(-21,21,0),new THREE.Vector3(5,0,0),new THREE.Vector3(21,-21,0)];group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xded4b8})));return group;}
+// Fallen Paladin hero sword sockets (BUILD-SPEC §5.3 / §6.4 grip loop). Derived and checked against every clip by
+// tools/hero/sword-sockets.py (it prints these values and exits 1 if an acceptance check fails) and by the close-up
+// renders of tools/qa/hero-pose-renders.cjs:
+//  held   - RightHand-local, cm. The grip runs through the knight's curled right gauntlet (channel centre (-4.5,9.75,0),
+//           axis tilted 32 deg toward the back of the hand and 16 deg toward the fingers) with the crossguard against the
+//           index finger and the long grip + pommel below the fist; the blade leaves on the thumb side, edge toward the
+//           knuckles. In game: Combat_Idle holds it forward and ~22 deg up, Cast raises it, Attack_Smite strikes forward
+//           without crossing the body; blade and crossguard stay >= 1 cm clear of legs, tabard, tassets, cape and left arm
+//           in every drawn-sword paladin clip (Idle, Combat_Idle, Block, Cast, Attack_Smite, draw/sheathe). The Hit clip
+//           presses the fist into the thigh, so the blade crosses the leg there for a few frames whatever the socket.
+//  stowed - actor space at model scale 1 (multiplied by the hero's model scale at equip time), parented to Hips like
+//           the other stowed class weapons: left hip at belt height, crossguard in front of the hip and just outside the
+//           left arm's swing, blade 38 deg back from vertical and 8 deg out. Clear of legs, tabard, tassets, cape and the
+//           left arm by >= 2 cm in Idle, Walk, Run, starts/stops, turns and gestures; tip >= 0.22 m above the floor.
+export const FALLEN_LONGSWORD_SOCKETS=Object.freeze({
+  held:Object.freeze({position:[2.971,12.156,12.238],rotation:[3.1416,1.0123,-1.8093]}),
+  stowed:Object.freeze({position:[0.52,1.11,0.27],rotation:[0.5112,1.0409,-2.9713],scale:.01,bone:'mixamorig:Hips'})
+});
 function stow(parent,object,position,rotation,scale=.012,boneName='mixamorig:Spine2'){object.scale.setScalar(scale);object.position.set(...position);object.rotation.set(...rotation);object.userData.equipmentSlot='stowed';object.userData.equipmentBone=boneName;parent.add(object);return object;}
 
 function bindStowedSockets(actor,gear){
@@ -34,6 +52,18 @@ export async function equipClass(actor,profile){
   try{
     if(profile.weapon==='greatsword'){attach(actor.model,'mixamorig:RightHand',await productionEquipment('greatsword'),{position:[-10,0,0],rotation:[0,0,Math.PI/2]});stow(gear,await productionEquipment('greatsword'),[.12,.9,-.13],[.08,.12,-.5]);}
     if(profile.weapon==='mace_shield'){attach(actor.model,'mixamorig:RightHand',await productionEquipment('mace'),{position:[5,0,0],rotation:[0,0,Math.PI/2]});attach(actor.model,'mixamorig:LeftForeArm',await productionEquipment('shield'),{position:[0,11,0],rotation:[0,0,0]});stow(gear,await productionEquipment('mace'),[.14,.7,-.1],[.05,.1,-.35],.012,'mixamorig:Hips');stow(gear,await productionEquipment('shield'),[-.05,1.02,-.14],[0,0,.08]);}
+    if(profile.weapon==='fallen_longsword'){
+      // Player hero sword: the hero GLB's own unskinned FP_Sword node (blade +Y, crossguard at the origin, cm units).
+      // Held in the right hand, a clone stowed on the left hip; held/stowed visibility follows setEquipmentDrawn.
+      // Socket values and their per-clip clearances: FALLEN_LONGSWORD_SOCKETS above.
+      const blade=actor.model.getObjectByName('FP_Sword');
+      if(!blade)throw new Error('FP_Sword node missing from hero model');
+      const k=actor.model.scale.y||1;blade.removeFromParent();blade.scale.setScalar(1);blade.name='FP_Sword';
+      const sheathed=blade.clone();sheathed.name='FP_Sword_stowed';
+      const {held,stowed}=FALLEN_LONGSWORD_SOCKETS;
+      attach(actor.model,'mixamorig:RightHand',blade,held);
+      stow(gear,sheathed,stowed.position.map(v=>v*k),stowed.rotation,stowed.scale*k,stowed.bone);
+    }
     if(profile.weapon==='holy_staff'){attach(actor.model,'mixamorig:RightHand',await productionEquipment('holy_staff'),{position:[10,0,0],rotation:[0,0,Math.PI/2]});stow(gear,await productionEquipment('holy_staff'),[.1,.5,-.14],[.04,.08,-.18]);}
     if(profile.weapon==='arcane_staff'){attach(actor.model,'mixamorig:RightHand',await productionEquipment('arcane_staff'),{position:[10,0,0],rotation:[0,0,Math.PI/2]});stow(gear,await productionEquipment('arcane_staff'),[.1,.5,-.14],[.04,.08,-.18]);}
     if(profile.weapon==='twin_daggers'){attach(actor.model,'mixamorig:RightHand',await productionEquipment('dagger'),{position:[-6,0,0],rotation:[0,0,Math.PI/2]});attach(actor.model,'mixamorig:LeftHand',await productionEquipment('dagger'),{position:[6,0,0],rotation:[0,0,-Math.PI/2]});stow(gear,await productionEquipment('dagger'),[.14,.68,-.08],[.1,.1,-.7],.014,'mixamorig:Hips');stow(gear,await productionEquipment('dagger'),[-.14,.68,-.08],[-.1,-.1,.7],.014,'mixamorig:Hips');}
@@ -45,6 +75,7 @@ export async function equipClass(actor,profile){
     console.warn(`Production equipment failed for ${profile.id}; using procedural fallback.`,error);
     if(profile.weapon==='greatsword')attach(actor.model,'mixamorig:RightHand',sword(profile),{position:[-10,0,0],rotation:[0,0,Math.PI/2]});
     if(profile.weapon==='mace_shield'){attach(actor.model,'mixamorig:RightHand',mace(profile),{position:[5,0,0],rotation:[0,0,Math.PI/2]});attach(actor.model,'mixamorig:LeftForeArm',shield(profile),{position:[0,11,0]});}
+    if(profile.weapon==='fallen_longsword')attach(actor.model,'mixamorig:RightHand',sword(profile,95),FALLEN_LONGSWORD_SOCKETS.held);
     if(profile.weapon==='holy_staff')attach(actor.model,'mixamorig:RightHand',staff(profile,false),{position:[10,0,0],rotation:[0,0,Math.PI/2]});
     if(profile.weapon==='arcane_staff')attach(actor.model,'mixamorig:RightHand',staff(profile,true),{position:[10,0,0],rotation:[0,0,Math.PI/2]});
     if(profile.weapon==='twin_daggers'){attach(actor.model,'mixamorig:RightHand',dagger(profile),{position:[-6,0,0],rotation:[0,0,Math.PI/2]});attach(actor.model,'mixamorig:LeftHand',dagger(profile),{position:[6,0,0],rotation:[0,0,-Math.PI/2]});}

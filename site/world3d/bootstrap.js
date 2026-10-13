@@ -1,5 +1,6 @@
-import { WorldEngine } from './world-engine.js?v=260';
+import { WorldEngine } from './world-engine.js?v=261';
 import { buildZone } from './zone-registry.js?v=253';
+import { heroIdForCharacter } from './production-assets.mjs?v=165';
 
 let engine=null;let loading=null;
 const characterModel='prototype/assets/elf-ranger.glb';
@@ -11,7 +12,8 @@ window.loadWorld3D=async function loadWorld3D(){
   const locationId=window.mapState?.currentLocation||'vaelthar_city';
   const race=window.gameState?.character?.race||'human';
   const characterClass=window.gameState?.character?.class||'warrior';
-  loading=(async()=>{const instance=new WorldEngine({canvas,overlay,zoneFactory:()=>buildZone(locationId),character:{modelUrl:characterModel,race,characterClass}});await instance.initialize();engine=instance;window.__world3d=engine;engine.start();if(!engine.health.fatal)delete window.__worldRuntimeFailure;return engine;})();
+  const hero=heroIdForCharacter(window.gameState?.character);
+  loading=(async()=>{const instance=new WorldEngine({canvas,overlay,zoneFactory:()=>buildZone(locationId),character:{modelUrl:characterModel,race,characterClass,hero}});await instance.initialize();engine=instance;window.__world3d=engine;engine.start();if(!engine.health.fatal)delete window.__worldRuntimeFailure;return engine;})();
   try{return await loading;}finally{loading=null;}
 };
 window.unloadWorld3D=function unloadWorld3D(){if(!engine)return;engine.recoveryPanel?.remove();engine.dispose();engine=null;window.__world3d=null;};
