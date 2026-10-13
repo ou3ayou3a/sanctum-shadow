@@ -19,3 +19,17 @@ tools/
 *.md
 site/BUG_AUDIT.md
 site/BUGFIX_REPORT.md
+
+# Local WIP / scratch that must never be committed or deployed (2026-10-14).
+# Codex prototype work and render studies (~930 MB), separate projects, scratch.
+/output/
+/tmp/
+/bluetails-app/
+/bluetails-planning/
+/site/prototype/fallen-paladin/
+/site/prototype/paladin/
+/site/prototype/paladin-preview.css
+/site/prototype/paladin-preview.js
+/site/fallen-paladin-prototype.html
+/site/paladin-prototype.html
+# NOTE: do not ignore all of site/prototype/ — the game loads site/prototype/assets/elf-ranger.glb.
