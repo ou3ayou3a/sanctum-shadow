@@ -4,7 +4,8 @@
 //
 // Loads each GLB in headless Chromium through the game's OWN code: CharacterActor (character-actor.js: clip→state
 // mapping, rotationOffset π, hero race-height scale, untinted hero materials, envMapIntensity) and equipClass
-// (class-equipment.js: 'fallen_longsword' holds FP_Sword in the right hand, stows a clone on the left hip), with
+// (class-equipment.js: 'fallen_longsword' holds FP_Sword in the right hand, sheathes its hilt in the worn scabbard on
+// the left hip), with
 // the game's three r160 served at /vendor/three exactly like index.html's importmap. Every model is posed at the
 // SAME clip times and photographed from the SAME cameras under game-like light (hemisphere + directional sun +
 // ACES filmic tone mapping at the engine's default exposure, plus the sky IBL from sky-environment.mjs).
@@ -17,7 +18,8 @@
 //   --model name=path   a hero candidate GLB, loaded as hero 'fallen_paladin' (repeatable; order = sheet row order).
 //                       name=path@sockets.json renders that model with other FALLEN_LONGSWORD_SOCKETS values
 //                       ({"held":{position,rotation},"stowed":{position,rotation,scale}}, same units as class-equipment.js),
-//                       re-seated exactly like equipClass/bindStowedSockets do at load (socket tuning only).
+//                       re-seated exactly like equipClass/bindStowedSockets do at load (socket tuning only; the worn
+//                       scabbard follows the stowed socket, its hangers keep the shipped belt anchors).
 //   --baseline path     the race model used as the live baseline (default: the worktree's characters/human.glb),
 //                       loaded as a <race> paladin with the live class equipment (mace + shield).
 //   --fpsword-baseline  (default on when a --model is given) also renders the baseline rig holding the first
@@ -105,7 +107,7 @@ const CLOSEUPS=[
   {group:'close-legs',poses:['run25','run75','walk25','walk75'],cameras:[{id:'close-legs-rear',az:180},{id:'close-legs-right',az:-90},{id:'close-legs-left',az:90}],note:'legs, cape and tabard; left view shows the stowed sword on the left hip'},
   {group:'close-shoulders',poses:['heavy-peak','heavy-windup','cast-peak','slash-peak'],cameras:[{id:'close-shoulders-front',az:0},{id:'close-shoulders-right',az:-90},{id:'close-shoulders-rear',az:180},{id:'close-shoulders-34front-left',az:45}],note:'shoulders, pauldrons and elbows'},
   {group:'close-hand',poses:['slash-peak','combat-idle','smite-impact'],cameras:[{id:'close-hand-back',hand:'back'},{id:'close-hand-palm',hand:'palm'},{id:'close-hand-thumb',hand:'thumb'},{id:'close-hand-front',az:0}],note:'right hand and sword grip; back/palm/thumb are taken along the RightHand bone axes'},
-  {group:'close-stow',kind:'legs',poses:['idle','walk25','walk75'],cameras:[{id:'close-stow-left',az:90},{id:'close-stow-front',az:0},{id:'close-stow-34left',az:45},{id:'close-stow-34rear-left',az:135}],note:'stowed FP_Sword on the left hip while exploring (same framing as close-legs)'},
+  {group:'close-stow',kind:'legs',poses:['idle','walk25','walk75'],cameras:[{id:'close-stow-left',az:90},{id:'close-stow-front',az:0},{id:'close-stow-34left',az:45},{id:'close-stow-34rear-left',az:135}],note:'stowed hilt and worn scabbard on the left hip while exploring (same framing as close-legs)'},
   {group:'close-sword',kind:'sword',poses:['combat-idle','idle'],cameras:[{id:'close-sword-right',az:-90},{id:'close-sword-front',az:0},{id:'close-sword-34front-right',az:-45},{id:'close-sword-34front-left',az:45}],note:'whole blade in frame around the right hand (held sword in Combat_Idle; in Idle it is sheathed, so the hand is empty)'},
   {group:'close-cape',kind:'cape',poses:['death-end'],cameras:[{id:'close-cape-rear',az:180},{id:'close-cape-right',az:-90},{id:'close-cape-left',az:90},{id:'close-cape-34rear-left',az:135}],note:'cape at the end of Death (FP_CapeDrape corrective at full influence)'},
 ];
@@ -126,8 +128,8 @@ const PAGE_HTML=`<!doctype html><html><head><meta charset="utf-8"><title>hero po
 const PAGE_MODULE=String.raw`
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {CharacterActor} from '/world3d/character-actor.js?v=180';
-import {equipClass} from '/world3d/class-equipment.js?v=164';
+import {CharacterActor} from '/world3d/character-actor.js?v=181';
+import {equipClass} from '/world3d/class-equipment.js?v=165';
 import {SkyEnvironment} from '/world3d/sky-environment.mjs?v=2';
 import {heroScaleForRace,RACE_MODEL_HEIGHTS} from '/world3d/production-assets.mjs?v=165';
 
@@ -188,8 +190,9 @@ window.heroInit=async function({name,kind,url,race,size,bg,swordFromUrl,sockets}
     const k=actor.model.scale.y||1;
     const held=(actor.heldEquipment||[]).find(o=>o.name==='FP_Sword'),stowed=(actor.stowedEquipment||[]).find(o=>o.name==='FP_Sword_stowed');
     if(sockets.held&&held){held.position.set(...sockets.held.position);held.rotation.set(...sockets.held.rotation);}
-    if(sockets.stowed&&stowed){const bone=stowed.parent;const tmp=new THREE.Object3D();actor.add(tmp);tmp.position.set(...sockets.stowed.position.map(v=>v*k));tmp.rotation.set(...sockets.stowed.rotation);tmp.scale.setScalar(sockets.stowed.scale*k);tmp.updateWorldMatrix(true,false);
-      const target=tmp.matrixWorld.clone();actor.remove(tmp);const local=bone.matrixWorld.clone().invert().multiply(target);local.decompose(stowed.position,stowed.quaternion,stowed.scale);}
+    // The worn scabbard shares the stowed socket, so it is re-seated with it.
+    if(sockets.stowed&&stowed)for(const object of[stowed,...(actor.wornEquipment||[])]){const bone=object.parent;const tmp=new THREE.Object3D();actor.add(tmp);tmp.position.set(...sockets.stowed.position.map(v=>v*k));tmp.rotation.set(...sockets.stowed.rotation);tmp.scale.setScalar(sockets.stowed.scale*k);tmp.updateWorldMatrix(true,false);
+      const target=tmp.matrixWorld.clone();actor.remove(tmp);const local=bone.matrixWorld.clone().invert().multiply(target);local.decompose(object.position,object.quaternion,object.scale);}
     actor.updateWorldMatrix(true,true);
   }
   for(const o of[actor.selectionRing,actor.weaponTrail,actor.classAura])if(o)o.visible=false;
@@ -202,7 +205,7 @@ window.heroInit=async function({name,kind,url,race,size,bg,swordFromUrl,sockets}
   const gl=renderer.getContext();const dbg=gl.getExtension('WEBGL_debug_renderer_info');
   info.glRenderer=dbg?gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
   info.held=(actor.heldEquipment||[]).map(o=>({name:o.name,bone:o.userData?.equipmentBone,position:o.position.toArray(),rotation:o.rotation.toArray().slice(0,3)}));
-  info.stowed=(actor.stowedEquipment||[]).map(o=>({name:o.name,bone:o.userData?.equipmentBone}));
+  info.stowed=(actor.stowedEquipment||[]).map(o=>({name:o.name,bone:o.userData?.equipmentBone}));info.worn=(actor.wornEquipment||[]).map(o=>({name:o.name,bone:o.userData?.equipmentBone}));
   info.modelScale=actor.model.scale.toArray();info.rotationOffset=actor.model.rotation.y;info.skinned=sk;info.clips=clips;
   info.materials=[];actor.model.traverse(o=>{if(o.isMesh&&o.material)for(const m of[].concat(o.material))info.materials.push({mesh:o.name,color:m.color?.toArray().map(v=>+v.toFixed(3)),envMapIntensity:m.envMapIntensity});});
   return{ok:true,info,warnings};

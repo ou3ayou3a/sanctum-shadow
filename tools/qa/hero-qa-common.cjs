@@ -75,14 +75,22 @@ function installInspector(){
         model.updateMatrixWorld(true);
         model.traverse(object=>{if(!object.isSkinnedMesh)return;skinned.push(object.name);for(const material of[].concat(object.material||[]))if(material?.color)materials.push({mesh:object.name,material:material.name,rgb:material.color.toArray().map(value=>+value.toFixed(4))});object.computeBoundingBox();const b=object.boundingBox.clone().applyMatrix4(object.matrixWorld);box=box?box.union(b):b;});
       }
+      // Equipment slots: visible = the object's own flag; shown = it and every ancestor up to the actor are visible.
+      const shown=object=>{for(let node=object;node&&node!==actor;node=node.parent)if(!node.visible)return false;return true;};
+      const triangles=object=>{let count=0;object.traverse(child=>{if(child.isMesh&&child.geometry)count+=(child.geometry.index?child.geometry.index.count:child.geometry.attributes.position.count)/3;});return count;};
+      const meshes=object=>{const list=[];object.traverse(child=>{if(child.isMesh)list.push(child.name||'');});return list;};
+      const slot=object=>({name:object.name,visible:object.visible,shown:shown(object),bone:object.userData?.equipmentBone,parent:object.parent?.name||null,triangles:triangles(object),meshes:meshes(object)});
+      let scabbards=0;actor.traverse?.(object=>{if(object.name==='FP_Scabbard')scabbards++;});
       const bone=name=>model?.getObjectByName(name)||model?.getObjectByName(String(name).replace(':',''));
       const boneWorld=name=>{const b=bone(name);if(!b)return null;const v=b.position.clone();b.getWorldPosition(v);return v.toArray().map(value=>+value.toFixed(4));};
       return{
         modelUrl:actor.modelUrl,hero:actor.hero?.id||null,heroScale:actor.heroScale??null,race:actor.race,characterClass:actor.characterClass,state:actor.state,
         loadError:actor.loadError?String(actor.loadError.message||actor.loadError):null,heroLoadError:actor.heroLoadError?String(actor.heroLoadError.message||actor.heroLoadError):null,
         fallbackCapsule:!!model?.userData?.actorFallback,mixer:!!actor.mixer,actions:Object.keys(actor.actions||{}).sort(),
-        held:(actor.heldEquipment||[]).map(object=>({name:object.name,visible:object.visible,bone:object.userData?.equipmentBone,parent:object.parent?.name||null})),
-        stowed:(actor.stowedEquipment||[]).map(object=>({name:object.name,visible:object.visible,bone:object.userData?.equipmentBone,parent:object.parent?.name||null})),
+        held:(actor.heldEquipment||[]).map(slot),
+        stowed:(actor.stowedEquipment||[]).map(slot),
+        // Always-on gear (the Fallen Paladin's scabbard): setEquipmentDrawn never hides it.
+        worn:(actor.wornEquipment||[]).map(slot),scabbards,swap:actor.equipmentSwap?{...actor.equipmentSwap}:null,
         equipmentDrawn:!!actor.equipmentDrawn,mace,shield,visor,skinned,materials,
         modelScale:model?model.scale.toArray().map(value=>+value.toFixed(4)):null,
         position:actor.position.toArray().map(value=>+value.toFixed(3)),
@@ -93,10 +101,11 @@ function installInspector(){
     },
     sceneActors(engine=window.__world3d){
       const actors=[];engine?.scene?.traverse(object=>{if(object.modelUrl!==undefined&&typeof object.load==='function')actors.push(object);});
-      return actors.map(actor=>({kind:actor===engine.actor?'player':actor.userData?.npcId?'npc':actor.userData?.partyPlayerId?'party':actor.userData?.combatantId?'combat':'other',id:actor.userData?.npcId||actor.userData?.partyPlayerId||actor.userData?.combatantId||null,modelUrl:actor.modelUrl,hero:actor.hero?.id||null,race:actor.race,characterClass:actor.characterClass}));
+      const scabbard=actor=>{let found=false;actor.traverse(object=>{if(object.name==='FP_Scabbard')found=true;});return found;};
+      return actors.map(actor=>({kind:actor===engine.actor?'player':actor.userData?.npcId?'npc':actor.userData?.partyPlayerId?'party':actor.userData?.combatantId?'combat':'other',id:actor.userData?.npcId||actor.userData?.partyPlayerId||actor.userData?.combatantId||null,modelUrl:actor.modelUrl,hero:actor.hero?.id||null,race:actor.race,characterClass:actor.characterClass,worn:(actor.wornEquipment||[]).length,scabbard:scabbard(actor)}));
     },
     npcInfo(engine=window.__world3d){
-      return(engine?.npcManager?.records||[]).map(record=>({id:record.config.id,classId:record.config.classId||null,race:record.config.race||null,loaded:!!record.actor,modelUrl:record.actor?.modelUrl||null,hero:record.actor?.hero?.id||null}));
+      return(engine?.npcManager?.records||[]).map(record=>({id:record.config.id,classId:record.config.classId||null,race:record.config.race||null,loaded:!!record.actor,modelUrl:record.actor?.modelUrl||null,hero:record.actor?.hero?.id||null,worn:(record.actor?.wornEquipment||[]).length,scabbard:!!record.actor?.getObjectByName?.('FP_Scabbard')}));
     },
     // Screen position of a world point for a real mouse click.
     project(x,y,z,engine=window.__world3d){
@@ -180,6 +189,15 @@ async function dismissTravelEncounter(page,{wait=3000}={}){
   return choice;
 }
 
+// The Fallen Paladin's hero-only Weapon_Draw / Weapon_Sheathe swap fractions (FALLEN_LONGSWORD_SOCKETS.swap).
+function heroSwapFractions(file=path.join(ROOT,'site/world3d/class-equipment.js')){
+  const match=fs.readFileSync(file,'utf8').match(/swap:Object\.freeze\(\{weapon_draw:([\d.]+),weapon_sheathe:([\d.]+)\}\)/);
+  return match?{weapon_draw:Number(match[1]),weapon_sheathe:Number(match[2])}:null;
+}
+// The scabbard parts fallenScabbard() builds (class-equipment.js) and its triangle budget.
+const SCABBARD_MESHES=['FP_Scabbard_hangers','FP_Scabbard_leather','FP_Scabbard_steel'];
+const SCABBARD_TRIANGLES=[200,1500];
+
 function writeReport(out,report){fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));}
 
 function checker(){
@@ -188,4 +206,4 @@ function checker(){
   return{checks,check,failed:()=>checks.filter(item=>!item.pass&&!item.soft)};
 }
 
-module.exports={focusCamera,dismissTravelEncounter,heroMaterialFactors,untinted,ROOT,HERO_URL_PART,FORBIDDEN_CONSOLE,parseArgs,ensureServer,launchBrowser,watchPage,forbiddenConsole,installInspector,waitForWorld,createCharacterThroughUi,frameCamera,writeReport,checker,sleep};
+module.exports={heroSwapFractions,SCABBARD_MESHES,SCABBARD_TRIANGLES,focusCamera,dismissTravelEncounter,heroMaterialFactors,untinted,ROOT,HERO_URL_PART,FORBIDDEN_CONSOLE,parseArgs,ensureServer,launchBrowser,watchPage,forbiddenConsole,installInspector,waitForWorld,createCharacterThroughUi,frameCamera,writeReport,checker,sleep};

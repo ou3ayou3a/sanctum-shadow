@@ -11,7 +11,7 @@
 // Uses the server already on --port, or starts `node server.js` from this checkout on that port for the run.
 const path=require('node:path');
 const os=require('node:os');
-const {focusCamera,heroMaterialFactors,untinted,HERO_URL_PART,parseArgs,ensureServer,launchBrowser,watchPage,forbiddenConsole,installInspector,waitForWorld,createCharacterThroughUi,frameCamera,writeReport,checker}=require('./hero-qa-common.cjs');
+const {heroSwapFractions,SCABBARD_MESHES,focusCamera,heroMaterialFactors,untinted,HERO_URL_PART,parseArgs,ensureServer,launchBrowser,watchPage,forbiddenConsole,installInspector,waitForWorld,createCharacterThroughUi,frameCamera,writeReport,checker}=require('./hero-qa-common.cjs');
 
 const options=parseArgs(process.argv.slice(2),{port:'3311',out:path.join(os.tmpdir(),'sanctum-hero-qa','multiplayer'),guestRace:'human',hostRace:'human',width:'1280',height:'800'});
 const port=Number(options.port),out=path.resolve(options.out),guestRace=String(options.guestRace),hostRace=String(options.hostRace);
@@ -85,17 +85,25 @@ async function main(){
     Object.assign(report,{hostSelf,guestSelf,guestOnHost,hostOnGuest});
     check('host own actor stays the human warrior race model',!hostSelf.hero&&hostSelf.modelUrl.includes(`/characters/${hostRace}.glb`)&&hostSelf.characterClass==='warrior',{modelUrl:hostSelf.modelUrl,hero:hostSelf.hero});
     check('guest own actor is the Fallen Paladin hero',guestSelf.hero==='fallen_paladin'&&guestSelf.modelUrl.includes(HERO_URL_PART)&&guestSelf.mixer&&!guestSelf.loadError,{modelUrl:guestSelf.modelUrl,held:guestSelf.held});
+    // Worn scabbard: only the paladin hero wears it (always shown); the warrior host has none and no swap override.
+    const heroSwap=heroSwapFractions();
+    const wearsScabbard=actor=>actor.worn.length===1&&actor.worn[0].name==='FP_Scabbard'&&actor.worn[0].shown&&/Hips/.test(actor.worn[0].parent||'')&&SCABBARD_MESHES.every(name=>actor.worn[0].meshes.includes(name))&&actor.scabbards===1;
+    check('guest own hero wears the scabbard on the hips with the hilt sheathed',wearsScabbard(guestSelf)&&guestSelf.stowed.length===1&&guestSelf.stowed[0].name==='FP_Sword_stowed'&&guestSelf.stowed[0].shown&&guestSelf.held.every(item=>!item.visible),{worn:guestSelf.worn,stowed:guestSelf.stowed,held:guestSelf.held});
+    check('guest own hero has the hero-only swap override',!!heroSwap&&guestSelf.swap?.weapon_draw===heroSwap.weapon_draw&&guestSelf.swap?.weapon_sheathe===heroSwap.weapon_sheathe,{swap:guestSelf.swap,expected:heroSwap});
+    check('host own warrior has no scabbard and no swap override',hostSelf.worn.length===0&&hostSelf.scabbards===0&&hostSelf.swap===null,{worn:hostSelf.worn,scabbards:hostSelf.scabbards,swap:hostSelf.swap});
     check('host sees the guest party record as a paladin',!guestOnHost.missing&&guestOnHost.playerClass==='paladin',{record:guestOnHost.missing?guestOnHost:{class:guestOnHost.playerClass,race:guestOnHost.playerRace}});
     if(!guestOnHost.missing){
       const actor=guestOnHost.actor;
       check('host: guest party actor loaded the hero model',actor.hero==='fallen_paladin'&&actor.modelUrl.includes(HERO_URL_PART)&&actor.mixer&&!actor.loadError&&!actor.heroLoadError,{modelUrl:actor.modelUrl,loadError:actor.loadError,heroLoadError:actor.heroLoadError});
       check('host: guest hero carries the GLB FP_Sword and no mace/shield',actor.held.length===1&&actor.held[0].name==='FP_Sword'&&actor.stowed.length===1&&!actor.mace&&!actor.shield,{held:actor.held,stowed:actor.stowed});
+      check('host: guest hero wears the scabbard on the hips with the hilt sheathed',wearsScabbard(actor)&&actor.stowed[0]?.name==='FP_Sword_stowed'&&actor.stowed[0].shown&&actor.held.every(item=>!item.visible),{worn:actor.worn,stowed:actor.stowed,held:actor.held});
       check('host: guest hero has no race tint',untinted(actor.materials,factors),{materials:actor.materials,factors});
       check('host: guest hero scaled to its race height (x party .98)',actor.modelScale&&actor.modelScale.every(value=>Math.abs(value-guestScale*.98)<1e-3),{modelScale:actor.modelScale,expected:+(guestScale*.98).toFixed(4),guestRace});
     }
     if(!hostOnGuest.missing){
       const actor=hostOnGuest.actor;
       check('guest: host party actor is the human race model (no hero)',!actor.hero&&actor.modelUrl.includes(`/characters/${hostRace}.glb`)&&actor.mixer,{modelUrl:actor.modelUrl,hero:actor.hero});
+      check('guest: host warrior party actor has no scabbard',actor.worn.length===0&&actor.scabbards===0&&actor.swap===null,{worn:actor.worn,scabbards:actor.scabbards,swap:actor.swap});
     }else check('guest: host party actor present',false,hostOnGuest);
     // Frame both characters: the camera pans to the midpoint between the local actor and the remote party actor.
     const framePair=async(client,characterClass,distance=7)=>{const point=await client.page.evaluate(characterClass=>{const engine=window.__world3d,record=[...engine.partyManager.records.values()].find(item=>item.player?.character?.class===characterClass);const a=engine.actor.position,b=record?.actor.position||a;return{x:(a.x+b.x)/2,z:(a.z+b.z)/2,apart:+Math.hypot(a.x-b.x,a.z-b.z).toFixed(2)};},characterClass);await focusCamera(client.page,point,distance);return point;};
@@ -133,11 +141,17 @@ async function main(){
         report.combatOnHost=combatData;
         const ally=combatData.find(item=>item.ally),enemies=combatData.filter(item=>!item.isPlayer);
         check('host combat: guest ally actor uses the hero',ally&&ally.actor.hero==='fallen_paladin'&&ally.actor.modelUrl.includes(HERO_URL_PART),{ally:ally&&{modelUrl:ally.actor.modelUrl,hero:ally.actor.hero}},{soft:true});
+        check('host combat: enemies have no scabbard',enemies.length>0&&enemies.every(item=>item.actor.worn.length===0&&item.actor.scabbards===0),{enemies:enemies.map(item=>({id:item.id,worn:item.actor.worn.length,scabbards:item.actor.scabbards}))},{soft:true});
         check('host combat: enemies never use the hero',enemies.length>0&&enemies.every(item=>!item.actor.hero&&!item.actor.modelUrl.includes(HERO_URL_PART)),{enemies:enemies.map(item=>({id:item.id,modelUrl:item.actor.modelUrl}))},{soft:true});
         await host.page.waitForTimeout(2500);
+        // The ally was just built and is still in Weapon_Draw above; read it again once the stance has settled.
+        const allySettled=await host.page.evaluate(id=>{const record=window.__world3d.combatController.records.get(id);return record?window.__heroQA.actorInfo(record.actor):null;},allyId);
+        report.combatAllySettled=allySettled;
+        check('host combat: guest ally keeps the scabbard shown with the sword drawn',!!allySettled&&wearsScabbard(allySettled)&&allySettled.held.every(item=>item.visible)&&allySettled.stowed.every(item=>!item.visible),{ally:allySettled&&{state:allySettled.state,worn:allySettled.worn,held:allySettled.held,stowed:allySettled.stowed}},{soft:true});
         await shot(host,'05-combat-ally-hero');
         const guestCombat=await guest.page.evaluate(()=>({active:!!window.__world3d.combatController?.active,self:window.__heroQA.actorInfo(window.__world3d.actor)}));
         check('guest combat: own actor keeps the hero with the sword drawn',guestCombat.active&&guestCombat.self.hero==='fallen_paladin'&&guestCombat.self.held.every(item=>item.visible),{active:guestCombat.active,held:guestCombat.self.held,state:guestCombat.self.state},{soft:true});
+        check('guest combat: the empty scabbard stays shown while the sword is drawn',guestCombat.active&&wearsScabbard(guestCombat.self)&&guestCombat.self.held.every(item=>item.visible)&&guestCombat.self.stowed.every(item=>!item.visible),{worn:guestCombat.self.worn,held:guestCombat.self.held,stowed:guestCombat.self.stowed},{soft:true});
         await shot(guest,'05-combat-own-hero');
       }else check('combat started on the host with the guest ally loaded',false,{},{soft:true});
     }

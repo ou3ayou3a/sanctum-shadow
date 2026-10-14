@@ -1,4 +1,4 @@
-import { WorldEngine } from './world-engine.js?v=261';
+import { WorldEngine } from './world-engine.js?v=262';
 import { buildZone } from './zone-registry.js?v=253';
 import { heroIdForCharacter } from './production-assets.mjs?v=165';
 

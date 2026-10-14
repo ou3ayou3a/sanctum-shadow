@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=180';
+import {CharacterActor} from './character-actor.js?v=181';
 import {ambientDelay,ambientGesture} from './animation-policy.mjs?v=163';
 import {npcActorBudget,npcStreamRadius,selectNpcActorIds} from './actor-streaming-policy.mjs?v=182';
 

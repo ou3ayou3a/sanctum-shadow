@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {CharacterActor} from './character-actor.js?v=180';
+import {CharacterActor} from './character-actor.js?v=181';
 import {heroIdForCharacter} from './production-assets.mjs?v=165';
 
 const MOVE_RANGE=4.5;

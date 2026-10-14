@@ -131,13 +131,15 @@ test('class equipment has a fallen_longsword branch that uses the GLB FP_Sword n
 
 test('every importer of a changed module loads the same versioned copy',()=>{
   const versions=(pattern)=>new Set(runtimeSources().flatMap(file=>[...fs.readFileSync(file,'utf8').matchAll(pattern)].map(match=>match[1])));
-  assert.deepEqual([...versions(/character-actor\.js\?v=(\d+)/g)],['180']);
-  assert.deepEqual([...versions(/class-equipment\.js\?v=(\d+)/g)],['164']);
-  assert.deepEqual([...versions(/party-manager\.js\?v=(\d+)/g)],['180']);
-  assert.deepEqual([...versions(/combat-controller\.js\?v=(\d+)/g)],['227']);
-  assert.deepEqual([...versions(/npc-manager\.js\?v=(\d+)/g)],['233']);
-  assert.deepEqual([...versions(/world-engine\.js\?v=(\d+)/g)],['261']);
-  assert.deepEqual([...versions(/bootstrap\.js\?v=(\d+)/g)],['261']);
+  assert.deepEqual([...versions(/character-actor\.js\?v=(\d+)/g)],['181']);
+  assert.deepEqual([...versions(/class-equipment\.js\?v=(\d+)/g)],['165']);
+  assert.deepEqual([...versions(/party-manager\.js\?v=(\d+)/g)],['181']);
+  assert.deepEqual([...versions(/combat-controller\.js\?v=(\d+)/g)],['228']);
+  assert.deepEqual([...versions(/npc-manager\.js\?v=(\d+)/g)],['234']);
+  assert.deepEqual([...versions(/world-engine\.js\?v=(\d+)/g)],['262']);
+  assert.deepEqual([...versions(/bootstrap\.js\?v=(\d+)/g)],['262']);
+  assert.deepEqual([...versions(/class-roster-preview\.js\?v=(\d+)/g)],['166']);
+  assert.deepEqual([...versions(/race-roster-preview\.js\?v=(\d+)/g)],['169']);
   for(const file of['character-actor.js','bootstrap.js','party-manager.js','combat-controller.js'])assert.match(read(file),/production-assets\.mjs\?v=165'/,file);
 });
 
@@ -221,12 +223,69 @@ test('the hero cape drape morph is in the GLB and is driven only by the Death cl
   assert.match(verify,/DRAPE_TARGET = 'FP_CapeDrape'/);assert.match(verify,/DRAPE_RAMP = \[0\.15, 0\.65\]/,'verify-hero measures Death with the same ramp');
 });
 
-test('the held and stowed sword sockets match the sword-sockets.py design',()=>{
+test('the held and stowed sword sockets, scabbard and swap timing match the sword-sockets.py design',()=>{
   const equipment=read('class-equipment.js');
   const sockets=fs.readFileSync(path.join(__dirname,'../tools/hero/sword-sockets.py'),'utf8');
   assert.match(sockets,/HELD_CHANNEL_CENTRE = \(-4\.5, 9\.75, 0\.0\)/);
   assert.match(sockets,/HELD_S_GUARD = 14\.5/);
-  assert.match(sockets,/STOW_GUARD = \(-0\.52, 0\.27, 1\.11\)/);
+  assert.match(sockets,/STOW_GUARD = \(-0\.33, 0\.20, 1\.12\)/,'tight left-hip carry: crossguard on the locket just in front of the hip plate');
+  assert.match(sockets,/STOW_THETA, STOW_PHI, STOW_ROLL = 50\.0, 9\.0, 90\.0/,'blade 50 deg back, 9 deg out, flat to the thigh');
   assert.match(equipment,/held:Object\.freeze\(\{position:\[2\.971,12\.156,12\.238\],rotation:\[3\.1416,1\.0123,-1\.8093\]\}\)/,'held socket = sword-sockets.py held_socket()');
-  assert.match(equipment,/stowed:Object\.freeze\(\{position:\[0\.52,1\.11,0\.27\],rotation:\[0\.5112,1\.0409,-2\.9713\],scale:\.01,bone:'mixamorig:Hips'\}\)/,'stowed socket = sword-sockets.py stow_socket()');
+  assert.match(equipment,/stowed:Object\.freeze\(\{position:\[0\.33,1\.12,0\.2\],rotation:\[-0\.7042,1\.4507,-1\.5708\],scale:\.01,bone:'mixamorig:Hips'\}\)/,'stowed socket = sword-sockets.py stow_socket()');
+  // Scabbard stations: the literal arrays in both files are the same numbers.
+  const py=name=>JSON.parse(sockets.match(new RegExp(`^${name} = (\\[[\\s\\S]*?\\]\\]\\]?)$`,'m'))[1].replace(/\s+/g,''));
+  const js=name=>JSON.parse(equipment.match(new RegExp(`^  ${name}:(\\[.*\\]),$`,'m'))[1]);
+  assert.deepEqual(js('leather'),py('SCABBARD_LEATHER'),'leather stations');
+  assert.deepEqual(js('steel'),py('SCABBARD_STEEL'),'steel stations');
+  assert.match(equipment,/axis:\[1\.05,0\.1\],\n  hilt:4\.6,/);assert.match(sockets,/SCABBARD_AXIS = \(1\.05, 0\.1\)/);assert.match(sockets,/SCABBARD_HILT = 4\.6/);
+  assert.match(equipment,/SCABBARD_SECTION=1\.1;/);assert.match(sockets,/SCABBARD_SECTION = 1\.1 /);
+  // Hero-only equipment swap: the right hand never reaches the left hip in the shared Weapon_Draw / Weapon_Sheathe clips,
+  // so the swap happens where it is nearest (clip start / end) instead of mid-flourish.
+  assert.match(equipment,/swap:Object\.freeze\(\{weapon_draw:\.08,weapon_sheathe:\.92\}\)/);
+  assert.match(sockets,/SWAP = \{'Weapon_Draw': 0\.08, 'Weapon_Sheathe': 0\.92\}/);
+  assert.match(equipment,/actor\.equipmentSwap=null;/,'every equipClass resets the override (a failed hero falls back to the race model)');
+  assert.match(equipment,/actor\.equipmentSwap=FALLEN_LONGSWORD_SOCKETS\.swap;/);
+  assert.equal((equipment.match(/actor\.equipmentSwap=/g)||[]).length,2,'only the fallen_longsword branch sets an override');
+  assert.match(read('character-actor.js'),/duration\*\(this\.equipmentSwap\?\.\[transition\]\?\?equipmentSwapFraction\(transition\)\)\*1000/);
+});
+
+test('the hero scabbard is a worn slot on the hips: it stays on while only the sword toggles',async()=>{
+  const THREE=await import('three');
+  const {equipClass,FALLEN_SCABBARD,FALLEN_LONGSWORD_SOCKETS}=await import('../site/world3d/class-equipment.js');
+  const {CharacterActor}=await import('../site/world3d/character-actor.js');
+  // Minimal hero rig: Hips + RightHand bones and an FP_Sword node whose mesh spans the real sword (pommel -33 cm, tip 95 cm).
+  const actor=new THREE.Group(),model=new THREE.Group();actor.model=model;model.scale.setScalar(.894);model.rotation.y=Math.PI;actor.add(model);
+  const hips=new THREE.Bone();hips.name='mixamorigHips';hips.position.set(0,106,1);hips.scale.setScalar(.01);model.add(hips);
+  const hand=new THREE.Bone();hand.name='mixamorigRightHand';hand.position.set(-40,-20,5);hips.add(hand);
+  const sword=new THREE.Group();sword.name='FP_Sword';const blade=new THREE.Mesh(new THREE.BoxGeometry(4,128,3,1,64,1).translate(1,31,0),new THREE.MeshStandardMaterial());sword.add(blade);model.add(sword);
+  actor.setEquipmentDrawn=CharacterActor.prototype.setEquipmentDrawn;
+  await equipClass(actor,{id:'paladin',weapon:'fallen_longsword',metal:0x777777,accent:0xbbbbbb});
+  assert.equal(actor.wornEquipment.length,1,'one worn object');
+  const scabbard=actor.wornEquipment[0];
+  assert.equal(scabbard.name,'FP_Scabbard');assert.equal(scabbard.parent,hips,'scabbard rides on the Hips bone');assert.equal(scabbard.userData.equipmentSlot,'worn');
+  assert.deepEqual(actor.stowedEquipment.map(object=>object.name),['FP_Sword_stowed'],'only the sword hilt is in the stowed (toggled) list');
+  const stowed=actor.stowedEquipment[0];assert.equal(stowed.parent,hips);
+  assert.deepEqual(actor.heldEquipment.map(object=>object.name),['FP_Sword']);
+  actor.updateMatrixWorld(true);
+  const a=new THREE.Vector3(),b=new THREE.Vector3();scabbard.getWorldPosition(a);stowed.getWorldPosition(b);
+  assert.ok(a.distanceTo(b)<1e-6,'scabbard and hilt share the stowed socket');
+  assert.ok(Math.abs(scabbard.getWorldScale(new THREE.Vector3()).x-FALLEN_LONGSWORD_SOCKETS.stowed.scale*.894)<1e-6,'scabbard scales with the hero');
+  for(const drawn of[false,true,false]){
+    actor.setEquipmentDrawn(drawn);
+    assert.equal(actor.heldEquipment[0].visible,drawn);assert.equal(stowed.visible,!drawn);assert.equal(scabbard.visible,true,`scabbard visible with drawn=${drawn}`);
+  }
+  // FP_Sword_stowed keeps only the hilt: no kept triangle reaches the blade.
+  let kept=0,top=-Infinity;stowed.traverse(object=>{if(!object.isMesh)return;const index=object.geometry.index.array,p=object.geometry.attributes.position,v=new THREE.Vector3();kept+=index.length/3;for(const i of index){v.fromBufferAttribute(p,i).applyMatrix4(object.matrix);top=Math.max(top,v.y);}});
+  assert.ok(kept>0&&top<FALLEN_SCABBARD.hilt,`stowed hilt tops out at ${top} cm`);
+  // A real scabbard, not a placeholder: leather body, steel fittings, two hangers; within the triangle budget.
+  let triangles=0;const materials={};scabbard.traverse(object=>{if(!object.isMesh)return;triangles+=object.geometry.index.count/3;materials[object.name]=object.material;});
+  assert.deepEqual(Object.keys(materials).sort(),['FP_Scabbard_hangers','FP_Scabbard_leather','FP_Scabbard_steel']);
+  assert.ok(triangles>=200&&triangles<=1500,`${triangles} scabbard triangles`);
+  assert.ok(materials.FP_Scabbard_leather.roughness>=.7&&materials.FP_Scabbard_leather.metalness<.1,'leather is rough and non-metallic');
+  assert.ok(materials.FP_Scabbard_steel.metalness>=.75&&materials.FP_Scabbard_steel.roughness<=.5,'fittings are metal');
+  assert.equal(FALLEN_SCABBARD.hangers.length,2,'two hangers to the sword belt');
+  const source=read('class-equipment.js'),actorSource=read('character-actor.js');
+  assert.match(actorSource,/setEquipmentDrawn\(drawn\)\{this\.equipmentDrawn=!!drawn;for\(const object of this\.heldEquipment\|\|\[\]\)object\.visible=this\.equipmentDrawn;for\(const object of this\.stowedEquipment\|\|\[\]\)object\.visible=!this\.equipmentDrawn;\}/,'setEquipmentDrawn never touches the worn slot');
+  assert.match(source,/return objects\.filter\(object=>object\.userData\.equipmentSlot==='stowed'\)/,'bindStowedSockets binds worn objects but returns only the stowed ones');
+  assert.equal((source.match(/,'worn'\)/g)||[]).length,1,'only the Fallen Paladin branch creates a worn object');
 });
